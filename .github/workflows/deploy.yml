@@ -1,0 +1,67 @@
+name: Deploy to Production
+
+on:
+  push:
+    branches:
+      - main
+
+jobs:
+  deploy:
+    name: Deploy to EC2
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Deploy via SSH
+        uses: appleboy/ssh-action@v1
+        with:
+          host: ${{ secrets.EC2_HOST }}
+          username: ${{ secrets.EC2_USER }}
+          key: ${{ secrets.EC2_SSH_KEY }}
+          script: |
+            set -e
+
+            DEPLOY_DIR="/home/ubuntu/automation-hub"
+
+            # Clone repo if it doesn't exist, otherwise pull latest
+            if [ ! -d "$DEPLOY_DIR/.git" ]; then
+              echo "First deploy: cloning repository..."
+              git clone https://github.com/${{ github.repository }}.git "$DEPLOY_DIR"
+            else
+              echo "Updating existing deployment..."
+              cd "$DEPLOY_DIR"
+              git fetch origin
+              git reset --hard origin/main
+            fi
+
+            cd "$DEPLOY_DIR"
+
+            # Copy .env.production if it exists in a safe location
+            if [ -f "/home/ubuntu/.secrets/automation-hub/.env.production" ]; then
+              cp /home/ubuntu/.secrets/automation-hub/.env.production "$DEPLOY_DIR/.env.production"
+              echo ".env.production copied from secrets location."
+            fi
+
+            # Build and start containers
+            docker compose -f docker-compose.prod.yml up --build -d
+
+            # Copy Traefik dynamic config files
+            TRAEFIK_DYNAMIC_DIR="/home/ubuntu/.openclaw/workspace/traefik-n8n/traefik/dynamic"
+            cp "$DEPLOY_DIR/deploy/traefik/automation-hub-backend.yml" "$TRAEFIK_DYNAMIC_DIR/"
+            cp "$DEPLOY_DIR/deploy/traefik/automation-hub-frontend.yml" "$TRAEFIK_DYNAMIC_DIR/"
+            echo "Traefik config files copied."
+
+            # Restart Traefik to pick up new config
+            cd /home/ubuntu/.openclaw/workspace/traefik-n8n
+            docker compose restart traefik
+            echo "Traefik restarted."
+
+            # Wait for backend to be ready
+            echo "Waiting for backend to start..."
+            sleep 10
+
+            # Health check
+            curl -f http://localhost:8000/health || exit 1
+            echo "Health check passed. Deployment successful."

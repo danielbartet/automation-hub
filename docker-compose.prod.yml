@@ -1,7 +1,36 @@
 version: "3.9"
+
+networks:
+  traefik-n8n_traefik_net:
+    external: true
+
 services:
   backend:
-    restart: always
+    build:
+      context: ./backend
+      dockerfile: Dockerfile.prod
+    container_name: automation-hub-backend
+    restart: unless-stopped
+    expose:
+      - "8000"
+    env_file:
+      - .env.production
+    volumes:
+      - ./backend/data:/app/data
+    networks:
+      - traefik-n8n_traefik_net
 
   frontend:
-    restart: always
+    build:
+      context: ./frontend
+      dockerfile: Dockerfile.prod
+    container_name: automation-hub-frontend
+    restart: unless-stopped
+    expose:
+      - "3000"
+    env_file:
+      - .env.production
+    networks:
+      - traefik-n8n_traefik_net
+    depends_on:
+      - backend

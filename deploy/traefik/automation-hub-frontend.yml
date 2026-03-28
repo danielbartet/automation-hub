@@ -1,0 +1,18 @@
+http:
+  routers:
+    automation-hub-frontend-http:
+      rule: "Host(`hub.quantorialabs.com`)"
+      entryPoints: ["web"]
+      middlewares: ["sslRedirect"]
+      service: automation-hub-frontend
+    automation-hub-frontend-https:
+      rule: "Host(`hub.quantorialabs.com`)"
+      entryPoints: ["websecure"]
+      tls:
+        certResolver: letsencrypt
+      service: automation-hub-frontend
+  services:
+    automation-hub-frontend:
+      loadBalancer:
+        servers:
+          - url: "http://automation-hub-frontend:3000"

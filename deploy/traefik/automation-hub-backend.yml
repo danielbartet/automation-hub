@@ -1,0 +1,22 @@
+http:
+  routers:
+    automation-hub-backend-http:
+      rule: "Host(`api.quantorialabs.com`)"
+      entryPoints: ["web"]
+      middlewares: ["sslRedirect"]
+      service: automation-hub-backend
+    automation-hub-backend-https:
+      rule: "Host(`api.quantorialabs.com`)"
+      entryPoints: ["websecure"]
+      tls:
+        certResolver: letsencrypt
+      service: automation-hub-backend
+  services:
+    automation-hub-backend:
+      loadBalancer:
+        servers:
+          - url: "http://automation-hub-backend:8000"
+  middlewares:
+    sslRedirect:
+      headers:
+        sslRedirect: true
