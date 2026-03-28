@@ -22,12 +22,18 @@ services:
     build:
       context: ./frontend
       dockerfile: Dockerfile.prod
+      args:
+        NEXT_PUBLIC_API_URL: https://api.quantorialabs.com
+        NEXTAUTH_URL: https://hub.quantorialabs.com
+        NEXTAUTH_SECRET: ${NEXTAUTH_SECRET}
     container_name: automation-hub-frontend
     restart: unless-stopped
     expose:
       - "3000"
     env_file:
       - .env.production
+    environment:
+      - INTERNAL_API_URL=http://automation-hub-backend:8000
     networks:
       - traefik-n8n_traefik_net
     depends_on:
