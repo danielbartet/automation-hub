@@ -34,8 +34,6 @@ services:
       - .env.production
     environment:
       - INTERNAL_API_URL=http://automation-hub-backend:8000
-      - NEXTAUTH_URL=https://hub.quantorialabs.com
-      - NEXTAUTH_SECRET=${NEXTAUTH_SECRET}
     networks:
       - traefik-n8n_traefik_net
     depends_on:
