@@ -61,7 +61,7 @@ jobs:
             # Wait for backend to be ready (retry up to 30s)
             echo "Waiting for backend to start..."
             for i in $(seq 1 10); do
-              if docker exec automation-hub-backend curl -sf http://localhost:8000/health; then
+              if docker exec automation-hub-backend python3 -c "import urllib.request; urllib.request.urlopen('http://localhost:8000/health')"; then
                 echo "Health check passed. Deployment successful."
                 exit 0
               fi
