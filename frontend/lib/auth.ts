@@ -4,6 +4,7 @@ import Credentials from "next-auth/providers/credentials";
 const API_BASE = process.env.INTERNAL_API_URL || process.env.NEXT_PUBLIC_API_URL || "http://localhost:8000";
 
 export const { handlers, signIn, signOut, auth } = NextAuth({
+  trustHost: true,
   providers: [
     Credentials({
       credentials: {
