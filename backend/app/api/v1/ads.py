@@ -1,0 +1,677 @@
+"""Ads management endpoints."""
+from fastapi import APIRouter, Depends, HTTPException
+from sqlalchemy.ext.asyncio import AsyncSession
+from sqlalchemy import select
+from app.api.deps import get_session, get_current_user
+from app.models.ad_campaign import AdCampaign
+from app.models.notification import Notification
+from app.models.project import Project
+from app.core.config import settings
+from app.services.ads.meta_campaign import MetaCampaignService
+from pydantic import BaseModel
+from datetime import datetime, timedelta, timezone
+import httpx
+import json
+
+router = APIRouter()
+
+META_BASE = "https://graph.facebook.com/v19.0"
+
+meta_service = MetaCampaignService()
+
+
+class AdCampaignResponse(BaseModel):
+    id: int
+    project_id: int
+    name: str
+    objective: str | None
+    status: str
+    daily_budget: float | None
+    created_at: datetime
+
+    model_config = {"from_attributes": True}
+
+
+class CreateCampaignRequest(BaseModel):
+    name: str
+    objective: str  # OUTCOME_LEADS | OUTCOME_SALES | OUTCOME_TRAFFIC
+    daily_budget: float  # dollars
+    countries: list[str] = ["AR", "MX", "CO", "CL"]
+    image_url: str
+    ad_copy: str
+    destination_url: str
+
+
+class UpdateStatusRequest(BaseModel):
+    status: str  # active | paused
+
+
+async def fetch_live_campaign_statuses(project: Project) -> dict[str, str]:
+    """Fetch live campaign statuses from Meta API keyed by meta_campaign_id."""
+    token = project.meta_access_token or getattr(settings, "META_ACCESS_TOKEN", "")
+    ad_account_id = (project.ad_account_id or "").removeprefix("act_")
+    if not token or not ad_account_id:
+        return {}
+    try:
+        async with httpx.AsyncClient() as client:
+            resp = await client.get(
+                f"{META_BASE}/act_{ad_account_id}/campaigns",
+                params={
+                    "fields": "id,status",
+                    "access_token": token,
+                },
+                timeout=10.0,
+            )
+            data = resp.json()
+            if "error" in data:
+                return {}
+            return {c["id"]: c["status"] for c in data.get("data", [])}
+    except Exception:
+        return {}
+
+
+@router.get("/{project_id}")
+async def list_campaigns(project_id: int, db: AsyncSession = Depends(get_session)) -> list[dict]:
+    """List ad campaigns for a project, enriched with live Meta status."""
+    result = await db.execute(
+        select(AdCampaign)
+        .where(AdCampaign.project_id == project_id)
+        .order_by(AdCampaign.created_at.desc())
+    )
+    campaigns = result.scalars().all()
+
+    # Load project to get token/account
+    proj_result = await db.execute(select(Project).where(Project.id == project_id))
+    project = proj_result.scalar_one_or_none()
+
+    live_statuses: dict[str, str] = {}
+    if project:
+        live_statuses = await fetch_live_campaign_statuses(project)
+
+    output = []
+    for c in campaigns:
+        live_status = live_statuses.get(c.meta_campaign_id or "", c.status)
+        output.append({
+            "id": c.id,
+            "project_id": c.project_id,
+            "meta_campaign_id": c.meta_campaign_id,
+            "name": c.name,
+            "objective": c.objective,
+            "status": c.status,
+            "live_status": live_status,
+            "daily_budget": c.daily_budget,
+            "lifetime_budget": c.lifetime_budget,
+            "notes": c.notes,
+            "created_at": str(c.created_at),
+        })
+
+    return output
+
+
+@router.post("/create/{project_slug}")
+async def create_campaign(
+    project_slug: str,
+    body: CreateCampaignRequest,
+    db: AsyncSession = Depends(get_session),
+) -> dict:
+    """Create a full Meta Ads campaign (Campaign + Ad Set + Creative + Ad)."""
+    proj_result = await db.execute(select(Project).where(Project.slug == project_slug))
+    project = proj_result.scalar_one_or_none()
+    if not project:
+        raise HTTPException(404, f"Project '{project_slug}' not found")
+
+    token = project.meta_access_token or getattr(settings, "META_ACCESS_TOKEN", "")
+    ad_account_id = (project.ad_account_id or "").removeprefix("act_")
+    facebook_page_id = project.facebook_page_id or ""
+
+    if not token or not ad_account_id:
+        raise HTTPException(400, "Project missing meta_access_token or ad_account_id")
+    if not facebook_page_id:
+        raise HTTPException(400, "Project missing facebook_page_id")
+
+    try:
+        meta_ids = await meta_service.create_full_campaign(
+            token=token,
+            ad_account_id=ad_account_id,
+            facebook_page_id=facebook_page_id,
+            name=body.name,
+            objective=body.objective,
+            daily_budget_dollars=body.daily_budget,
+            countries=body.countries,
+            image_url=body.image_url,
+            ad_copy=body.ad_copy,
+            destination_url=body.destination_url,
+        )
+    except ValueError as e:
+        raise HTTPException(400, str(e))
+    except Exception as e:
+        raise HTTPException(500, f"Meta API error: {str(e)}")
+
+    campaign = AdCampaign(
+        project_id=project.id,
+        meta_campaign_id=meta_ids["campaign_id"],
+        meta_adset_id=meta_ids["adset_id"],
+        meta_creative_id=meta_ids["creative_id"],
+        meta_ad_id=meta_ids["ad_id"],
+        ad_account_id=ad_account_id,
+        facebook_page_id=facebook_page_id,
+        name=body.name,
+        objective=body.objective,
+        status="paused",
+        daily_budget=body.daily_budget,
+        image_url=body.image_url,
+        ad_copy=body.ad_copy,
+        destination_url=body.destination_url,
+        countries=json.dumps(body.countries),
+    )
+    db.add(campaign)
+    await db.commit()
+    await db.refresh(campaign)
+
+    return {
+        "id": campaign.id,
+        "meta_campaign_id": meta_ids["campaign_id"],
+        "meta_adset_id": meta_ids["adset_id"],
+        "status": "paused",
+        "message": "Campaign created successfully. Activate when ready.",
+    }
+
+
+@router.put("/{campaign_id}/status")
+async def update_campaign_status(
+    campaign_id: int,
+    body: UpdateStatusRequest,
+    db: AsyncSession = Depends(get_session),
+) -> dict:
+    """Activate or pause a campaign."""
+    result = await db.execute(select(AdCampaign).where(AdCampaign.id == campaign_id))
+    campaign = result.scalar_one_or_none()
+    if not campaign:
+        raise HTTPException(404, "Campaign not found")
+
+    proj_result = await db.execute(select(Project).where(Project.id == campaign.project_id))
+    project = proj_result.scalar_one_or_none()
+    token = project.meta_access_token or getattr(settings, "META_ACCESS_TOKEN", "") if project else ""
+
+    meta_status = "ACTIVE" if body.status == "active" else "PAUSED"
+
+    if token and campaign.meta_campaign_id:
+        await meta_service.set_campaign_status(token, campaign.meta_campaign_id, meta_status)
+
+    campaign.status = body.status
+    await db.commit()
+    return {"id": campaign.id, "status": campaign.status}
+
+
+@router.post("/{campaign_id}/optimize")
+async def manual_optimize(
+    campaign_id: int,
+    db: AsyncSession = Depends(get_session),
+) -> dict:
+    """Manually trigger optimization for a specific campaign."""
+    from app.services.ads.optimizer import analyze_campaign
+
+    result = await db.execute(select(AdCampaign).where(AdCampaign.id == campaign_id))
+    campaign = result.scalar_one_or_none()
+    if not campaign:
+        raise HTTPException(404, "Campaign not found")
+
+    proj_result = await db.execute(select(Project).where(Project.id == campaign.project_id))
+    project = proj_result.scalar_one_or_none()
+    if not project:
+        raise HTTPException(404, "Project not found")
+
+    return await analyze_campaign(campaign, project, db)
+
+
+@router.get("/detail/{campaign_id}")
+async def get_campaign_detail(
+    campaign_id: str,
+    project_slug: str | None = None,
+    db: AsyncSession = Depends(get_session),
+) -> dict:
+    """Return full campaign detail. campaign_id can be a DB integer id or a Meta campaign ID string."""
+    # Try DB lookup by integer id first, then by meta_campaign_id
+    campaign: AdCampaign | None = None
+    try:
+        db_id = int(campaign_id)
+        result = await db.execute(select(AdCampaign).where(AdCampaign.id == db_id))
+        campaign = result.scalar_one_or_none()
+    except ValueError:
+        pass
+
+    if campaign is None:
+        result = await db.execute(select(AdCampaign).where(AdCampaign.meta_campaign_id == campaign_id))
+        campaign = result.scalar_one_or_none()
+
+    # Get project for token — from campaign, from slug param, or first project
+    project: Project | None = None
+    if campaign:
+        proj_result = await db.execute(select(Project).where(Project.id == campaign.project_id))
+        project = proj_result.scalar_one_or_none()
+    elif project_slug:
+        proj_result = await db.execute(select(Project).where(Project.slug == project_slug))
+        project = proj_result.scalar_one_or_none()
+    else:
+        proj_result = await db.execute(select(Project).limit(1))
+        project = proj_result.scalar_one_or_none()
+
+    token = (project.meta_access_token if project else None) or getattr(settings, "META_ACCESS_TOKEN", "")
+    ad_account_id = ((project.ad_account_id or "") if project else "").removeprefix("act_")
+
+    meta_campaign_id = (campaign.meta_campaign_id if campaign else None) or campaign_id
+
+    if not token:
+        raise HTTPException(400, "No Meta access token configured")
+
+    # Defaults
+    campaign_info: dict = {}
+    insights_summary_raw: dict = {}
+    daily_insights_raw: list = []
+    adsets_raw: list = []
+    ads_raw: list = []
+
+    # Build a custom date range: 30 days ago → today (inclusive)
+    today = datetime.now(timezone.utc).date()
+    since = today - timedelta(days=29)
+    time_range = {"since": str(since), "until": str(today)}
+
+    if token and meta_campaign_id:
+        try:
+            async with httpx.AsyncClient(timeout=15.0) as client:
+                # a. Campaign info
+                ci_resp = await client.get(
+                    f"{META_BASE}/{meta_campaign_id}",
+                    params={
+                        "fields": "name,objective,status,created_time,daily_budget",
+                        "access_token": token,
+                    },
+                )
+                campaign_info = ci_resp.json()
+
+                # b. Insights last 30d (summary)
+                ins_resp = await client.get(
+                    f"{META_BASE}/{meta_campaign_id}/insights",
+                    params={
+                        "fields": "spend,impressions,reach,clicks,ctr,cpc,cpm,frequency,actions,cost_per_action_type",
+                        "time_range": json.dumps(time_range),
+                        "access_token": token,
+                    },
+                )
+                ins_data = ins_resp.json()
+                ins_rows = ins_data.get("data", [])
+                insights_summary_raw = ins_rows[0] if ins_rows else {}
+
+                # c. Daily insights breakdown
+                daily_resp = await client.get(
+                    f"{META_BASE}/{meta_campaign_id}/insights",
+                    params={
+                        "fields": "spend,impressions,reach,clicks,ctr,cpc,cpm,frequency,actions,cost_per_action_type",
+                        "time_range": json.dumps(time_range),
+                        "time_increment": "1",
+                        "access_token": token,
+                    },
+                )
+                daily_data = daily_resp.json()
+                daily_insights_raw = daily_data.get("data", [])
+
+                # d. Ad sets
+                if ad_account_id:
+                    adsets_resp = await client.get(
+                        f"{META_BASE}/act_{ad_account_id}/adsets",
+                        params={
+                            "fields": "id,name,status,daily_budget,targeting",
+                            "filtering": json.dumps([{"field": "campaign.id", "operator": "EQUAL", "value": meta_campaign_id}]),
+                            "access_token": token,
+                        },
+                    )
+                    adsets_raw = adsets_resp.json().get("data", [])
+
+                    # e. Ads
+                    ads_resp = await client.get(
+                        f"{META_BASE}/act_{ad_account_id}/ads",
+                        params={
+                            "fields": "id,name,status,creative{thumbnail_url}",
+                            "filtering": json.dumps([{"field": "campaign.id", "operator": "EQUAL", "value": meta_campaign_id}]),
+                            "access_token": token,
+                        },
+                    )
+                    ads_raw = ads_resp.json().get("data", [])
+        except Exception:
+            pass
+
+    # Load optimization logs (only if we have a DB campaign record)
+    from app.models.optimization_log import CampaignOptimizationLog
+    opt_logs = []
+    if campaign:
+        logs_result = await db.execute(
+            select(CampaignOptimizationLog)
+            .where(CampaignOptimizationLog.campaign_id == campaign.id)
+            .order_by(CampaignOptimizationLog.checked_at.desc())
+            .limit(20)
+        )
+        opt_logs = logs_result.scalars().all()
+    def get_approval_status(log: CampaignOptimizationLog) -> str:
+        decision = (log.decision or "").upper()
+        if decision in ("SCALE", "PAUSE"):
+            return "approved" if log.action_taken else "pending"
+        return "auto_executed"
+
+    optimization_logs = [
+        {
+            "id": log.id,
+            "created_at": str(log.checked_at),
+            "decision": log.decision,
+            "rationale": log.rationale,
+            "budget_before": log.old_budget,
+            "budget_after": log.new_budget,
+            "approval_status": get_approval_status(log),
+        }
+        for log in opt_logs
+    ]
+
+    # Build insights summary
+    actions = {a["action_type"]: float(a["value"]) for a in insights_summary_raw.get("actions", [])}
+    cpa_dict = {a["action_type"]: float(a["value"]) for a in insights_summary_raw.get("cost_per_action_type", [])}
+    objective = (campaign_info.get("objective") or (campaign.objective if campaign else None) or "").upper()
+
+    total_spend = float(insights_summary_raw.get("spend", 0))
+    total_impressions = int(insights_summary_raw.get("impressions", 0))
+    total_reach = int(insights_summary_raw.get("reach", 0))
+    total_clicks = int(insights_summary_raw.get("clicks", 0))
+    avg_ctr = float(insights_summary_raw.get("ctr", 0))
+    avg_cpc = float(insights_summary_raw.get("cpc", 0))
+    avg_cpm = float(insights_summary_raw.get("cpm", 0))
+    avg_frequency = float(insights_summary_raw.get("frequency", 0))
+
+    if "LEADS" in objective:
+        total_results = actions.get("lead", 0)
+        result_label = "Leads"
+        cost_per_result = cpa_dict.get("lead", 0)
+        roas = None
+    elif "SALES" in objective:
+        total_results = actions.get("purchase", 0)
+        result_label = "Compras"
+        cost_per_result = cpa_dict.get("purchase", 0)
+        revenue = actions.get("omni_purchase", 0)
+        roas = round(revenue / total_spend, 2) if total_spend > 0 else None
+    else:
+        total_results = float(total_clicks)
+        result_label = "Clicks"
+        cost_per_result = avg_cpc
+        roas = None
+
+    insights_summary = {
+        "period": f"{since} / {today}",
+        "total_spend": total_spend,
+        "total_impressions": total_impressions,
+        "total_reach": total_reach,
+        "total_clicks": total_clicks,
+        "avg_ctr": avg_ctr,
+        "avg_cpc": avg_cpc,
+        "avg_cpm": avg_cpm,
+        "avg_frequency": avg_frequency,
+        "total_results": total_results,
+        "result_label": result_label,
+        "cost_per_result": cost_per_result,
+        "roas": roas,
+    }
+
+    # Build daily insights
+    daily_insights = []
+    for day in daily_insights_raw:
+        day_actions = {a["action_type"]: float(a["value"]) for a in day.get("actions", [])}
+        day_cpa = {a["action_type"]: float(a["value"]) for a in day.get("cost_per_action_type", [])}
+        if "LEADS" in objective:
+            day_results = day_actions.get("lead", 0)
+            day_cpr = day_cpa.get("lead", 0)
+        elif "SALES" in objective:
+            day_results = day_actions.get("purchase", 0)
+            day_cpr = day_cpa.get("purchase", 0)
+        else:
+            day_results = float(int(day.get("clicks", 0)))
+            day_spend = float(day.get("spend", 0))
+            day_clicks = int(day.get("clicks", 0))
+            day_cpr = day_spend / day_clicks if day_clicks > 0 else 0
+        daily_insights.append({
+            "date": day.get("date_start", ""),
+            "spend": float(day.get("spend", 0)),
+            "impressions": int(day.get("impressions", 0)),
+            "clicks": int(day.get("clicks", 0)),
+            "ctr": float(day.get("ctr", 0)),
+            "cpc": float(day.get("cpc", 0)),
+            "frequency": float(day.get("frequency", 0)),
+            "results": day_results,
+            "cost_per_result": day_cpr,
+        })
+
+    # Build ad sets
+    def summarize_targeting(targeting: dict) -> str:
+        if not targeting:
+            return "Broad"
+        parts = []
+        geo = targeting.get("geo_locations", {})
+        countries = geo.get("countries", [])
+        if countries:
+            parts.append(f"Countries: {', '.join(countries)}")
+        age_min = targeting.get("age_min")
+        age_max = targeting.get("age_max")
+        if age_min or age_max:
+            parts.append(f"Age: {age_min or '?'}-{age_max or '?'}")
+        return "; ".join(parts) if parts else "Broad"
+
+    adsets = [
+        {
+            "id": a["id"],
+            "name": a.get("name", ""),
+            "status": a.get("status", ""),
+            "daily_budget": float(a["daily_budget"]) / 100.0 if a.get("daily_budget") else 0.0,
+            "targeting_summary": summarize_targeting(a.get("targeting") or {}),
+        }
+        for a in adsets_raw
+    ]
+
+    # Build ads
+    ads_out = [
+        {
+            "id": a["id"],
+            "name": a.get("name", ""),
+            "status": a.get("status", ""),
+            "creative_thumbnail": (a.get("creative") or {}).get("thumbnail_url"),
+        }
+        for a in ads_raw
+    ]
+
+    # Andromeda status logic
+    if avg_frequency > 3.0:
+        andromeda_status = "fatigued"
+        andromeda_reason = f"Frequency {avg_frequency:.1f} exceeds 3.0 threshold"
+    elif avg_ctr > 0 and avg_frequency < 2.0:
+        andromeda_status = "healthy"
+        andromeda_reason = "CTR stable, frequency within bounds"
+    elif total_spend > 0:
+        andromeda_status = "healthy"
+        andromeda_reason = "Campaign within normal parameters"
+    else:
+        andromeda_status = "healthy"
+        andromeda_reason = "Insufficient data for analysis"
+
+    daily_budget_raw = campaign_info.get("daily_budget")
+    meta_daily_budget = float(daily_budget_raw) / 100.0 if daily_budget_raw else 0.0
+    # If campaign-level budget is zero, sum adset budgets as fallback
+    adset_budget_total = sum(a.get("daily_budget", 0) for a in adsets)
+    # Prefer Meta campaign-level value if non-zero, then adset sum, then DB value
+    if meta_daily_budget > 0:
+        campaign_daily_budget = meta_daily_budget
+    elif adset_budget_total > 0:
+        campaign_daily_budget = adset_budget_total
+    else:
+        campaign_daily_budget = (campaign.daily_budget if campaign else 0.0) or 0.0
+
+    return {
+        "campaign": {
+            "id": campaign.id if campaign else meta_campaign_id,
+            "meta_campaign_id": meta_campaign_id,
+            "name": campaign_info.get("name") or (campaign.name if campaign else meta_campaign_id),
+            "objective": campaign_info.get("objective") or (campaign.objective if campaign else "") or "",
+            "status": campaign_info.get("status") or (campaign.status if campaign else "UNKNOWN"),
+            "created_at": campaign_info.get("created_time") or (str(campaign.created_at) if campaign else ""),
+            "daily_budget": campaign_daily_budget,
+        },
+        "insights_summary": insights_summary,
+        "daily_insights": daily_insights,
+        "adsets": adsets,
+        "ads": ads_out,
+        "optimization_logs": optimization_logs,
+        "andromeda_status": andromeda_status,
+        "andromeda_reason": andromeda_reason,
+    }
+
+
+@router.get("/{campaign_id}/logs")
+async def get_optimization_logs(
+    campaign_id: int,
+    db: AsyncSession = Depends(get_session),
+) -> list[dict]:
+    """Get optimization history for a campaign."""
+    from app.models.optimization_log import CampaignOptimizationLog
+
+    result = await db.execute(
+        select(CampaignOptimizationLog)
+        .where(CampaignOptimizationLog.campaign_id == campaign_id)
+        .order_by(CampaignOptimizationLog.checked_at.desc())
+        .limit(20)
+    )
+    logs = result.scalars().all()
+
+    return [
+        {
+            "id": log.id,
+            "checked_at": str(log.checked_at),
+            "decision": log.decision,
+            "rationale": log.rationale,
+            "action_taken": log.action_taken,
+            "old_budget": log.old_budget,
+            "new_budget": log.new_budget,
+            "metrics_snapshot": log.metrics_snapshot,
+        }
+        for log in logs
+    ]
+
+
+class UpdateBudgetRequest(BaseModel):
+    daily_budget: float
+
+
+@router.put("/{campaign_id}/budget")
+async def update_campaign_budget(
+    campaign_id: int,
+    body: UpdateBudgetRequest,
+    db: AsyncSession = Depends(get_session),
+) -> dict:
+    """Update campaign daily budget."""
+    result = await db.execute(select(AdCampaign).where(AdCampaign.id == campaign_id))
+    campaign = result.scalar_one_or_none()
+    if not campaign:
+        raise HTTPException(404, "Campaign not found")
+
+    proj_result = await db.execute(select(Project).where(Project.id == campaign.project_id))
+    project = proj_result.scalar_one_or_none()
+    token = project.meta_access_token or getattr(settings, "META_ACCESS_TOKEN", "") if project else ""
+
+    if token and campaign.meta_adset_id:
+        await meta_service.update_adset_budget(token, campaign.meta_adset_id, body.daily_budget)
+
+    campaign.daily_budget = body.daily_budget
+    await db.commit()
+    return {"id": campaign.id, "daily_budget": campaign.daily_budget}
+
+
+@router.post("/optimizer/approve")
+async def optimizer_approve(
+    body: dict,
+    db: AsyncSession = Depends(get_session),
+    current_user=Depends(get_current_user),
+) -> dict:
+    """Approve a pending SCALE or PAUSE action from a notification."""
+    approval_token = body.get("approval_token")
+    if not approval_token:
+        raise HTTPException(400, "approval_token required")
+
+    # Find notification with this approval token
+    result = await db.execute(
+        select(Notification).where(
+            Notification.user_id == current_user.id,
+            Notification.is_read == False,
+        )
+    )
+    notif = None
+    for n in result.scalars().all():
+        if n.action_data and n.action_data.get("approval_token") == approval_token:
+            notif = n
+            break
+
+    if not notif:
+        raise HTTPException(404, "Approval token not found or already used")
+
+    action_data = notif.action_data
+    action = action_data.get("action")
+    campaign_id = action_data.get("campaign_id")
+
+    # Fetch campaign
+    campaign_result = await db.execute(select(AdCampaign).where(AdCampaign.id == campaign_id))
+    campaign = campaign_result.scalar_one_or_none()
+    if not campaign:
+        raise HTTPException(404, "Campaign not found")
+
+    proj_result = await db.execute(select(Project).where(Project.id == campaign.project_id))
+    project = proj_result.scalar_one_or_none()
+    token = project.meta_access_token or getattr(settings, "META_ACCESS_TOKEN", "") if project else ""
+
+    meta_svc = MetaCampaignService()
+    result_msg = ""
+
+    if action == "scale":
+        new_budget = action_data.get("new_budget", campaign.daily_budget)
+        if token and campaign.meta_adset_id:
+            await meta_svc.update_adset_budget(token, campaign.meta_adset_id, new_budget)
+        campaign.daily_budget = new_budget
+        result_msg = f"Budget increased to ${new_budget}/day"
+
+    elif action == "pause":
+        if token and campaign.meta_campaign_id:
+            await meta_svc.set_campaign_status(token, campaign.meta_campaign_id, "PAUSED")
+        campaign.status = "paused"
+        result_msg = "Campaign paused"
+
+    notif.is_read = True
+    notif.action_data = {**action_data, "approved": True, "result": result_msg}
+    await db.commit()
+
+    return {"ok": True, "action": action, "result": result_msg}
+
+
+@router.post("/optimizer/reject")
+async def optimizer_reject(
+    body: dict,
+    db: AsyncSession = Depends(get_session),
+    current_user=Depends(get_current_user),
+) -> dict:
+    """Reject a pending optimizer action."""
+    approval_token = body.get("approval_token")
+    result = await db.execute(
+        select(Notification).where(Notification.user_id == current_user.id)
+    )
+    notif = None
+    for n in result.scalars().all():
+        if n.action_data and n.action_data.get("approval_token") == approval_token:
+            notif = n
+            break
+
+    if not notif:
+        raise HTTPException(404, "Approval token not found")
+
+    notif.is_read = True
+    notif.action_data = {**(notif.action_data or {}), "approved": False}
+    await db.commit()
+    return {"ok": True, "action": "rejected"}

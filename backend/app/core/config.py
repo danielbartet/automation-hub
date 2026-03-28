@@ -1,0 +1,30 @@
+"""Application configuration via pydantic-settings."""
+from pydantic_settings import BaseSettings, SettingsConfigDict
+
+
+class Settings(BaseSettings):
+    """Application settings loaded from environment variables."""
+
+    model_config = SettingsConfigDict(env_file=".env", extra="ignore")
+
+    APP_ENV: str = "development"
+    SECRET_KEY: str = "dev-secret-key"
+    FERNET_KEY: str = ""
+    DATABASE_URL: str = "sqlite+aiosqlite:////app/data/automation_hub.db"
+    ANTHROPIC_API_KEY: str = ""
+    AWS_PROFILE: str = "chatbot-daniel"
+    AWS_BUCKET: str = "quantoria-static"
+    AWS_REGION: str = "us-east-1"
+    META_APP_ID: str = ""
+    META_APP_SECRET: str = ""
+    META_ACCESS_TOKEN: str = ""
+    N8N_WEBHOOK_SECRET: str = ""
+    TELEGRAM_BOT_TOKEN: str = ""
+    ADMIN_USERNAME: str = "admin"
+    ADMIN_PASSWORD: str = "admin"
+    JWT_SECRET: str = "change-this-in-production-use-long-random-string"
+    JWT_ALGORITHM: str = "HS256"
+    JWT_EXPIRE_MINUTES: int = 60 * 24 * 7  # 7 days
+
+
+settings = Settings()

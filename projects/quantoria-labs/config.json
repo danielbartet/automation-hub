@@ -1,0 +1,17 @@
+{
+  "name": "Quantoria Labs",
+  "slug": "quantoria-labs",
+  "description": "Tech education for LATAM developers",
+  "social": {
+    "facebook_page_id": "1010286398835015",
+    "instagram_account_id": "17841449394293930",
+    "ad_account_id": "act_1337773745049119"
+  },
+  "n8n": { "base_url": "https://n8n.quantorialabs.com" },
+  "telegram": { "chat_id": "1284119239", "bot_name": "@Dwbarbot" },
+  "content": {
+    "language": "es",
+    "tone": "direct, technical, empowering — for junior/mid developers",
+    "post_formats": ["carousel", "single_image", "text"]
+  }
+}

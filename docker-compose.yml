@@ -1,0 +1,47 @@
+version: "3.9"
+services:
+  backend:
+    build:
+      context: ./backend
+      dockerfile: Dockerfile.dev
+    ports:
+      - "8000:8000"
+    volumes:
+      - ./backend:/app
+      - backend-data:/app/data
+      - ~/.aws:/root/.aws:ro
+    env_file:
+      - ./backend/.env
+    networks:
+      - automation-hub
+    restart: unless-stopped
+
+  frontend:
+    build:
+      context: ./frontend
+      dockerfile: Dockerfile.dev
+    ports:
+      - "3000:3000"
+    volumes:
+      - ./frontend:/app
+      - /app/node_modules
+      - /app/.next
+    environment:
+      - NEXT_PUBLIC_API_URL=http://localhost:8000
+      - NEXTAUTH_URL=http://localhost:3000
+      - NEXTAUTH_SECRET=dev-secret-change-in-prod
+      - INTERNAL_API_URL=http://backend:8000
+    env_file:
+      - ./frontend/.env
+    networks:
+      - automation-hub
+    depends_on:
+      - backend
+    restart: unless-stopped
+
+volumes:
+  backend-data:
+
+networks:
+  automation-hub:
+    driver: bridge
