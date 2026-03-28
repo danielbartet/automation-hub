@@ -18,8 +18,11 @@ interface ContentPost {
   caption: string;
   image_url?: string;
   scheduled_at?: string;
-  content?: { slides?: Slide[]; hashtags?: string[] };
+  content?: { slides?: Slide[] | unknown[]; hashtags?: string[] };
   status: string;
+  title?: string;
+  platform?: string;
+  published_at?: string;
 }
 
 interface EditContentModalProps {
@@ -36,7 +39,7 @@ export function EditContentModal({ post, projectSlug, onClose, onSaved }: EditCo
   const [scheduledAt, setScheduledAt] = useState(
     post.scheduled_at ? post.scheduled_at.replace(" ", "T").slice(0, 16) : ""
   );
-  const [slides, setSlides] = useState<Slide[]>(post.content?.slides || []);
+  const [slides, setSlides] = useState<Slide[]>((post.content?.slides as Slide[]) || []);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
 

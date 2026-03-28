@@ -9,13 +9,21 @@ export interface Project {
   ad_account_id: string | null;
 }
 
-export interface MetaAdsKPI {
+export interface MetaAdsTotals {
   spend_today: number;
   spend_this_month: number;
   active_campaigns: number;
   ctr: number;
   roas: number;
   conversions: number;
+  leads?: number;
+  cpl?: number;
+}
+
+export interface MetaAdsKPI extends MetaAdsTotals {
+  totals?: MetaAdsTotals;
+  campaigns?: unknown[];
+  daily_spend?: unknown[];
 }
 
 export interface ContentKPI {

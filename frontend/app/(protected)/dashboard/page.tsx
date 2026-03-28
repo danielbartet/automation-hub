@@ -44,6 +44,14 @@ interface DashboardData {
     spend_this_month?: number;
     active_campaigns?: number;
     campaigns?: Campaign[];
+    totals?: {
+      spend_today?: number;
+      spend_this_month?: number;
+      active_campaigns?: number;
+      leads?: number;
+      cpl?: number;
+      ctr?: number;
+    };
   };
 }
 

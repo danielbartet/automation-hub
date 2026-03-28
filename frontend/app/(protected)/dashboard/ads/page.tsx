@@ -49,12 +49,22 @@ interface Campaign {
   meta_campaign_id?: string;
 }
 
+interface MetaAdsTotals {
+  spend_today?: number;
+  spend_this_month?: number;
+  active_campaigns?: number;
+  leads?: number;
+  cpl?: number;
+  ctr?: number;
+}
+
 interface MetaAds {
   spend_today?: number;
   spend_this_month?: number;
   active_campaigns?: number;
   campaigns?: Campaign[];
   daily_spend?: { date: string; spend: number }[];
+  totals?: MetaAdsTotals;
 }
 
 interface DashboardData {
