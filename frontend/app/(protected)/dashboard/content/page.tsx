@@ -3,8 +3,8 @@
 import { useEffect, useState, useCallback } from "react";
 import { useSession } from "next-auth/react";
 import { Header } from "@/components/layout/Header";
-import { fetchProjects, fetchContent } from "@/lib/api";
-import { PlusCircle, FileText, Loader2, Pencil } from "lucide-react";
+import { fetchProjects, fetchContent, importFromMeta } from "@/lib/api";
+import { PlusCircle, FileText, Loader2, Pencil, Download } from "lucide-react";
 import { GenerateContentModal } from "@/components/dashboard/GenerateContentModal";
 import { EditContentModal } from "@/components/dashboard/EditContentModal";
 
@@ -70,6 +70,8 @@ export default function ContentPage() {
   const [filter, setFilter] = useState<StatusFilter>("all");
   const [showModal, setShowModal] = useState(false);
   const [editPost, setEditPost] = useState<ContentPost | null>(null);
+  const [importingMeta, setImportingMeta] = useState(false);
+  const [importResult, setImportResult] = useState<{ imported: number; skipped: number; message: string } | null>(null);
 
   useEffect(() => {
     fetchProjects()
@@ -86,14 +88,14 @@ export default function ContentPage() {
   }, []);
 
   const loadContent = useCallback(() => {
-    if (!selectedProjectId) return;
+    if (!selectedProjectSlug) return;
     setLoadingContent(true);
     setError(null);
-    fetchContent(selectedProjectId)
+    fetchContent(selectedProjectSlug)
       .then((data) => setContent(Array.isArray(data) ? data : []))
       .catch((err) => setError(err.message))
       .finally(() => setLoadingContent(false));
-  }, [selectedProjectId]);
+  }, [selectedProjectSlug]);
 
   useEffect(() => {
     loadContent();
@@ -104,6 +106,24 @@ export default function ContentPage() {
     if (proj) {
       setSelectedProjectId(proj.id);
       setSelectedProjectSlug(proj.slug);
+    }
+  };
+
+  const handleImportFromMeta = async () => {
+    if (!selectedProjectSlug) return;
+    setImportingMeta(true);
+    setImportResult(null);
+    setError(null);
+    try {
+      const result = await importFromMeta(selectedProjectSlug);
+      setImportResult({ imported: result.imported, skipped: result.skipped, message: result.message });
+      if (result.imported > 0) {
+        loadContent();
+      }
+    } catch (err) {
+      setError(err instanceof Error ? err.message : "Import failed");
+    } finally {
+      setImportingMeta(false);
     }
   };
 
@@ -144,20 +164,46 @@ export default function ContentPage() {
             )}
           </div>
           {!isClient && (
-            <button
-              onClick={() => setShowModal(true)}
-              disabled={!selectedProjectSlug}
-              className="inline-flex items-center gap-2 px-4 py-2 bg-gray-900 text-white text-sm font-medium rounded-md hover:bg-gray-700 disabled:opacity-50 disabled:cursor-not-allowed transition-colors"
-            >
-              <PlusCircle className="h-4 w-4" />
-              Generate New
-            </button>
+            <div className="flex items-center gap-2">
+              <button
+                onClick={handleImportFromMeta}
+                disabled={!selectedProjectSlug || importingMeta}
+                className="inline-flex items-center gap-2 px-4 py-2 bg-white border border-gray-300 text-gray-700 text-sm font-medium rounded-md hover:bg-gray-50 disabled:opacity-50 disabled:cursor-not-allowed transition-colors"
+              >
+                {importingMeta ? (
+                  <Loader2 className="h-4 w-4 animate-spin" />
+                ) : (
+                  <Download className="h-4 w-4" />
+                )}
+                Importar desde Meta
+              </button>
+              <button
+                onClick={() => setShowModal(true)}
+                disabled={!selectedProjectSlug}
+                className="inline-flex items-center gap-2 px-4 py-2 bg-gray-900 text-white text-sm font-medium rounded-md hover:bg-gray-700 disabled:opacity-50 disabled:cursor-not-allowed transition-colors"
+              >
+                <PlusCircle className="h-4 w-4" />
+                Generate New
+              </button>
+            </div>
           )}
         </div>
 
         {error && (
           <div className="bg-red-50 border border-red-200 rounded-md p-4 text-sm text-red-700">
             Error: {error}
+          </div>
+        )}
+
+        {importResult && (
+          <div className="bg-green-50 border border-green-200 rounded-md p-4 text-sm text-green-700 flex items-center justify-between">
+            <span>{importResult.message}</span>
+            <button
+              onClick={() => setImportResult(null)}
+              className="ml-4 text-green-500 hover:text-green-700 font-medium"
+            >
+              Dismiss
+            </button>
           </div>
         )}
 

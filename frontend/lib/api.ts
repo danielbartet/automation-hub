@@ -14,10 +14,12 @@ export async function fetchProjects() {
   return res.json();
 }
 
-export async function fetchContent(projectId: string) {
-  const res = await fetch(`${API_BASE}/api/v1/content/${projectId}`, { cache: "no-store" });
+export async function fetchContent(projectSlug: string) {
+  const res = await fetch(`${API_BASE}/api/v1/content/list/${projectSlug}?per_page=100`, { cache: "no-store" });
   if (!res.ok) throw new Error("Failed to fetch content");
-  return res.json();
+  const data = await res.json();
+  // /list/{slug} returns { items: [...], total, page, per_page }
+  return Array.isArray(data) ? data : (data.items ?? data);
 }
 
 export async function generateContent(projectSlug: string) {
@@ -270,4 +272,15 @@ export async function updateCampaignBudget(token: string, campaignId: number, da
     body: JSON.stringify({ daily_budget: dailyBudget }),
   })
   return res.json()
+}
+
+export async function importFromMeta(projectSlug: string): Promise<{ imported: number; skipped: number; errors: string[]; message: string }> {
+  const res = await fetch(`${API_BASE}/api/v1/content/import-from-meta/${projectSlug}`, {
+    method: "POST",
+  });
+  if (!res.ok) {
+    const err = await res.json().catch(() => ({}));
+    throw new Error((err as { detail?: string }).detail || "Failed to import from Meta");
+  }
+  return res.json();
 }

@@ -4,9 +4,12 @@ from app.core.config import settings
 
 
 def _get_fernet() -> Fernet | None:
-    """Return Fernet instance if key is configured."""
+    """Return Fernet instance if key is configured and valid."""
     if settings.FERNET_KEY:
-        return Fernet(settings.FERNET_KEY.encode())
+        try:
+            return Fernet(settings.FERNET_KEY.encode())
+        except Exception:
+            return None
     return None
 
 

@@ -1,4 +1,4 @@
-"""Instagram Graph API service — stub."""
+"""Instagram Graph API service."""
 from app.services.meta.client import MetaClient
 
 
@@ -20,4 +20,18 @@ class InstagramService:
         return await self.client.post(
             f"/{ig_account_id}/media_publish",
             {"creation_id": creation_id},
+        )
+
+    async def get_media(self, ig_account_id: str, limit: int = 25) -> dict:
+        """Fetch published media from an Instagram Business account.
+
+        Returns a dict with 'data' list of media objects. Each item has:
+        id, caption, media_type, media_url, thumbnail_url, timestamp, permalink.
+        """
+        return await self.client.get(
+            f"/{ig_account_id}/media",
+            {
+                "fields": "id,caption,media_type,media_url,thumbnail_url,timestamp,permalink",
+                "limit": limit,
+            },
         )
