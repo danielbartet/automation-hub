@@ -24,7 +24,7 @@
     "@radix-ui/react-slot": "^1.0.2",
     "@radix-ui/react-label": "^2.0.2",
     "@radix-ui/react-separator": "^1.0.3",
-    "react-dropzone": "^11.7.2"
+    "react-dropzone": "^11.7.1"
   },
   "devDependencies": {
     "typescript": "^5",
