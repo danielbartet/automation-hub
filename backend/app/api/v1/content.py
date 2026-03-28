@@ -10,16 +10,27 @@ from sqlalchemy import select, func
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.api.deps import get_session
+from app.core.config import settings
+from app.core.security import decrypt_token
 from app.models.content import ContentPost
 from app.models.project import Project
 from app.services.claude.client import ClaudeClient
+from app.services.meta.client import MetaClient
+from app.services.meta.pages import PagesService
+from app.services.meta.instagram import InstagramService
 from app.services.n8n.client import N8nClient
 from app.services.storage.s3 import S3Service
 
 router = APIRouter()
 
 claude_client = ClaudeClient()
-s3_service = S3Service()
+_s3_service: S3Service | None = None
+
+def get_s3_service() -> S3Service:
+    global _s3_service
+    if _s3_service is None:
+        _s3_service = S3Service()
+    return _s3_service
 n8n_client = N8nClient()
 
 
@@ -181,7 +192,7 @@ async def generate_content(
 
     # 6. Render and upload carousel slide images
     try:
-        image_urls = await s3_service.upload_carousel_slides(project_slug, content)
+        image_urls = await get_s3_service().upload_carousel_slides(project_slug, content)
         image_url = image_urls[0] if image_urls else ""
     except Exception as e:
         raise HTTPException(status_code=503, detail=f"S3 upload failed: {str(e)}")
@@ -322,11 +333,17 @@ async def update_content(
     body: UpdateContentRequest,
     db: AsyncSession = Depends(get_session),
 ) -> dict:
-    """Update a content post."""
+    """Update a content post.
+
+    When the status transitions to "approved", a webhook is fired to n8n so
+    the publish flow can be triggered without Telegram involvement.
+    """
     result = await db.execute(select(ContentPost).where(ContentPost.id == content_id))
     post = result.scalar_one_or_none()
     if not post:
         raise HTTPException(status_code=404, detail=f"ContentPost {content_id} not found")
+
+    previous_status = post.status
 
     if body.caption is not None:
         post.caption = body.caption
@@ -346,6 +363,27 @@ async def update_content(
 
     await db.commit()
     await db.refresh(post)
+
+    # Fire n8n approval webhook when a post is approved in the app
+    if body.status == "approved" and previous_status != "approved":
+        proj_result = await db.execute(select(Project).where(Project.id == post.project_id))
+        project = proj_result.scalar_one_or_none()
+        if project and project.n8n_webhook_base_url:
+            webhook_url = f"{project.n8n_webhook_base_url}/post-approved"
+            # Derive platform from content metadata; fall back to "instagram"
+            content_meta = post.content or {}
+            platform = content_meta.get("platform", "instagram") if isinstance(content_meta, dict) else "instagram"
+            try:
+                await n8n_client.trigger_approval(
+                    webhook_url=webhook_url,
+                    post_id=post.id,
+                    project_slug=project.slug,
+                    platform=platform,
+                    caption=post.caption or "",
+                    media_url=post.image_url,
+                )
+            except Exception:
+                pass  # Never block the approval response if n8n is unreachable
 
     return {
         "id": post.id,
@@ -434,4 +472,152 @@ async def batch_generate_content(
         "batch_id": batch_id,
         "count": len(generated_posts),
         "posts": generated_posts,
+    }
+
+
+@router.post("/import-from-meta/{project_slug}")
+async def import_from_meta(
+    project_slug: str,
+    db: AsyncSession = Depends(get_session),
+) -> dict:
+    """Fetch previously published posts from Facebook Page and Instagram and insert them into the DB.
+
+    Skips posts already imported (matched by facebook_post_id or instagram_media_id).
+    Returns a summary of how many were imported and how many were skipped.
+    """
+    # 1. Load project
+    result = await db.execute(select(Project).where(Project.slug == project_slug))
+    project = result.scalar_one_or_none()
+    if not project:
+        raise HTTPException(status_code=404, detail=f"Project '{project_slug}' not found")
+
+    # Resolve token: prefer project-level token, fall back to env META_ACCESS_TOKEN
+    raw_token = project.meta_access_token or settings.META_ACCESS_TOKEN
+    if not raw_token:
+        raise HTTPException(status_code=400, detail="Project has no Meta access token configured")
+
+    if not project.facebook_page_id and not project.instagram_account_id:
+        raise HTTPException(status_code=400, detail="Project has no Facebook Page ID or Instagram account ID configured")
+
+    # 2. Decrypt token and build Meta client
+    access_token = decrypt_token(raw_token)
+    meta_client = MetaClient(access_token=access_token)
+    pages_service = PagesService(client=meta_client)
+    ig_service = InstagramService(client=meta_client)
+
+    imported = 0
+    skipped = 0
+    errors: list[str] = []
+
+    # 3. Fetch and import Facebook Page posts
+    if project.facebook_page_id:
+        try:
+            fb_response = await pages_service.get_page_posts(project.facebook_page_id, limit=25)
+            fb_posts = fb_response.get("data", [])
+        except Exception as exc:
+            fb_posts = []
+            errors.append(f"Facebook fetch failed: {str(exc)}")
+
+        for fb_post in fb_posts:
+            post_id = fb_post.get("id", "")
+            if not post_id:
+                continue
+
+            # Check if already exists by facebook_post_id
+            existing = await db.execute(
+                select(ContentPost).where(
+                    ContentPost.project_id == project.id,
+                    ContentPost.facebook_post_id == post_id,
+                )
+            )
+            if existing.scalar_one_or_none():
+                skipped += 1
+                continue
+
+            caption = fb_post.get("message") or fb_post.get("story") or ""
+            image_url = fb_post.get("full_picture")
+
+            created_str = fb_post.get("created_time")
+            try:
+                published_at = datetime.fromisoformat(created_str.replace("Z", "+00:00")) if created_str else None
+            except Exception:
+                published_at = None
+
+            post = ContentPost(
+                project_id=project.id,
+                format="single_image" if image_url else "text_post",
+                caption=caption,
+                image_url=image_url,
+                status="published",
+                facebook_post_id=post_id,
+                published_at=published_at,
+                scheduled_at=published_at,  # Use original Meta date so calendar places post correctly
+                content={"source": "meta_import", "platform": "facebook", "permalink": fb_post.get("permalink_url")},
+            )
+            db.add(post)
+            imported += 1
+
+    # 4. Fetch and import Instagram media
+    if project.instagram_account_id:
+        try:
+            ig_response = await ig_service.get_media(project.instagram_account_id, limit=25)
+            ig_media = ig_response.get("data", [])
+        except Exception as exc:
+            ig_media = []
+            errors.append(f"Instagram fetch failed: {str(exc)}")
+
+        for media in ig_media:
+            media_id = media.get("id", "")
+            if not media_id:
+                continue
+
+            # Check if already exists by instagram_media_id
+            existing = await db.execute(
+                select(ContentPost).where(
+                    ContentPost.project_id == project.id,
+                    ContentPost.instagram_media_id == media_id,
+                )
+            )
+            if existing.scalar_one_or_none():
+                skipped += 1
+                continue
+
+            caption = media.get("caption") or ""
+            media_type = media.get("media_type", "IMAGE").lower()
+            image_url = media.get("media_url") or media.get("thumbnail_url")
+
+            timestamp_str = media.get("timestamp")
+            try:
+                published_at = datetime.fromisoformat(timestamp_str.replace("Z", "+00:00")) if timestamp_str else None
+            except Exception:
+                published_at = None
+
+            if media_type == "video":
+                fmt = "single_image"  # store video as single_image with thumbnail
+            elif media_type == "carousel_album":
+                fmt = "carousel"
+            else:
+                fmt = "single_image"
+
+            post = ContentPost(
+                project_id=project.id,
+                format=fmt,
+                caption=caption,
+                image_url=image_url,
+                status="published",
+                instagram_media_id=media_id,
+                published_at=published_at,
+                scheduled_at=published_at,  # Use original Meta date so calendar places post correctly
+                content={"source": "meta_import", "platform": "instagram", "media_type": media_type, "permalink": media.get("permalink")},
+            )
+            db.add(post)
+            imported += 1
+
+    await db.commit()
+
+    return {
+        "imported": imported,
+        "skipped": skipped,
+        "errors": errors,
+        "message": f"Import complete: {imported} new posts imported, {skipped} already existed.",
     }

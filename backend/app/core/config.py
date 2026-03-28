@@ -12,7 +12,7 @@ class Settings(BaseSettings):
     FERNET_KEY: str = ""
     DATABASE_URL: str = "sqlite+aiosqlite:////app/data/automation_hub.db"
     ANTHROPIC_API_KEY: str = ""
-    AWS_PROFILE: str = "chatbot-daniel"
+    AWS_PROFILE: str = ""
     AWS_BUCKET: str = "quantoria-static"
     AWS_REGION: str = "us-east-1"
     META_APP_ID: str = ""

@@ -1,5 +1,3 @@
-version: "3.9"
-
 networks:
   traefik-n8n_traefik_net:
     external: true

@@ -11,7 +11,8 @@ class S3Service:
     """Client for uploading files to S3."""
 
     def __init__(self) -> None:
-        self.session = boto3.Session(profile_name=settings.AWS_PROFILE)
+        profile = settings.AWS_PROFILE if settings.AWS_PROFILE else None
+        self.session = boto3.Session(profile_name=profile)
         self.s3 = self.session.client("s3", region_name=settings.AWS_REGION)
         self.bucket = settings.AWS_BUCKET
 

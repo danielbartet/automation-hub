@@ -38,7 +38,8 @@ async def upload_file(
     key = f"{folder}/{project_slug}/{timestamp}_{file.filename}"
 
     try:
-        session = boto3.Session(profile_name=settings.AWS_PROFILE)
+        profile = settings.AWS_PROFILE if settings.AWS_PROFILE else None
+        session = boto3.Session(profile_name=profile)
         s3 = session.client("s3", region_name=settings.AWS_REGION)
         s3.put_object(
             Bucket=settings.AWS_BUCKET,

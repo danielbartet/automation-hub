@@ -58,10 +58,16 @@ jobs:
             docker compose restart traefik
             echo "Traefik restarted."
 
-            # Wait for backend to be ready
+            # Wait for backend to be ready (retry up to 30s)
             echo "Waiting for backend to start..."
-            sleep 10
-
-            # Health check
-            curl -f http://localhost:8000/health || exit 1
-            echo "Health check passed. Deployment successful."
+            for i in $(seq 1 10); do
+              if curl -sf http://localhost:8000/health; then
+                echo "Health check passed. Deployment successful."
+                exit 0
+              fi
+              echo "Attempt $i/10 failed, retrying in 3s..."
+              sleep 3
+            done
+            echo "Backend did not start in time."
+            docker compose -f docker-compose.prod.yml logs backend --tail=20
+            exit 1
