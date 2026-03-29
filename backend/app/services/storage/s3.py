@@ -1,18 +1,52 @@
 """S3 storage service — image upload and management."""
 import io
+import os
+import logging
 from datetime import datetime
 import boto3
+from botocore.exceptions import ProfileNotFound, NoCredentialsError
 from PIL import Image, ImageDraw
 from app.core.config import settings
 from app.services.storage.renderer import CarouselRenderer
+
+logger = logging.getLogger(__name__)
+
+
+def _make_boto3_session() -> boto3.Session:
+    """Return a boto3 Session using the best available credential source.
+
+    Priority:
+    1. If AWS_ACCESS_KEY_ID env var is set, use the default credential chain
+       (env vars → IAM role → instance profile) — no named profile.
+    2. If AWS_PROFILE setting is configured, try the named profile.
+    3. Fall back to the default credential chain (IAM role / instance profile).
+    """
+    if os.environ.get("AWS_ACCESS_KEY_ID"):
+        # Explicit credentials in env — let boto3 pick them up automatically.
+        return boto3.Session()
+
+    if settings.AWS_PROFILE:
+        try:
+            session = boto3.Session(profile_name=settings.AWS_PROFILE)
+            # Validate that the profile actually has credentials.
+            session.get_credentials().get_frozen_credentials()
+            return session
+        except (ProfileNotFound, NoCredentialsError, AttributeError):
+            logger.warning(
+                "AWS profile '%s' not found or has no credentials — "
+                "falling back to default credential chain.",
+                settings.AWS_PROFILE,
+            )
+
+    # Default chain: IAM role, instance profile, etc.
+    return boto3.Session()
 
 
 class S3Service:
     """Client for uploading files to S3."""
 
     def __init__(self) -> None:
-        profile = settings.AWS_PROFILE if settings.AWS_PROFILE else None
-        self.session = boto3.Session(profile_name=profile)
+        self.session = _make_boto3_session()
         self.s3 = self.session.client("s3", region_name=settings.AWS_REGION)
         self.bucket = settings.AWS_BUCKET
 

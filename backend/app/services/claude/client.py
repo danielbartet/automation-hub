@@ -111,3 +111,105 @@ RULES:
         """Generate a social media caption for a topic."""
         prompt = f"Write a social media caption about '{topic}' in {language} with {tone} tone. Max 200 characters."
         return await self.generate_content(prompt)
+
+    async def generate_ad_concepts(
+        self,
+        project,
+        campaign_objective: str,
+        count: int = 12,
+        product_description: str | None = None,
+        existing_hooks: list[str] | None = None,
+    ) -> dict:
+        """Generate Andromeda-compliant ad concepts for a project."""
+        config = project.content_config or {}
+        brand_name = config.get("brand_name", project.name)
+        core_message = product_description or config.get("core_message", "")
+        target_audience = config.get("target_audience", "general audience")
+        language = config.get("language", "es")
+
+        fatigue_block = ""
+        if existing_hooks:
+            hooks_list = "\n".join(f"- {h}" for h in existing_hooks)
+            fatigue_block = f"""
+IMPORTANT: These are the EXISTING hooks that are fatigued — generate concepts that are
+conceptually OPPOSITE to these:
+{hooks_list}
+Do NOT reuse the same psychological angle or visual approach as any of the existing hooks.
+"""
+
+        system_prompt = f"""You are an expert Meta Ads creative strategist specializing in the Andromeda algorithm.
+
+Generate {count} advertising concepts for {brand_name}.
+
+Brand context:
+- Product/service: {core_message}
+- Target audience: {target_audience}
+- Campaign objective: {campaign_objective}
+- Language: {language}
+
+ANDROMEDA RULES (mandatory):
+1. Each concept must have a unique Entity ID — less than 60% semantic similarity between any two
+2. Vary P.D.A. for every concept:
+   - Persona: who is being addressed
+   - Desire: what outcome they want
+   - Awareness: Problem-aware / Solution-aware / Product-aware
+3. Rotate psychological angles: Logical / Emotional / Social Proof / Problem-Solution
+4. Each concept needs a disruptive 3-second hook
+5. Vary formats: some for video (Reels 9:16), some for static (Feed 1:1 or 4:5)
+6. Minimum 3 different psychological angles across the full set
+7. No two concepts with same P.D.A. combination
+{fatigue_block}
+Return ONLY valid JSON:
+{{
+  "concepts": [
+    {{
+      "id": 1,
+      "persona": "string",
+      "desire": "string",
+      "awareness": "Problem-aware | Solution-aware | Product-aware",
+      "psychological_angle": "Logical | Emotional | Social Proof | Problem-Solution",
+      "hook_3s": "exact opening line or visual description",
+      "body": "main message max 125 chars",
+      "cta": "Learn More | Sign Up | Shop Now | Contact Us",
+      "format": "Reels 9:16 | Feed 1:1 | Feed 4:5",
+      "visual_style": "typographic | data_visual | ugc_style | minimal",
+      "entity_id_risk": "LOW | MEDIUM",
+      "entity_id_reason": "why this is distinct from others"
+    }}
+  ],
+  "diversity_audit": {{
+    "angles_covered": [],
+    "formats_covered": [],
+    "pda_combinations": 0,
+    "estimated_unique_entity_ids": 0,
+    "warnings": []
+  }}
+}}"""
+
+        response = self.client.messages.create(
+            model=self.MODEL,
+            max_tokens=4000,
+            system=[
+                {
+                    "type": "text",
+                    "text": system_prompt,
+                    "cache_control": {"type": "ephemeral"},
+                }
+            ],
+            messages=[
+                {
+                    "role": "user",
+                    "content": f"Generate {count} ad concepts for {brand_name} following the Andromeda rules exactly.",
+                }
+            ],
+            extra_headers={"anthropic-beta": "prompt-caching-2024-07-31"},
+        )
+
+        content = response.content[0].text.strip()
+        # Strip markdown code blocks if present
+        if content.startswith("```"):
+            content = content.split("```", 2)[1]
+            if content.startswith("json"):
+                content = content[4:]
+            content = content.rsplit("```", 1)[0].strip()
+        return json.loads(content)

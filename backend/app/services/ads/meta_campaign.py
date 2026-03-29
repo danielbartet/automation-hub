@@ -123,6 +123,185 @@ class MetaCampaignService:
             "ad_id": ad_id,
         }
 
+    async def create_creative_and_ad(
+        self,
+        client: httpx.AsyncClient,
+        token: str,
+        ad_account_id: str,
+        facebook_page_id: str,
+        adset_id: str,
+        campaign_name: str,
+        concept_id: int,
+        hook_3s: str,
+        body: str,
+        cta: str,
+        image_url: str,
+        destination_url: str,
+    ) -> dict:
+        """Create an Ad Creative and Ad for a single concept under an existing Ad Set."""
+        # Upload image to get hash
+        image_resp = await client.post(
+            f"{META_BASE}/act_{ad_account_id}/adimages",
+            params={"access_token": token},
+            json={"url": image_url},
+        )
+        image_data = image_resp.json()
+        images_dict = image_data.get("images", {})
+        image_hash = None
+        for _url, img_info in images_dict.items():
+            image_hash = img_info.get("hash")
+            break
+        if not image_hash:
+            raise ValueError(f"Image upload failed for concept {concept_id}: {image_data}")
+
+        # Map CTA string to Meta enum
+        cta_map = {
+            "Learn More": "LEARN_MORE",
+            "Sign Up": "SIGN_UP",
+            "Shop Now": "SHOP_NOW",
+            "Contact Us": "CONTACT_US",
+        }
+        cta_type = cta_map.get(cta, "LEARN_MORE")
+
+        # Create Ad Creative
+        creative_resp = await client.post(
+            f"{META_BASE}/act_{ad_account_id}/adcreatives",
+            params={"access_token": token},
+            json={
+                "name": f"{campaign_name} – Creative {concept_id}",
+                "object_story_spec": {
+                    "page_id": facebook_page_id,
+                    "link_data": {
+                        "image_hash": image_hash,
+                        "link": destination_url,
+                        "message": body,
+                        "name": hook_3s,
+                        "call_to_action": {"type": cta_type},
+                    },
+                },
+            },
+        )
+        creative_data = creative_resp.json()
+        if "error" in creative_data:
+            raise ValueError(f"Creative creation failed for concept {concept_id}: {creative_data['error']['message']}")
+        creative_id = creative_data["id"]
+
+        # Create Ad
+        ad_resp = await client.post(
+            f"{META_BASE}/act_{ad_account_id}/ads",
+            params={"access_token": token},
+            json={
+                "name": f"{campaign_name} – Ad {concept_id}",
+                "adset_id": adset_id,
+                "creative": {"creative_id": creative_id},
+                "status": "PAUSED",
+            },
+        )
+        ad_data = ad_resp.json()
+        if "error" in ad_data:
+            raise ValueError(f"Ad creation failed for concept {concept_id}: {ad_data['error']['message']}")
+
+        return {"creative_id": creative_id, "ad_id": ad_data["id"]}
+
+    async def create_campaign_with_concepts(
+        self,
+        token: str,
+        ad_account_id: str,
+        facebook_page_id: str,
+        name: str,
+        objective: str,
+        daily_budget_dollars: float,
+        countries: list[str],
+        destination_url: str,
+        concepts: list[dict],
+        placeholder_image_fn,  # async callable(project_slug) -> str
+        project_slug: str,
+    ) -> dict:
+        """Create Campaign + Ad Set + multiple Creatives/Ads from concepts. All start PAUSED."""
+        async with httpx.AsyncClient(timeout=30.0) as client:
+            # 1. Create Campaign
+            campaign_resp = await client.post(
+                f"{META_BASE}/act_{ad_account_id}/campaigns",
+                params={"access_token": token},
+                json={
+                    "name": name,
+                    "objective": objective,
+                    "status": "PAUSED",
+                    "special_ad_categories": [],
+                },
+            )
+            campaign_data = campaign_resp.json()
+            if "error" in campaign_data:
+                raise ValueError(f"Campaign creation failed: {campaign_data['error']['message']}")
+            campaign_id = campaign_data["id"]
+
+            # 2. Create Ad Set (Broad/Andromeda targeting)
+            daily_budget_cents = int(daily_budget_dollars * 100)
+            opt_goal = (
+                "LEAD_GENERATION" if "LEADS" in objective
+                else "OFFSITE_CONVERSIONS" if "SALES" in objective
+                else "LINK_CLICKS"
+            )
+            adset_resp = await client.post(
+                f"{META_BASE}/act_{ad_account_id}/adsets",
+                params={"access_token": token},
+                json={
+                    "name": f"{name} \u2013 Ad Set",
+                    "campaign_id": campaign_id,
+                    "daily_budget": daily_budget_cents,
+                    "billing_event": "IMPRESSIONS",
+                    "optimization_goal": opt_goal,
+                    "bid_strategy": "LOWEST_COST_WITHOUT_CAP",
+                    "targeting": {
+                        "geo_locations": {"countries": countries},
+                    },
+                    "status": "PAUSED",
+                },
+            )
+            adset_data = adset_resp.json()
+            if "error" in adset_data:
+                raise ValueError(f"Ad set creation failed: {adset_data['error']['message']}")
+            adset_id = adset_data["id"]
+
+            # 3. Create Creative + Ad for each concept
+            ads_created = []
+            first_creative_id = None
+            first_ad_id = None
+
+            for concept in concepts:
+                concept_id = concept.get("id", 0)
+                hook_3s = concept.get("hook_3s", "")
+                body_text = concept.get("body", "")
+                cta = concept.get("cta", "Learn More")
+                image_url = concept.get("image_url") or await placeholder_image_fn(project_slug)
+
+                result = await self.create_creative_and_ad(
+                    client=client,
+                    token=token,
+                    ad_account_id=ad_account_id,
+                    facebook_page_id=facebook_page_id,
+                    adset_id=adset_id,
+                    campaign_name=name,
+                    concept_id=concept_id,
+                    hook_3s=hook_3s,
+                    body=body_text,
+                    cta=cta,
+                    image_url=image_url,
+                    destination_url=destination_url,
+                )
+                ads_created.append(result)
+                if first_creative_id is None:
+                    first_creative_id = result["creative_id"]
+                    first_ad_id = result["ad_id"]
+
+        return {
+            "campaign_id": campaign_id,
+            "adset_id": adset_id,
+            "creative_id": first_creative_id,
+            "ad_id": first_ad_id,
+            "ads_created": ads_created,
+        }
+
     async def set_campaign_status(self, token: str, campaign_id: str, status: str) -> bool:
         """Set campaign status: ACTIVE or PAUSED."""
         async with httpx.AsyncClient(timeout=10.0) as client:

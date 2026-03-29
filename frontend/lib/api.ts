@@ -274,6 +274,84 @@ export async function updateCampaignBudget(token: string, campaignId: number, da
   return res.json()
 }
 
+export async function generateAdConcepts(
+  projectSlug: string,
+  data: {
+    campaign_objective: string;
+    count?: number;
+    product_description?: string;
+  }
+): Promise<{
+  project_slug: string;
+  objective: string;
+  concepts: AdConcept[];
+  diversity_audit: DiversityAudit;
+}> {
+  const res = await fetch(`${API_BASE}/api/v1/ads/generate-concepts/${projectSlug}`, {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({ count: 12, ...data }),
+  });
+  if (!res.ok) {
+    const err = await res.json().catch(() => ({}));
+    throw new Error((err as { detail?: string }).detail || "Failed to generate concepts");
+  }
+  return res.json();
+}
+
+export interface AdConcept {
+  id: number;
+  persona: string;
+  desire: string;
+  awareness: "Problem-aware" | "Solution-aware" | "Product-aware";
+  psychological_angle: "Logical" | "Emotional" | "Social Proof" | "Problem-Solution";
+  hook_3s: string;
+  body: string;
+  cta: string;
+  format: "Reels 9:16" | "Feed 1:1" | "Feed 4:5";
+  visual_style: string;
+  entity_id_risk: "LOW" | "MEDIUM";
+  entity_id_reason: string;
+}
+
+export interface DiversityAudit {
+  angles_covered: string[];
+  formats_covered: string[];
+  pda_combinations: number;
+  estimated_unique_entity_ids: number;
+  warnings: string[];
+}
+
+export async function createCampaignWithConcepts(
+  projectSlug: string,
+  data: {
+    name: string;
+    objective: string;
+    daily_budget: number;
+    countries: string[];
+    destination_url: string;
+    concepts: Array<{
+      id: number;
+      hook_3s: string;
+      body: string;
+      cta: string;
+      format: string;
+      image_url?: string;
+    }>;
+  }
+) {
+  const res = await fetch(`${API_BASE}/api/v1/ads/create/${projectSlug}`, {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify(data),
+  });
+  if (!res.ok) {
+    const err = await res.json().catch(() => ({}));
+    throw new Error((err as { detail?: string }).detail || "Failed to create campaign");
+  }
+  return res.json();
+}
+
 export async function importFromMeta(projectSlug: string): Promise<{ imported: number; skipped: number; errors: string[]; message: string }> {
   const res = await fetch(`${API_BASE}/api/v1/content/import-from-meta/${projectSlug}`, {
     method: "POST",

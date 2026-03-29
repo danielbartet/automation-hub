@@ -5,7 +5,7 @@ from sqlalchemy import select
 from app.api.deps import get_session
 from app.models.project import Project
 from app.core.config import settings
-import boto3
+from app.services.storage.s3 import _make_boto3_session
 from datetime import datetime
 
 router = APIRouter(prefix="/upload", tags=["upload"])
@@ -38,8 +38,7 @@ async def upload_file(
     key = f"{folder}/{project_slug}/{timestamp}_{file.filename}"
 
     try:
-        profile = settings.AWS_PROFILE if settings.AWS_PROFILE else None
-        session = boto3.Session(profile_name=profile)
+        session = _make_boto3_session()
         s3 = session.client("s3", region_name=settings.AWS_REGION)
         s3.put_object(
             Bucket=settings.AWS_BUCKET,

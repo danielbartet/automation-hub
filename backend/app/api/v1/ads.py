@@ -32,14 +32,36 @@ class AdCampaignResponse(BaseModel):
     model_config = {"from_attributes": True}
 
 
+class ConceptInput(BaseModel):
+    id: int
+    hook_3s: str
+    body: str
+    cta: str
+    format: str
+    image_url: str | None = None
+
+
 class CreateCampaignRequest(BaseModel):
     name: str
     objective: str  # OUTCOME_LEADS | OUTCOME_SALES | OUTCOME_TRAFFIC
     daily_budget: float  # dollars
     countries: list[str] = ["AR", "MX", "CO", "CL"]
-    image_url: str
-    ad_copy: str
-    destination_url: str
+    # Legacy single-creative fields (optional when concepts provided)
+    image_url: str | None = None
+    ad_copy: str | None = None
+    destination_url: str | None = None
+    # Andromeda multi-creative concepts
+    concepts: list[ConceptInput] | None = None
+
+
+class GenerateConceptsRequest(BaseModel):
+    campaign_objective: str  # OUTCOME_LEADS | OUTCOME_SALES | OUTCOME_TRAFFIC
+    count: int = 12
+    product_description: str | None = None
+
+
+class RefreshCreativesRequest(BaseModel):
+    existing_hooks: list[str]
 
 
 class UpdateStatusRequest(BaseModel):
@@ -108,6 +130,77 @@ async def list_campaigns(project_id: int, db: AsyncSession = Depends(get_session
     return output
 
 
+@router.post("/generate-concepts/{project_slug}")
+async def generate_concepts(
+    project_slug: str,
+    body: GenerateConceptsRequest,
+    db: AsyncSession = Depends(get_session),
+) -> dict:
+    """Generate Andromeda-compliant ad concepts for a project using Claude."""
+    from app.services.claude.client import ClaudeClient
+
+    proj_result = await db.execute(select(Project).where(Project.slug == project_slug))
+    project = proj_result.scalar_one_or_none()
+    if not project:
+        raise HTTPException(404, f"Project '{project_slug}' not found")
+
+    try:
+        claude = ClaudeClient()
+        result = await claude.generate_ad_concepts(
+            project=project,
+            campaign_objective=body.campaign_objective,
+            count=body.count,
+            product_description=body.product_description,
+        )
+    except Exception as e:
+        raise HTTPException(500, f"Concept generation failed: {str(e)}")
+
+    return {
+        "project_slug": project_slug,
+        "objective": body.campaign_objective,
+        "concepts": result.get("concepts", []),
+        "diversity_audit": result.get("diversity_audit", {}),
+    }
+
+
+@router.post("/{campaign_id}/refresh-creatives")
+async def refresh_creatives(
+    campaign_id: int,
+    body: RefreshCreativesRequest,
+    db: AsyncSession = Depends(get_session),
+) -> dict:
+    """Generate fresh Andromeda concepts that are conceptually opposite to fatigued hooks."""
+    from app.services.claude.client import ClaudeClient
+
+    result = await db.execute(select(AdCampaign).where(AdCampaign.id == campaign_id))
+    campaign = result.scalar_one_or_none()
+    if not campaign:
+        raise HTTPException(404, "Campaign not found")
+
+    proj_result = await db.execute(select(Project).where(Project.id == campaign.project_id))
+    project = proj_result.scalar_one_or_none()
+    if not project:
+        raise HTTPException(404, "Project not found")
+
+    try:
+        claude = ClaudeClient()
+        concepts_result = await claude.generate_ad_concepts(
+            project=project,
+            campaign_objective=campaign.objective or "OUTCOME_LEADS",
+            count=12,
+            existing_hooks=body.existing_hooks,
+        )
+    except Exception as e:
+        raise HTTPException(500, f"Concept generation failed: {str(e)}")
+
+    return {
+        "project_slug": project.slug,
+        "objective": campaign.objective,
+        "concepts": concepts_result.get("concepts", []),
+        "diversity_audit": concepts_result.get("diversity_audit", {}),
+    }
+
+
 @router.post("/create/{project_slug}")
 async def create_campaign(
     project_slug: str,
@@ -128,6 +221,78 @@ async def create_campaign(
         raise HTTPException(400, "Project missing meta_access_token or ad_account_id")
     if not facebook_page_id:
         raise HTTPException(400, "Project missing facebook_page_id")
+
+    # Andromeda multi-concept path
+    if body.concepts is not None:
+        approved_count = len(body.concepts)
+        if approved_count < 6:
+            raise HTTPException(
+                400,
+                f"Andromeda requires minimum 6 unique creatives. Currently: {approved_count}",
+            )
+
+        if not body.destination_url:
+            raise HTTPException(400, "destination_url is required when using concepts")
+
+        from app.services.storage.s3 import S3Service
+
+        s3_service = S3Service()
+
+        async def upload_placeholder(slug: str) -> str:
+            return await s3_service.upload_placeholder_image(slug)
+
+        try:
+            meta_ids = await meta_service.create_campaign_with_concepts(
+                token=token,
+                ad_account_id=ad_account_id,
+                facebook_page_id=facebook_page_id,
+                name=body.name,
+                objective=body.objective,
+                daily_budget_dollars=body.daily_budget,
+                countries=body.countries,
+                destination_url=body.destination_url,
+                concepts=[c.model_dump() for c in body.concepts],
+                placeholder_image_fn=upload_placeholder,
+                project_slug=project_slug,
+            )
+        except ValueError as e:
+            raise HTTPException(400, str(e))
+        except Exception as e:
+            raise HTTPException(500, f"Meta API error: {str(e)}")
+
+        campaign = AdCampaign(
+            project_id=project.id,
+            meta_campaign_id=meta_ids["campaign_id"],
+            meta_adset_id=meta_ids["adset_id"],
+            meta_creative_id=meta_ids.get("creative_id"),
+            meta_ad_id=meta_ids.get("ad_id"),
+            ad_account_id=ad_account_id,
+            facebook_page_id=facebook_page_id,
+            name=body.name,
+            objective=body.objective,
+            status="paused",
+            daily_budget=body.daily_budget,
+            image_url=body.concepts[0].image_url if body.concepts else None,
+            ad_copy=body.concepts[0].body if body.concepts else None,
+            destination_url=body.destination_url,
+            countries=json.dumps(body.countries),
+        )
+        db.add(campaign)
+        await db.commit()
+        await db.refresh(campaign)
+
+        return {
+            "id": campaign.id,
+            "meta_campaign_id": meta_ids["campaign_id"],
+            "meta_adset_id": meta_ids["adset_id"],
+            "status": "paused",
+            "ads_created": len(meta_ids.get("ads_created", [])),
+            "message": f"Campaign created with {approved_count} Andromeda creatives. Activate when ready.",
+        }
+
+    # Legacy single-creative path
+    if not body.image_url or not body.ad_copy or not body.destination_url:
+        raise HTTPException(400, "image_url, ad_copy, and destination_url are required when not using concepts")
 
     try:
         meta_ids = await meta_service.create_full_campaign(
