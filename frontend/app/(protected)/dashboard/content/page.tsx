@@ -3,16 +3,20 @@
 import { useEffect, useState, useCallback } from "react";
 import { useSession } from "next-auth/react";
 import { Header } from "@/components/layout/Header";
-import { fetchProjects, fetchContent, importFromMeta } from "@/lib/api";
-import { PlusCircle, FileText, Loader2, Pencil, Download } from "lucide-react";
+import { fetchProjects, fetchContent, importFromMeta, generateVideo } from "@/lib/api";
+import { PlusCircle, FileText, Loader2, Pencil, Download, Video, Image } from "lucide-react";
 import { GenerateContentModal } from "@/components/dashboard/GenerateContentModal";
 import { EditContentModal } from "@/components/dashboard/EditContentModal";
+import { ImageGeneratorModal } from "@/components/dashboard/ImageGeneratorModal";
 
 interface Project {
   id: string;
   name: string;
   slug: string;
   is_active: boolean;
+  credits_balance?: number;
+  media_config?: any;
+  content_config?: any;
 }
 
 interface ContentPost {
@@ -20,6 +24,7 @@ interface ContentPost {
   caption: string;
   status: "pending_approval" | "published" | "draft" | "approved" | "rejected";
   image_url?: string;
+  video_url?: string;
   created_at: string;
   published_at?: string;
   scheduled_at?: string;
@@ -72,6 +77,9 @@ export default function ContentPage() {
   const [editPost, setEditPost] = useState<ContentPost | null>(null);
   const [importingMeta, setImportingMeta] = useState(false);
   const [importResult, setImportResult] = useState<{ imported: number; skipped: number; message: string } | null>(null);
+  const [generatingVideoId, setGeneratingVideoId] = useState<number | null>(null);
+  const [videoResults, setVideoResults] = useState<Record<number, { video_url: string; credits_remaining: number }>>({});
+  const [imageGenPost, setImageGenPost] = useState<ContentPost | null>(null);
 
   useEffect(() => {
     fetchProjects()
@@ -106,6 +114,20 @@ export default function ContentPage() {
     if (proj) {
       setSelectedProjectId(proj.id);
       setSelectedProjectSlug(proj.slug);
+    }
+  };
+
+  const handleGenerateVideo = async (postId: number) => {
+    setGeneratingVideoId(postId);
+    setError(null);
+    try {
+      const result = await generateVideo(postId);
+      setVideoResults((prev) => ({ ...prev, [postId]: result }));
+      loadContent();
+    } catch (err) {
+      setError(err instanceof Error ? err.message : "Video generation failed");
+    } finally {
+      setGeneratingVideoId(null);
     }
   };
 
@@ -244,6 +266,8 @@ export default function ContentPage() {
                   <th className="text-left px-4 py-3 font-medium text-gray-600">Caption</th>
                   <th className="text-left px-4 py-3 font-medium text-gray-600">Status</th>
                   <th className="text-left px-4 py-3 font-medium text-gray-600">Created</th>
+                  <th className="text-left px-4 py-3 font-medium text-gray-600">Video</th>
+                  <th className="text-left px-4 py-3 font-medium text-gray-600">Imagen</th>
                   <th className="text-left px-4 py-3 font-medium text-gray-600">Actions</th>
                 </tr>
               </thead>
@@ -278,6 +302,87 @@ export default function ContentPage() {
                       {formatDate(post.created_at)}
                     </td>
                     <td className="px-4 py-3">
+                      {/* Video preview or generate button */}
+                      {(() => {
+                        const videoResult = videoResults[post.id];
+                        const resolvedVideoUrl = videoResult?.video_url || post.video_url;
+                        if (resolvedVideoUrl) {
+                          return (
+                            <div className="flex flex-col gap-1">
+                              <video
+                                src={resolvedVideoUrl}
+                                controls
+                                className="h-14 w-24 rounded-md border border-gray-200 object-cover"
+                              />
+                              <a
+                                href={resolvedVideoUrl}
+                                target="_blank"
+                                rel="noopener noreferrer"
+                                className="text-xs text-blue-600 hover:underline"
+                              >
+                                Descargar
+                              </a>
+                            </div>
+                          );
+                        }
+                        if (post.image_url && !isClient) {
+                          const isGenerating = generatingVideoId === post.id;
+                          return (
+                            <button
+                              onClick={() => handleGenerateVideo(post.id)}
+                              disabled={isGenerating || generatingVideoId !== null}
+                              className="inline-flex items-center gap-1.5 px-3 py-1.5 bg-violet-600 text-white text-xs font-medium rounded-md hover:bg-violet-700 disabled:opacity-50 disabled:cursor-not-allowed transition-colors whitespace-nowrap"
+                              title="Generar Reel con Kling AI"
+                            >
+                              {isGenerating ? (
+                                <>
+                                  <Loader2 className="h-3.5 w-3.5 animate-spin" />
+                                  Generando...
+                                </>
+                              ) : (
+                                <>
+                                  <Video className="h-3.5 w-3.5" />
+                                  Generar Reel
+                                </>
+                              )}
+                            </button>
+                          );
+                        }
+                        return <span className="text-xs text-gray-400">—</span>;
+                      })()}
+                      {generatingVideoId === post.id && (
+                        <p className="text-xs text-gray-500 mt-1 max-w-[180px]">
+                          Generando video con Kling AI... (puede tardar 2-3 minutos)
+                        </p>
+                      )}
+                    </td>
+                    <td className="px-4 py-3">
+                      {!isClient && (
+                        <button
+                          onClick={() => setImageGenPost(post)}
+                          className="inline-flex items-center gap-1.5 px-3 py-1.5 border border-gray-300 text-gray-700 text-xs font-medium rounded-md hover:bg-gray-50 transition-colors whitespace-nowrap"
+                          title="Generar imagen con IA"
+                        >
+                          {post.image_url ? (
+                            <>
+                              {/* eslint-disable-next-line @next/next/no-img-element */}
+                              <img
+                                src={post.image_url}
+                                alt="thumb"
+                                className="h-5 w-5 object-cover rounded"
+                              />
+                              <span>🔄</span>
+                            </>
+                          ) : (
+                            <>
+                              <Image className="h-3.5 w-3.5" />
+                              Generar imagen
+                            </>
+                          )}
+                        </button>
+                      )}
+                    </td>
+                    <td className="px-4 py-3">
                       {!isClient && (
                         <button
                           onClick={() => setEditPost(post)}
@@ -307,6 +412,7 @@ export default function ContentPage() {
         <EditContentModal
           post={editPost}
           projectSlug={selectedProjectSlug}
+          project={projects.find((p) => p.slug === selectedProjectSlug)}
           onClose={() => setEditPost(null)}
           onSaved={() => {
             setEditPost(null);
@@ -314,6 +420,23 @@ export default function ContentPage() {
           }}
         />
       )}
+      {imageGenPost && (() => {
+        const selectedProject = projects.find((p) => p.slug === selectedProjectSlug);
+        return (
+          <ImageGeneratorModal
+            open={true}
+            onClose={() => setImageGenPost(null)}
+            post={imageGenPost}
+            project={selectedProject ?? { slug: selectedProjectSlug }}
+            onImageSaved={(imageUrl) => {
+              setContent((prev) =>
+                prev.map((p) => (p.id === imageGenPost.id ? { ...p, image_url: imageUrl } : p))
+              );
+              setImageGenPost(null);
+            }}
+          />
+        );
+      })()}
     </div>
   );
 }

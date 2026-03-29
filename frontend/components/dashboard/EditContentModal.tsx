@@ -1,8 +1,9 @@
 "use client";
 import { useState } from "react";
-import { X, Loader2, Save, CheckCircle, XCircle } from "lucide-react";
+import { X, Loader2, Save, CheckCircle, XCircle, Sparkles } from "lucide-react";
 import { ImageUploadZone } from "./ImageUploadZone";
 import { updateContent } from "@/lib/api";
+import { ImageGeneratorModal } from "./ImageGeneratorModal";
 
 interface Slide {
   slide_number: number;
@@ -28,11 +29,12 @@ interface ContentPost {
 interface EditContentModalProps {
   post: ContentPost;
   projectSlug: string;
+  project?: { slug: string; name?: string; media_config?: any; content_config?: any; credits_balance?: number };
   onClose: () => void;
   onSaved: () => void;
 }
 
-export function EditContentModal({ post, projectSlug, onClose, onSaved }: EditContentModalProps) {
+export function EditContentModal({ post, projectSlug, project, onClose, onSaved }: EditContentModalProps) {
   const [caption, setCaption] = useState(post.caption || "");
   const [imageUrl, setImageUrl] = useState(post.image_url || "");
   const [hashtags, setHashtags] = useState((post.content?.hashtags || []).join(", "));
@@ -42,6 +44,7 @@ export function EditContentModal({ post, projectSlug, onClose, onSaved }: EditCo
   const [slides, setSlides] = useState<Slide[]>((post.content?.slides as Slide[]) || []);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  const [showImageGen, setShowImageGen] = useState(false);
 
   const handleSave = async () => {
     setLoading(true);
@@ -86,6 +89,19 @@ export function EditContentModal({ post, projectSlug, onClose, onSaved }: EditCo
   };
 
   return (
+    <>
+    {showImageGen && project && (
+      <ImageGeneratorModal
+        open={showImageGen}
+        onClose={() => setShowImageGen(false)}
+        post={{ id: post.id, content: post.content, image_url: imageUrl }}
+        project={project}
+        onImageSaved={(url) => {
+          setImageUrl(url);
+          setShowImageGen(false);
+        }}
+      />
+    )}
     <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50 p-4">
       <div className="bg-white rounded-xl shadow-xl w-full max-w-2xl max-h-[90vh] overflow-y-auto">
         <div className="flex items-center justify-between p-6 border-b">
@@ -181,7 +197,19 @@ export function EditContentModal({ post, projectSlug, onClose, onSaved }: EditCo
 
           {/* Image */}
           <div>
-            <label className="block text-sm font-medium text-gray-700 mb-2">Image</label>
+            <div className="flex items-center justify-between mb-2">
+              <label className="block text-sm font-medium text-gray-700">Image</label>
+              {project && (
+                <button
+                  type="button"
+                  onClick={() => setShowImageGen(true)}
+                  className="inline-flex items-center gap-1.5 px-3 py-1.5 text-xs font-medium text-violet-700 border border-violet-200 rounded-md hover:bg-violet-50 transition-colors"
+                >
+                  <Sparkles className="h-3.5 w-3.5" />
+                  Generar imagen con IA
+                </button>
+              )}
+            </div>
             <ImageUploadZone projectSlug={projectSlug} onUpload={setImageUrl} currentUrl={imageUrl} />
           </div>
 
@@ -238,5 +266,6 @@ export function EditContentModal({ post, projectSlug, onClose, onSaved }: EditCo
         </div>
       </div>
     </div>
+    </>
   );
 }

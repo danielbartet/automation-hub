@@ -49,6 +49,18 @@ async def seed() -> None:
                     "El caption debe reforzar el posicionamiento de marca",
                 ],
             },
+            media_config={
+                "image_provider": "ideogram",
+                "image_style": "typographic",
+                "image_aspect_ratio": "1:1",
+                "image_color_palette": "dark_purple",
+                "video_provider": "kling",
+                "video_duration": 5,
+                "video_aspect_ratio": "9:16",
+                "video_quality": "standard",
+            },
+            credits_balance=1000,
+            credits_used_this_month=0,
         )
         db.add(project)
         await db.commit()

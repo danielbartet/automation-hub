@@ -16,6 +16,7 @@ class ContentPost(Base):
     caption: Mapped[str | None] = mapped_column(Text, nullable=True)
     image_urls: Mapped[str | None] = mapped_column(Text, nullable=True)  # JSON array
     image_url: Mapped[str | None] = mapped_column(Text, nullable=True)  # single image URL
+    video_url: Mapped[str | None] = mapped_column(Text, nullable=True)  # generated video URL
     content: Mapped[dict | None] = mapped_column(JSON, nullable=True)  # raw generated content
     status: Mapped[str] = mapped_column(String(50), default="pending_approval", nullable=False)
     # draft | pending_approval | approved | rejected | published | failed

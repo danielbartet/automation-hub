@@ -41,6 +41,7 @@ export async function createContentManual(
     tone?: string;
     content_type?: string;
     image_url?: string;
+    image_urls?: string[];
     caption?: string;
     hashtags?: string[];
     scheduled_at?: string;
@@ -352,6 +353,17 @@ export async function createCampaignWithConcepts(
   return res.json();
 }
 
+export async function generateVideo(contentId: number): Promise<{ video_url: string; credits_remaining: number }> {
+  const res = await fetch(`${API_BASE}/api/v1/content/${contentId}/generate-video`, {
+    method: "POST",
+  });
+  if (!res.ok) {
+    const err = await res.json().catch(() => ({}));
+    throw new Error((err as { detail?: string }).detail || "Failed to generate video");
+  }
+  return res.json();
+}
+
 export async function importFromMeta(projectSlug: string): Promise<{ imported: number; skipped: number; errors: string[]; message: string }> {
   const res = await fetch(`${API_BASE}/api/v1/content/import-from-meta/${projectSlug}`, {
     method: "POST",
@@ -361,4 +373,35 @@ export async function importFromMeta(projectSlug: string): Promise<{ imported: n
     throw new Error((err as { detail?: string }).detail || "Failed to import from Meta");
   }
   return res.json();
+}
+
+export async function generateImage(
+  contentId: number,
+  body: {
+    prompt?: string;
+    style?: string;
+    aspect_ratio?: string;
+    color_palette?: string;
+  }
+): Promise<{ image_url: string; credits_remaining: number }> {
+  const res = await fetch(`${API_BASE}/api/v1/content/${contentId}/generate-image`, {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify(body),
+  });
+  if (!res.ok) {
+    const err = await res.json().catch(() => ({}));
+    throw new Error((err as { detail?: string }).detail || "Failed to generate image");
+  }
+  return res.json();
+}
+
+export function buildAutoPrompt(post: any, project: any): string {
+  const content = typeof post.content === "string" ? JSON.parse(post.content) : post.content;
+  const slide1 = content?.slides?.[0] ?? {};
+  const headline = slide1.headline ?? "";
+  const subtext = slide1.subtext ?? "";
+  const brand = project?.name ?? "";
+  const tone = (project?.content_config?.tone ?? "").slice(0, 50);
+  return [headline, subtext, brand ? `Brand: ${brand}` : "", tone].filter(Boolean).join(". ");
 }

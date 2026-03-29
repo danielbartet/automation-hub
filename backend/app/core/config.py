@@ -25,6 +25,8 @@ class Settings(BaseSettings):
     JWT_SECRET: str = "change-this-in-production-use-long-random-string"
     JWT_ALGORITHM: str = "HS256"
     JWT_EXPIRE_MINUTES: int = 60 * 24 * 7  # 7 days
+    IDEOGRAM_API_KEY: str = ""
+    KLING_API_KEY: str = ""
 
 
 settings = Settings()

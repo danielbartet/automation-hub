@@ -4,6 +4,7 @@ import os
 import logging
 from datetime import datetime
 import boto3
+import httpx
 from botocore.exceptions import ProfileNotFound, NoCredentialsError
 from PIL import Image, ImageDraw
 from app.core.config import settings
@@ -67,6 +68,25 @@ class S3Service:
             )
             urls.append(f"https://{self.bucket}.s3.amazonaws.com/{key}")
         return urls
+
+    async def upload_from_url(self, url: str, folder: str = "images") -> str:
+        """Download a file from a URL and upload it to S3. Returns the public URL."""
+        async with httpx.AsyncClient() as client:
+            response = await client.get(url, timeout=60.0)
+            response.raise_for_status()
+
+        content_type = response.headers.get("content-type", "image/png")
+        ext = "mp4" if "video" in content_type else "png"
+        timestamp = datetime.now().strftime("%Y%m%d_%H%M%S")
+        key = f"{folder}/{timestamp}.{ext}"
+
+        self.s3.put_object(
+            Bucket=self.bucket,
+            Key=key,
+            Body=response.content,
+            ContentType=content_type,
+        )
+        return f"https://{self.bucket}.s3.amazonaws.com/{key}"
 
     async def upload_placeholder_image(self, project_slug: str) -> str:
         """Generate and upload a placeholder carousel image, return public URL. Fallback only."""

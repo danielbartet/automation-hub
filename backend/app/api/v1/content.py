@@ -1,4 +1,5 @@
 """Content management endpoints."""
+import json
 import re
 import uuid
 from datetime import datetime, timedelta
@@ -15,6 +16,7 @@ from app.core.security import decrypt_token
 from app.models.content import ContentPost
 from app.models.project import Project
 from app.services.claude.client import ClaudeClient
+from app.services.media.factory import get_image_provider, get_video_provider
 from app.services.meta.client import MetaClient
 from app.services.meta.pages import PagesService
 from app.services.meta.instagram import InstagramService
@@ -51,6 +53,7 @@ class ManualContentRequest(BaseModel):
     tone: Optional[str] = None
     content_type: str = "carousel_6_slides"  # carousel_6_slides | single_image | text_post
     image_url: Optional[str] = None
+    image_urls: Optional[list[str]] = None  # per-slide image URLs for carousel formats
     caption: Optional[str] = None  # if empty, Claude generates it
     hashtags: list[str] = []
     scheduled_at: Optional[str] = None  # ISO datetime string
@@ -72,6 +75,13 @@ class BatchContentRequest(BaseModel):
     days_of_week: list[int] = [1, 3, 5]  # 0=Mon, 6=Sun
     publish_time: str = "09:00"  # HH:MM
     content_type: str = "carousel_6_slides"
+
+
+class GenerateImageRequest(BaseModel):
+    prompt: str = ""
+    style: str = "typographic"
+    aspect_ratio: str = "1:1"
+    color_palette: str = "dark"
 
 
 @router.get("/list/{project_slug}")
@@ -190,12 +200,43 @@ async def generate_content(
     # 5. Extract caption
     caption = content.get("caption", "")
 
-    # 6. Render and upload carousel slide images
+    # 6. Render carousel slides AND optionally generate a cover image via media provider
     try:
         image_urls = await get_s3_service().upload_carousel_slides(project_slug, content)
         image_url = image_urls[0] if image_urls else ""
     except Exception as e:
         raise HTTPException(status_code=503, detail=f"S3 upload failed: {str(e)}")
+
+    # 6b. Optionally generate a cover image with the configured image provider
+    media_config = project.media_config or {}
+    image_provider_name = media_config.get("image_provider", "placeholder")
+    if image_provider_name != "placeholder":
+        try:
+            slides = content.get("slides", [])
+            slide_1 = slides[0] if slides else {}
+            headline = slide_1.get("headline", "")
+            subtext = slide_1.get("subtext", "")
+            image_prompt = f"{headline}. {subtext}. Brand: {project.name}.".strip()
+
+            # Fall back to placeholder if credits are insufficient
+            if (project.credits_balance or 0) >= 10:
+                image_provider = get_image_provider(image_provider_name)
+                generated_url = await image_provider.generate_image(
+                    prompt=image_prompt,
+                    style=media_config.get("image_style", "typographic"),
+                    aspect_ratio=media_config.get("image_aspect_ratio", "1:1"),
+                    color_palette=media_config.get("image_color_palette", "dark"),
+                )
+                # Replace cover image with AI-generated one
+                image_url = generated_url
+                if image_urls:
+                    image_urls[0] = generated_url
+                project.credits_balance = (project.credits_balance or 0) - 10
+                project.credits_used_this_month = (project.credits_used_this_month or 0) + 10
+                await db.commit()
+        except Exception:
+            # Never break content generation flow due to image provider failure
+            pass
 
     # 7. Trigger n8n webhook
     try:
@@ -277,12 +318,18 @@ async def create_content_manual(
         except ValueError:
             pass
 
+    # Resolve image_url: use explicit single URL, or fall back to first URL in image_urls list
+    resolved_image_url = body.image_url or (body.image_urls[0] if body.image_urls else None)
+    # Serialize image_urls list as JSON string for storage
+    resolved_image_urls = json.dumps(body.image_urls) if body.image_urls else None
+
     post = ContentPost(
         project_id=project.id,
         format=body.content_type,
         status="pending_approval",
         content={"topic": body.topic, "content_type": body.content_type, "hashtags": body.hashtags},
-        image_url=body.image_url,
+        image_url=resolved_image_url,
+        image_urls=resolved_image_urls,
         caption=full_caption,
         scheduled_at=scheduled,
     )
@@ -311,7 +358,8 @@ async def create_content_manual(
     webhook_triggered = False
     if webhook_url:
         try:
-            await n8n_client.trigger_publish(webhook_url, full_caption, [body.image_url] if body.image_url else [], project_slug)
+            media_list = body.image_urls if body.image_urls else ([body.image_url] if body.image_url else [])
+            await n8n_client.trigger_publish(webhook_url, full_caption, media_list, project_slug)
             webhook_triggered = True
         except Exception:
             pass
@@ -322,6 +370,7 @@ async def create_content_manual(
         "status": post.status,
         "caption": post.caption,
         "image_url": post.image_url,
+        "image_urls": body.image_urls or [],
         "scheduled_at": str(post.scheduled_at) if post.scheduled_at else None,
         "webhook_triggered": webhook_triggered,
     }
@@ -475,6 +524,74 @@ async def batch_generate_content(
     }
 
 
+@router.post("/{content_id}/generate-image")
+async def generate_image_for_post(
+    content_id: int,
+    body: GenerateImageRequest,
+    db: AsyncSession = Depends(get_session),
+) -> dict:
+    """Generate an AI image for a content post using the project's image provider.
+
+    Deducts 10 credits. Returns the image URL and remaining credits.
+    """
+    # 1. Load content post
+    result = await db.execute(select(ContentPost).where(ContentPost.id == content_id))
+    post = result.scalar_one_or_none()
+    if not post:
+        raise HTTPException(status_code=404, detail=f"ContentPost {content_id} not found")
+
+    # 2. Load project
+    proj_result = await db.execute(select(Project).where(Project.id == post.project_id))
+    project = proj_result.scalar_one_or_none()
+    if not project:
+        raise HTTPException(status_code=404, detail="Project not found")
+
+    # 3. Check credits
+    if (project.credits_balance or 0) < 10:
+        raise HTTPException(status_code=402, detail="Insufficient credits")
+
+    # 4. Build prompt if not provided
+    prompt = body.prompt.strip()
+    if not prompt:
+        post_content = post.content or {}
+        slides = post_content.get("slides", []) if isinstance(post_content, dict) else []
+        slide_1 = slides[0] if slides else {}
+        headline = slide_1.get("headline", "")
+        subtext = slide_1.get("subtext", slide_1.get("body", ""))
+        prompt = f"{headline}. {subtext}. Brand: {project.name}.".strip()
+
+    # 5. Resolve image provider from media_config
+    media_config = project.media_config or {}
+    image_provider_name = media_config.get("image_provider", "ideogram")
+    image_provider = get_image_provider(image_provider_name)
+
+    # 6. Generate image using request body params (not media_config defaults)
+    try:
+        image_url = await image_provider.generate_image(
+            prompt=prompt,
+            style=body.style,
+            aspect_ratio=body.aspect_ratio,
+            color_palette=body.color_palette,
+        )
+    except Exception as e:
+        raise HTTPException(status_code=503, detail=f"Image generation failed: {str(e)}")
+
+    # 7. Save image_url to post
+    post.image_url = image_url
+
+    # 8. Deduct 10 credits (floor at 0)
+    project.credits_balance = max(0, (project.credits_balance or 0) - 10)
+    project.credits_used_this_month = (project.credits_used_this_month or 0) + 10
+
+    await db.commit()
+    await db.refresh(project)
+
+    return {
+        "image_url": image_url,
+        "credits_remaining": project.credits_balance,
+    }
+
+
 @router.post("/import-from-meta/{project_slug}")
 async def import_from_meta(
     project_slug: str,
@@ -620,4 +737,65 @@ async def import_from_meta(
         "skipped": skipped,
         "errors": errors,
         "message": f"Import complete: {imported} new posts imported, {skipped} already existed.",
+    }
+
+
+@router.post("/{content_id}/generate-video")
+async def generate_video_for_post(
+    content_id: int,
+    db: AsyncSession = Depends(get_session),
+) -> dict:
+    """Generate a short-form video for a content post using the project's video provider.
+
+    Deducts 50 credits. Returns the video URL and remaining credits.
+    """
+    # 1. Load content post
+    result = await db.execute(select(ContentPost).where(ContentPost.id == content_id))
+    post = result.scalar_one_or_none()
+    if not post:
+        raise HTTPException(status_code=404, detail=f"ContentPost {content_id} not found")
+
+    # 2. Load project
+    proj_result = await db.execute(select(Project).where(Project.id == post.project_id))
+    project = proj_result.scalar_one_or_none()
+    if not project:
+        raise HTTPException(status_code=404, detail="Project not found")
+
+    # 3. Resolve video provider from media_config
+    media_config = project.media_config or {}
+    video_provider_name = media_config.get("video_provider", "kling")
+    video_provider = get_video_provider(video_provider_name)
+
+    # 4. Build prompt from post content
+    post_content = post.content or {}
+    slides = post_content.get("slides", []) if isinstance(post_content, dict) else []
+    if slides:
+        slide_1 = slides[0]
+        headline = slide_1.get("headline", "")
+        subtext = slide_1.get("subtext", slide_1.get("body", ""))
+        prompt = f"{headline}. {subtext}. Brand: {project.name}.".strip()
+    else:
+        prompt = f"{post.caption or project.name}. Brand: {project.name}."
+
+    duration = int(media_config.get("video_duration", 5))
+    aspect_ratio = media_config.get("video_aspect_ratio", "9:16")
+
+    # 5. Generate video
+    video_url = await video_provider.generate_video(
+        prompt=prompt,
+        image_url=post.image_url,
+        duration=duration,
+        aspect_ratio=aspect_ratio,
+    )
+
+    # 6. Save video_url and deduct credits
+    post.video_url = video_url
+    project.credits_balance = (project.credits_balance or 0) - 50
+    project.credits_used_this_month = (project.credits_used_this_month or 0) + 50
+    await db.commit()
+    await db.refresh(post)
+
+    return {
+        "video_url": video_url,
+        "credits_remaining": project.credits_balance,
     }

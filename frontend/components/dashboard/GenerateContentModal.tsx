@@ -21,9 +21,30 @@ export function GenerateContentModal({ projectSlug, onClose, onSuccess }: Genera
   const [tone, setTone] = useState("");
   const [contentType, setContentType] = useState("carousel_6_slides");
   const [imageUrl, setImageUrl] = useState("");
+  const [imageUrls, setImageUrls] = useState<string[]>([]);
   const [caption, setCaption] = useState("");
   const [hashtags, setHashtags] = useState("");
   const [scheduledAt, setScheduledAt] = useState("");
+
+  // Derive slide count from content type (e.g. "carousel_6_slides" → 6)
+  const slideCount = (() => {
+    const match = contentType.match(/carousel_(\d+)_slides/);
+    return match ? parseInt(match[1], 10) : 1;
+  })();
+
+  const handleContentTypeChange = (e: React.ChangeEvent<HTMLSelectElement>) => {
+    setContentType(e.target.value);
+    setImageUrl("");
+    setImageUrls([]);
+  };
+
+  const handleSlideImageUpload = (index: number, url: string) => {
+    setImageUrls((prev) => {
+      const updated = [...prev];
+      updated[index] = url;
+      return updated;
+    });
+  };
 
   const handleAuto = async () => {
     setLoading(true);
@@ -52,11 +73,13 @@ export function GenerateContentModal({ projectSlug, onClose, onSuccess }: Genera
         .split(",")
         .map((t) => t.trim().replace(/^#/, ""))
         .filter(Boolean);
+      const isCarousel = slideCount > 1;
       await createContentManual(projectSlug, {
         topic: topic.trim(),
         tone: tone.trim() || undefined,
         content_type: contentType,
-        image_url: imageUrl || undefined,
+        image_url: isCarousel ? undefined : (imageUrl || undefined),
+        image_urls: isCarousel ? imageUrls.filter(Boolean) : undefined,
         caption: caption.trim() || undefined,
         hashtags: tags,
         scheduled_at: scheduledAt || undefined,
@@ -179,7 +202,7 @@ export function GenerateContentModal({ projectSlug, onClose, onSuccess }: Genera
                   <label className="block text-sm font-medium text-gray-700 mb-1">Content Type</label>
                   <select
                     value={contentType}
-                    onChange={(e) => setContentType(e.target.value)}
+                    onChange={handleContentTypeChange}
                     className="w-full border border-gray-200 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-gray-400"
                   >
                     <option value="carousel_6_slides">Carousel (6 slides)</option>
@@ -189,8 +212,30 @@ export function GenerateContentModal({ projectSlug, onClose, onSuccess }: Genera
                 </div>
               </div>
               <div>
-                <label className="block text-sm font-medium text-gray-700 mb-2">Image</label>
-                <ImageUploadZone projectSlug={projectSlug} onUpload={setImageUrl} currentUrl={imageUrl} />
+                {slideCount > 1 ? (
+                  <>
+                    <label className="block text-sm font-medium text-gray-700 mb-2">
+                      Slide Images <span className="text-gray-400 font-normal">(one per slide, optional)</span>
+                    </label>
+                    <div className="grid grid-cols-2 gap-3">
+                      {Array.from({ length: slideCount }).map((_, i) => (
+                        <div key={i}>
+                          <p className="text-xs text-gray-500 mb-1">Slide {i + 1}</p>
+                          <ImageUploadZone
+                            projectSlug={projectSlug}
+                            onUpload={(url) => handleSlideImageUpload(i, url)}
+                            currentUrl={imageUrls[i] || ""}
+                          />
+                        </div>
+                      ))}
+                    </div>
+                  </>
+                ) : (
+                  <>
+                    <label className="block text-sm font-medium text-gray-700 mb-2">Image</label>
+                    <ImageUploadZone projectSlug={projectSlug} onUpload={setImageUrl} currentUrl={imageUrl} />
+                  </>
+                )}
               </div>
               <div>
                 <label className="block text-sm font-medium text-gray-700 mb-1">Caption</label>

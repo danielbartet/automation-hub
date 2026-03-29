@@ -19,6 +19,9 @@ class ProjectResponse(BaseModel):
     facebook_page_id: str | None
     instagram_account_id: str | None
     ad_account_id: str | None
+    credits_balance: int = 0
+    media_config: dict | None = None
+    content_config: dict | None = None
 
     model_config = {"from_attributes": True}
 
