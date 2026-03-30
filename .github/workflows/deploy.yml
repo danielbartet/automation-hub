@@ -16,12 +16,13 @@ jobs:
         env:
           FORCE_JAVASCRIPT_ACTIONS_TO_NODE24: true
 
-      - name: Deploy via SSH
+      - name: Pull code and build
         uses: appleboy/ssh-action@v1
         with:
           host: ${{ secrets.EC2_HOST }}
           username: ${{ secrets.EC2_USER }}
           key: ${{ secrets.EC2_SSH_KEY_STAGING }}
+          command_timeout: 30m
           script: |
             set -e
 
@@ -46,13 +47,28 @@ jobs:
               echo ".env.production copied from secrets location."
             fi
 
-            # Build and start containers
-            docker compose -f docker-compose.prod.yml up --build -d
+            # Build images (can take several minutes due to Playwright/Chromium)
+            echo "Building Docker images..."
+            docker compose -f docker-compose.prod.yml build
+
+      - name: Start containers and migrate
+        uses: appleboy/ssh-action@v1
+        with:
+          host: ${{ secrets.EC2_HOST }}
+          username: ${{ secrets.EC2_USER }}
+          key: ${{ secrets.EC2_SSH_KEY_STAGING }}
+          command_timeout: 10m
+          script: |
+            set -e
+            cd /home/ubuntu/automation-hub
+
+            # Start containers with pre-built images
+            docker compose -f docker-compose.prod.yml up -d
 
             # Copy Traefik dynamic config files
             TRAEFIK_DYNAMIC_DIR="/home/ubuntu/.openclaw/workspace/traefik-n8n/traefik/dynamic"
-            cp "$DEPLOY_DIR/deploy/traefik/automation-hub-backend.yml" "$TRAEFIK_DYNAMIC_DIR/"
-            cp "$DEPLOY_DIR/deploy/traefik/automation-hub-frontend.yml" "$TRAEFIK_DYNAMIC_DIR/"
+            cp deploy/traefik/automation-hub-backend.yml "$TRAEFIK_DYNAMIC_DIR/"
+            cp deploy/traefik/automation-hub-frontend.yml "$TRAEFIK_DYNAMIC_DIR/"
             echo "Traefik config files copied."
 
             # Restart Traefik to pick up new config
@@ -60,8 +76,9 @@ jobs:
             docker compose restart traefik
             echo "Traefik restarted."
 
-            # Wait for backend to be ready (retry up to 30s)
+            # Wait for backend to be ready
             echo "Waiting for backend to start..."
+            cd /home/ubuntu/automation-hub
             for i in $(seq 1 10); do
               if docker exec automation-hub-backend python3 -c "import urllib.request; urllib.request.urlopen('http://localhost:8000/health')"; then
                 echo "Health check passed."
@@ -71,7 +88,7 @@ jobs:
               sleep 3
               if [ $i -eq 10 ]; then
                 echo "Backend did not start in time."
-                cd "$DEPLOY_DIR" && docker compose -f docker-compose.prod.yml logs backend --tail=20
+                docker compose -f docker-compose.prod.yml logs backend --tail=20
                 exit 1
               fi
             done
