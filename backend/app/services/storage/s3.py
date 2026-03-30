@@ -88,6 +88,18 @@ class S3Service:
         )
         return f"https://{self.bucket}.s3.amazonaws.com/{key}"
 
+    async def upload_bytes(self, data: bytes, folder: str = "generated") -> str:
+        """Upload raw bytes to S3 and return the public URL."""
+        timestamp = datetime.now().strftime("%Y%m%d_%H%M%S_%f")
+        key = f"{folder}/{timestamp}.png"
+        self.s3.put_object(
+            Bucket=self.bucket,
+            Key=key,
+            Body=data,
+            ContentType="image/png",
+        )
+        return f"https://{self.bucket}.s3.amazonaws.com/{key}"
+
     async def upload_placeholder_image(self, project_slug: str) -> str:
         """Generate and upload a placeholder carousel image, return public URL. Fallback only."""
         img = Image.new("RGB", (1080, 1080), color=(15, 15, 15))

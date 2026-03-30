@@ -60,7 +60,9 @@ async def seed() -> None:
                 "posting_frequency": "3-4x_week",
             },
             media_config={
-                "image_provider": "ideogram",
+                "image_provider": "html",
+                "brand_handle": "quantorialabs",
+                "image_cta_url": "quantorialabs.com",
                 "image_style": "typographic",
                 "image_aspect_ratio": "1:1",
                 "image_color_palette": "dark_green",
@@ -69,6 +71,7 @@ async def seed() -> None:
                 "image_secondary_color": "#ffffff",
                 "image_bg_color": "#0a0a0a",
                 "image_fonts": "Space Grotesk Bold, Inter Bold",
+                "google_fonts_url": "https://fonts.googleapis.com/css2?family=Space+Grotesk:wght@400;600;700&family=Inter:wght@400;600;700;800;900&display=swap",
                 "video_provider": "kling",
                 "video_duration": 5,
                 "video_aspect_ratio": "9:16",

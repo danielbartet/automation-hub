@@ -9,26 +9,32 @@ from app.services.media.base import BaseImageProvider, BaseVideoProvider
 logger = logging.getLogger(__name__)
 
 
-def get_image_provider(provider_name: str) -> BaseImageProvider:
-    """Return the requested image provider, falling back to PlaceholderProvider if unconfigured."""
+def get_image_provider(provider_name: str = "html") -> BaseImageProvider:
+    """Return the requested image provider, falling back to HTMLSlideRenderer if unconfigured."""
+    from app.services.media.html_renderer import HTMLSlideRenderer
     from app.services.media.ideogram import IdeogramProvider
     from app.services.media.placeholder import PlaceholderProvider
 
-    if provider_name == "ideogram":
-        if settings.IDEOGRAM_API_KEY:
-            return IdeogramProvider()
+    if provider_name == "ideogram" and settings.IDEOGRAM_API_KEY:
+        return IdeogramProvider()
+
+    if provider_name == "ideogram" and not settings.IDEOGRAM_API_KEY:
         logger.warning(
             "Image provider 'ideogram' requested but IDEOGRAM_API_KEY is not set — "
-            "falling back to PlaceholderProvider"
+            "falling back to HTMLSlideRenderer"
         )
+        return HTMLSlideRenderer()
+
+    if provider_name == "placeholder":
         return PlaceholderProvider()
 
-    if provider_name != "placeholder":
+    # Default: HTMLSlideRenderer for all text carousels
+    if provider_name not in ("html", "ideogram", "placeholder"):
         logger.warning(
-            "Image provider '%s' not configured or unsupported — falling back to PlaceholderProvider",
+            "Image provider '%s' not configured or unsupported — falling back to HTMLSlideRenderer",
             provider_name,
         )
-    return PlaceholderProvider()
+    return HTMLSlideRenderer()
 
 
 def get_video_provider(provider_name: str) -> BaseVideoProvider:
