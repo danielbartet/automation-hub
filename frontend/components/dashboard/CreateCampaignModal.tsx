@@ -62,6 +62,16 @@ export function CreateCampaignModal({ projectSlug, projectId, onClose, onSuccess
   const [adCopy, setAdCopy] = useState("");
   const [destinationUrl, setDestinationUrl] = useState("");
 
+  // Step 3 — Per-concept image upload (Andromeda mode)
+  const [conceptImageTabs, setConceptImageTabs] = useState<Record<number, "ai" | "upload">>({});
+  const [conceptUploadedImages, setConceptUploadedImages] = useState<Record<number, string>>({});
+
+  const getConceptTab = (id: number) => conceptImageTabs[id] ?? "ai";
+  const setConceptTab = (id: number, tab: "ai" | "upload") =>
+    setConceptImageTabs(prev => ({ ...prev, [id]: tab }));
+  const setConceptImage = (id: number, url: string) =>
+    setConceptUploadedImages(prev => ({ ...prev, [id]: url }));
+
   useEffect(() => {
     fetchProjectPosts(projectId)
       .then((data: Post[]) => setPosts(Array.isArray(data) ? data.filter(p => p.image_url) : []))
@@ -120,6 +130,7 @@ export function CreateCampaignModal({ projectSlug, projectId, onClose, onSuccess
             body: c.body,
             cta: c.cta,
             format: c.format,
+            image_url: conceptUploadedImages[c.id] || undefined,
           })),
         });
       } else {
@@ -387,21 +398,82 @@ export function CreateCampaignModal({ projectSlug, projectId, onClose, onSuccess
           {step === 3 && (
             <div className="space-y-5">
               {approvedConcepts.length >= 6 ? (
-                /* Andromeda mode: only need destination URL */
-                <div>
-                  <div className="mb-4 p-3 bg-purple-50 border border-purple-200 rounded-lg text-xs text-purple-700">
-                    <strong>{approvedConcepts.length} conceptos aprobados.</strong> Las imágenes se generarán automáticamente. Solo necesitas la URL de destino.
+                /* Andromeda mode: per-concept image upload + destination URL */
+                <div className="space-y-5">
+                  <div className="p-3 bg-purple-50 border border-purple-200 rounded-lg text-xs text-purple-700">
+                    <strong>{approvedConcepts.length} conceptos aprobados.</strong> Podés subir una imagen por concepto o dejar que se genere automáticamente.
                   </div>
-                  <label className="block text-sm font-medium text-gray-700 mb-1">
-                    URL de destino *
-                  </label>
-                  <input
-                    value={destinationUrl}
-                    onChange={e => setDestinationUrl(e.target.value)}
-                    type="url"
-                    className="w-full border border-gray-200 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-gray-400"
-                    placeholder="https://tusitio.com/landing"
-                  />
+
+                  <div>
+                    <label className="block text-sm font-medium text-gray-700 mb-1">
+                      URL de destino *
+                    </label>
+                    <input
+                      value={destinationUrl}
+                      onChange={e => setDestinationUrl(e.target.value)}
+                      type="url"
+                      className="w-full border border-gray-200 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-gray-400"
+                      placeholder="https://tusitio.com/landing"
+                    />
+                  </div>
+
+                  <div>
+                    <p className="text-sm font-medium text-gray-700 mb-3">Imágenes por concepto (opcional)</p>
+                    <div className="space-y-4 max-h-[50vh] overflow-y-auto pr-1">
+                      {approvedConcepts.map(concept => (
+                        <div key={concept.id} className="border border-gray-200 rounded-xl p-3">
+                          <p className="text-xs font-semibold text-gray-700 mb-2 line-clamp-1">{concept.hook_3s}</p>
+                          <div className="flex gap-1 mb-3">
+                            {(["ai", "upload"] as const).map(tab => (
+                              <button
+                                key={tab}
+                                type="button"
+                                onClick={() => setConceptTab(concept.id, tab)}
+                                className={`px-3 py-1.5 text-xs font-medium rounded-lg border transition-colors ${
+                                  getConceptTab(concept.id) === tab
+                                    ? "bg-gray-900 text-white border-gray-900"
+                                    : "border-gray-200 text-gray-600 hover:bg-gray-50"
+                                }`}
+                              >
+                                {tab === "ai" ? "Generar con IA" : "Subir imagen"}
+                              </button>
+                            ))}
+                          </div>
+                          {getConceptTab(concept.id) === "ai" ? (
+                            <p className="text-xs text-gray-400 py-2">La imagen se generará automáticamente al lanzar la campaña.</p>
+                          ) : (
+                            <div>
+                              {conceptUploadedImages[concept.id] ? (
+                                <div className="flex items-center gap-3">
+                                  {/* eslint-disable-next-line @next/next/no-img-element */}
+                                  <img
+                                    src={conceptUploadedImages[concept.id]}
+                                    alt="preview"
+                                    className="h-16 w-16 object-cover rounded-lg border border-gray-200"
+                                  />
+                                  <div className="flex-1">
+                                    <p className="text-xs text-green-600 font-medium">Imagen cargada</p>
+                                    <button
+                                      type="button"
+                                      onClick={() => setConceptImage(concept.id, "")}
+                                      className="text-xs text-gray-400 hover:text-gray-600 mt-1"
+                                    >
+                                      Cambiar imagen
+                                    </button>
+                                  </div>
+                                </div>
+                              ) : (
+                                <ImageUploadZone
+                                  projectSlug={projectSlug}
+                                  onUpload={(url) => setConceptImage(concept.id, url)}
+                                />
+                              )}
+                            </div>
+                          )}
+                        </div>
+                      ))}
+                    </div>
+                  </div>
                 </div>
               ) : (
                 /* Legacy mode: full creative fields */

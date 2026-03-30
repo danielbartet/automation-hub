@@ -27,6 +27,7 @@ class Settings(BaseSettings):
     JWT_EXPIRE_MINUTES: int = 60 * 24 * 7  # 7 days
     IDEOGRAM_API_KEY: str = ""
     KLING_API_KEY: str = ""
+    TELEGRAM_NOTIFICATIONS_ENABLED: bool = False
 
 
 settings = Settings()

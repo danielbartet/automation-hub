@@ -625,12 +625,19 @@ async def get_campaign_detail(
             parts.append(f"Age: {age_min or '?'}-{age_max or '?'}")
         return "; ".join(parts) if parts else "Broad"
 
+    def _adset_budget_display(a: dict) -> dict:
+        raw = a.get("daily_budget")
+        if raw and int(raw) > 0:
+            dollars = float(raw) / 100.0
+            return {"daily_budget": dollars, "budget_display": dollars}
+        return {"daily_budget": 0.0, "budget_display": "CBO"}
+
     adsets = [
         {
             "id": a["id"],
             "name": a.get("name", ""),
             "status": a.get("status", ""),
-            "daily_budget": float(a["daily_budget"]) / 100.0 if a.get("daily_budget") else 0.0,
+            **_adset_budget_display(a),
             "targeting_summary": summarize_targeting(a.get("targeting") or {}),
         }
         for a in adsets_raw

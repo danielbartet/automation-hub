@@ -79,6 +79,7 @@ interface CampaignDetail {
     name: string
     status: string
     daily_budget: number
+    budget_display?: string
     targeting_summary: string
   }>
   ads: Array<{
@@ -343,9 +344,73 @@ export default function CampaignDetailPage() {
   const metricLabel =
     chartMetric === "ctr" ? "CTR %" : chartMetric === "cpc" ? "CPC $" : "Frecuencia"
 
+  // Pending optimization logs
+  const pendingLogs = detail.optimization_logs.filter(
+    (log) => log.approval_status === "pending" && log.approval_token
+  )
+
   return (
     <div className="min-h-screen bg-gray-900 text-white">
       <div className="p-6 space-y-6 max-w-[1400px] mx-auto">
+
+        {/* ── OPTIMIZACIONES PROPUESTAS ───────────────────────────────────── */}
+        {pendingLogs.length > 0 && (
+          <div className="space-y-3">
+            <h2 className="text-white font-semibold text-base">Optimizaciones propuestas</h2>
+            {pendingLogs.map((log) => (
+              <div
+                key={log.id}
+                className="bg-gray-800 border border-gray-700 rounded-xl p-4"
+              >
+                <div className="flex items-start justify-between gap-4 flex-wrap">
+                  <div className="flex-1 min-w-0">
+                    <div className="flex items-center gap-2 mb-2">
+                      <span
+                        className={`px-2 py-0.5 rounded text-xs font-semibold ${
+                          log.decision === "SCALE"
+                            ? "bg-green-900 text-green-300"
+                            : log.decision === "PAUSE"
+                            ? "bg-red-900 text-red-300"
+                            : log.decision === "MODIFY"
+                            ? "bg-yellow-900 text-yellow-300"
+                            : "bg-gray-700 text-gray-300"
+                        }`}
+                      >
+                        {log.decision}
+                      </span>
+                      <span className="text-gray-500 text-xs">{relativeTime(log.created_at)}</span>
+                    </div>
+                    <p className="text-gray-300 text-sm leading-relaxed">{log.rationale}</p>
+                    {log.decision === "SCALE" && log.budget_before != null && log.budget_after != null && (
+                      <p className="text-gray-400 text-xs mt-2">
+                        Presupuesto actual: <span className="text-white">${log.budget_before}/día</span> → Propuesto: <span className="text-green-400">${log.budget_after}/día</span>
+                      </p>
+                    )}
+                    {log.decision === "PAUSE" && (
+                      <p className="text-orange-300 text-xs mt-2">Esta acción pausará la campaña en Meta.</p>
+                    )}
+                  </div>
+                  {(log.decision === "SCALE" || log.decision === "PAUSE") && (
+                    <div className="flex gap-2 flex-shrink-0">
+                      <button
+                        onClick={() => handleApprove(log)}
+                        className="px-3 py-1.5 text-xs bg-green-700 hover:bg-green-600 text-white rounded-lg font-medium transition-colors"
+                      >
+                        Confirmar
+                      </button>
+                      <button
+                        onClick={() => handleReject(log)}
+                        className="px-3 py-1.5 text-xs bg-gray-700 hover:bg-gray-600 text-gray-300 rounded-lg font-medium transition-colors"
+                      >
+                        Cancelar
+                      </button>
+                    </div>
+                  )}
+                </div>
+              </div>
+            ))}
+          </div>
+        )}
 
         {/* ── HEADER ──────────────────────────────────────────────────────── */}
         <div className="flex items-center justify-between flex-wrap gap-3">
@@ -562,8 +627,14 @@ export default function CampaignDetailPage() {
                           {adset.status}
                         </span>
                       </td>
-                      <td className="py-2 text-right text-gray-300 text-xs">
-                        ${adset.daily_budget}/día
+                      <td className="py-2 text-right text-xs">
+                        {adset.budget_display === "CBO" ? (
+                          <span className="px-1.5 py-0.5 rounded bg-gray-600 text-gray-300 text-xs font-medium">CBO</span>
+                        ) : adset.daily_budget > 0 ? (
+                          <span className="text-gray-300">${adset.daily_budget.toFixed(2)}/día</span>
+                        ) : (
+                          <span className="text-gray-500">—</span>
+                        )}
                       </td>
                     </tr>
                   ))}

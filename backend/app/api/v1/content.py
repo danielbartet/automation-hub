@@ -871,6 +871,202 @@ async def import_from_meta(
     }
 
 
+@router.post("/import/{project_slug}")
+async def import_instagram_posts(
+    project_slug: str,
+    db: AsyncSession = Depends(get_session),
+) -> dict:
+    """Import published Instagram posts into the DB.
+
+    Fetches media from the project's instagram_account_id via Meta Graph API.
+    Skips posts already imported (matched by instagram_media_id).
+    Returns {"imported": N, "skipped": N}.
+    """
+    # 1. Load project
+    result = await db.execute(select(Project).where(Project.slug == project_slug))
+    project = result.scalar_one_or_none()
+    if not project:
+        raise HTTPException(status_code=404, detail=f"Project '{project_slug}' not found")
+
+    if not project.instagram_account_id:
+        raise HTTPException(
+            status_code=400,
+            detail="Project has no instagram_account_id configured",
+        )
+
+    # Resolve and decrypt access token
+    raw_token = project.meta_access_token or settings.META_ACCESS_TOKEN
+    if not raw_token:
+        raise HTTPException(status_code=400, detail="Project has no Meta access token configured")
+    access_token = decrypt_token(raw_token)
+
+    # 2. Fetch Instagram media with like/comment counts
+    meta_client = MetaClient(access_token=access_token)
+    try:
+        ig_response = await meta_client.get(
+            f"/{project.instagram_account_id}/media",
+            {
+                "fields": "id,caption,media_type,media_url,thumbnail_url,timestamp,like_count,comments_count",
+                "limit": 50,
+            },
+        )
+    except Exception as exc:
+        raise HTTPException(status_code=502, detail=f"Meta API error: {str(exc)}")
+
+    ig_media = ig_response.get("data", [])
+
+    imported = 0
+    skipped = 0
+
+    # 3. Process each media item
+    for media in ig_media:
+        media_id = media.get("id", "")
+        if not media_id:
+            continue
+
+        # Check if already exists by instagram_media_id
+        existing = await db.execute(
+            select(ContentPost).where(
+                ContentPost.project_id == project.id,
+                ContentPost.instagram_media_id == media_id,
+            )
+        )
+        if existing.scalar_one_or_none():
+            skipped += 1
+            continue
+
+        caption = media.get("caption") or ""
+        media_type = media.get("media_type", "IMAGE").lower()
+        image_url = media.get("media_url") or media.get("thumbnail_url")
+        like_count = media.get("like_count", 0) or 0
+        comments_count = media.get("comments_count", 0) or 0
+
+        timestamp_str = media.get("timestamp")
+        try:
+            published_at = datetime.fromisoformat(timestamp_str.replace("Z", "+00:00")) if timestamp_str else None
+        except Exception:
+            published_at = None
+
+        # Map media_type to format
+        if media_type == "video":
+            fmt = "single_image"
+        elif media_type == "carousel_album":
+            fmt = "carousel"
+        else:
+            fmt = "post"
+
+        post = ContentPost(
+            project_id=project.id,
+            format=fmt,
+            caption=caption,
+            image_url=image_url,
+            status="published",
+            instagram_media_id=media_id,
+            published_at=published_at,
+            scheduled_at=published_at,
+            content={
+                "source": "meta_import",
+                "platform": "instagram",
+                "media_type": media_type,
+                "platform_metrics": {"likes": like_count, "comments": comments_count},
+            },
+        )
+        db.add(post)
+        imported += 1
+
+    await db.commit()
+
+    return {"imported": imported, "skipped": skipped}
+
+
+class CreateStoryRequest(BaseModel):
+    image_url: str
+    caption: Optional[str] = None
+    scheduled_at: Optional[datetime] = None
+
+
+@router.post("/create-story/{project_slug}")
+async def create_instagram_story(
+    project_slug: str,
+    body: CreateStoryRequest,
+    db: AsyncSession = Depends(get_session),
+) -> dict:
+    """Publish an Instagram Story for a project.
+
+    Creates a media container then publishes it via Meta Graph API.
+    Saves the result as a ContentPost with content_type='story'.
+    Returns {"success": True, "story_id": story_id}.
+    """
+    # 1. Load project
+    result = await db.execute(select(Project).where(Project.slug == project_slug))
+    project = result.scalar_one_or_none()
+    if not project:
+        raise HTTPException(status_code=404, detail=f"Project '{project_slug}' not found")
+
+    if not project.instagram_account_id:
+        raise HTTPException(
+            status_code=400,
+            detail="Project has no instagram_account_id configured — required for Stories",
+        )
+
+    raw_token = project.meta_access_token or settings.META_ACCESS_TOKEN
+    if not raw_token:
+        raise HTTPException(status_code=400, detail="Project has no Meta access token configured")
+    access_token = decrypt_token(raw_token)
+
+    meta_client = MetaClient(access_token=access_token)
+    ig_account_id = project.instagram_account_id
+
+    # 2. Create media container
+    container_params: dict = {
+        "image_url": body.image_url,
+        "media_type": "IMAGE",
+    }
+    if body.caption:
+        container_params["caption"] = body.caption
+
+    try:
+        container_resp = await meta_client.post(
+            f"/{ig_account_id}/media",
+            container_params,
+        )
+    except Exception as exc:
+        raise HTTPException(status_code=502, detail=f"Meta API error creating media container: {str(exc)}")
+
+    media_id = container_resp.get("id")
+    if not media_id:
+        raise HTTPException(status_code=502, detail="Meta API did not return a media container id")
+
+    # 3. Publish the media container
+    try:
+        publish_resp = await meta_client.post(
+            f"/{ig_account_id}/media_publish",
+            {"creation_id": media_id},
+        )
+    except Exception as exc:
+        raise HTTPException(status_code=502, detail=f"Meta API error publishing story: {str(exc)}")
+
+    story_id = publish_resp.get("id", media_id)
+
+    # 4. Save ContentPost
+    published_at = body.scheduled_at or datetime.utcnow()
+    post = ContentPost(
+        project_id=project.id,
+        format="story",
+        caption=body.caption or "",
+        image_url=body.image_url,
+        status="published",
+        instagram_media_id=story_id,
+        published_at=published_at,
+        scheduled_at=published_at,
+        content={"source": "story", "platform": "instagram", "media_type": "story"},
+    )
+    db.add(post)
+    await db.commit()
+
+    return {"success": True, "story_id": story_id}
+
+
 @router.post("/{content_id}/generate-video")
 async def generate_video_for_post(
     content_id: int,

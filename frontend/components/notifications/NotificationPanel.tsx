@@ -424,6 +424,16 @@ export function NotificationPanel({ onClose }: NotificationPanelProps) {
                           </div>
                         )}
 
+                        {/* Campaign detail link for optimizer/fatigue notifications */}
+                        {(notif.type === "optimizer_scale" || notif.type === "optimizer_pause" || notif.type === "optimizer_modify" || notif.type === "campaign_fatigued") && notif.action_url && (
+                          <a
+                            href={notif.action_url}
+                            className="mt-2 block text-sm text-blue-400 hover:text-blue-300 hover:underline transition-colors"
+                          >
+                            Ver campaña completa →
+                          </a>
+                        )}
+
                         {/* Fatigue brief toggle */}
                         {isFatigue && !resultText && (
                           <>
