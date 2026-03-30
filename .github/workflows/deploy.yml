@@ -64,12 +64,19 @@ jobs:
             echo "Waiting for backend to start..."
             for i in $(seq 1 10); do
               if docker exec automation-hub-backend python3 -c "import urllib.request; urllib.request.urlopen('http://localhost:8000/health')"; then
-                echo "Health check passed. Deployment successful."
-                exit 0
+                echo "Health check passed."
+                break
               fi
               echo "Attempt $i/10 failed, retrying in 3s..."
               sleep 3
+              if [ $i -eq 10 ]; then
+                echo "Backend did not start in time."
+                cd "$DEPLOY_DIR" && docker compose -f docker-compose.prod.yml logs backend --tail=20
+                exit 1
+              fi
             done
-            echo "Backend did not start in time."
-            cd "$DEPLOY_DIR" && docker compose -f docker-compose.prod.yml logs backend --tail=20
-            exit 1
+
+            # Run database migrations
+            echo "Running database migrations..."
+            docker exec automation-hub-backend uv run alembic upgrade head
+            echo "Migrations applied successfully."
