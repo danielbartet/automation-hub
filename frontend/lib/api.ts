@@ -14,6 +14,28 @@ export async function fetchProjects() {
   return res.json();
 }
 
+export async function updateProject(slug: string, data: {
+  name?: string;
+  content_config?: Record<string, unknown>;
+  media_config?: Record<string, unknown>;
+  is_active?: boolean;
+  facebook_page_id?: string;
+  instagram_account_id?: string;
+  ad_account_id?: string;
+  n8n_webhook_base_url?: string;
+}) {
+  const res = await fetch(`${API_BASE}/api/v1/projects/${slug}`, {
+    method: "PUT",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify(data),
+  });
+  if (!res.ok) {
+    const err = await res.json().catch(() => ({}));
+    throw new Error((err as { detail?: string }).detail || "Failed to update project");
+  }
+  return res.json();
+}
+
 export async function fetchContent(projectSlug: string) {
   const res = await fetch(`${API_BASE}/api/v1/content/list/${projectSlug}?per_page=100`, { cache: "no-store" });
   if (!res.ok) throw new Error("Failed to fetch content");

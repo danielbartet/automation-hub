@@ -49,6 +49,7 @@ class ProjectUpdate(BaseModel):
     n8n_webhook_base_url: Optional[str] = None
     is_active: Optional[bool] = None
     content_config: Optional[dict] = None
+    media_config: Optional[dict] = None
 
 
 @router.get("/", response_model=list[ProjectResponse])
@@ -136,6 +137,8 @@ async def update_project(slug: str, data: ProjectUpdate, db: AsyncSession = Depe
         project.is_active = data.is_active
     if data.content_config is not None:
         project.content_config = data.content_config
+    if data.media_config is not None:
+        project.media_config = data.media_config
 
     await db.commit()
     await db.refresh(project)

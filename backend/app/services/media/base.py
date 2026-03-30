@@ -7,6 +7,8 @@ class BaseImageProvider(ABC):
     async def generate_image(
         self,
         prompt: str,
+        media_config: dict = {},
+        # Legacy params kept for backward compatibility — prefer media_config
         style: str = "typographic",
         aspect_ratio: str = "1:1",
         color_palette: str = "dark",

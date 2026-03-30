@@ -5,6 +5,7 @@ import Link from "next/link";
 import { Header } from "@/components/layout/Header";
 import { fetchProjects } from "@/lib/api";
 import { Settings, PlusCircle, ExternalLink, FolderKanban } from "lucide-react";
+import { ProjectFormDialog } from "@/components/dashboard/ProjectFormDialog";
 
 interface Project {
   id: string;
@@ -12,12 +13,14 @@ interface Project {
   slug: string;
   is_active: boolean;
   content_config?: Record<string, unknown>;
+  media_config?: Record<string, unknown>;
 }
 
 export default function ProjectsPage() {
   const [projects, setProjects] = useState<Project[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
+  const [editingProject, setEditingProject] = useState<Project | null>(null);
 
   useEffect(() => {
     fetchProjects()
@@ -25,6 +28,10 @@ export default function ProjectsPage() {
       .catch((err) => setError(err.message))
       .finally(() => setLoading(false));
   }, []);
+
+  const handleProjectUpdated = (updated: Project) => {
+    setProjects((prev) => prev.map((p) => (p.id === updated.id ? updated : p)));
+  };
 
   return (
     <div>
@@ -108,7 +115,7 @@ export default function ProjectsPage() {
                   <button
                     className="inline-flex items-center justify-center p-2 text-gray-500 hover:text-gray-900 border border-gray-200 rounded-md hover:border-gray-300 transition-colors"
                     title="Project settings"
-                    onClick={() => alert(`Settings for ${project.name}`)}
+                    onClick={() => setEditingProject(project)}
                   >
                     <Settings className="h-4 w-4" />
                   </button>
@@ -118,6 +125,14 @@ export default function ProjectsPage() {
           </div>
         )}
       </div>
+
+      {editingProject && (
+        <ProjectFormDialog
+          project={editingProject}
+          onClose={() => setEditingProject(null)}
+          onSuccess={handleProjectUpdated}
+        />
+      )}
     </div>
   );
 }

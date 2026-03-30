@@ -27,8 +27,10 @@ class IdeogramProvider(BaseImageProvider):
         "photorealistic": "REALISTIC",
         "illustration": "GENERAL",
         "minimal": "DESIGN",
+        "data_visual": "DESIGN",
     }
 
+    # Legacy palette prompts kept for backward compatibility
     COLOR_PROMPTS = {
         "dark_purple": "dark background #0f0a19, neon purple accent #7c3aed, white typography",
         "dark_green": "dark background #0a140f, neon green accent #22c55e, white typography",
@@ -40,9 +42,48 @@ class IdeogramProvider(BaseImageProvider):
     def __init__(self) -> None:
         self.api_key = settings.IDEOGRAM_API_KEY
 
+    def build_prompt(self, content_prompt: str, media_config: dict) -> str:
+        """Build a rich prompt from content_prompt and brand media_config."""
+        primary = media_config.get("image_primary_color", "#7c3aed")
+        secondary = media_config.get("image_secondary_color", "#00FF41")
+        bg = media_config.get("image_bg_color", "#0a0a0a")
+        mood = media_config.get("image_mood", "dark, professional, tech")
+        fonts = media_config.get("image_fonts", "Inter Bold")
+        style = media_config.get("image_style", "typographic")
+
+        style_instructions = {
+            "typographic": f"Bold typographic poster. Large impactful text as hero. {primary} accent color. No illustrations, no people. Text-first design.",
+            "photorealistic": f"Cinematic photography style. {primary} color grading. Professional editorial quality.",
+            "illustration": f"Modern vector illustration. {primary} and {secondary} color palette. Clean flat design.",
+            "minimal": f"Ultra minimal. Single bold statement. {primary} accent. Maximum white/negative space.",
+            "data_visual": f"Data visualization. {primary} charts and stats. Bold numbers. Infographic style.",
+        }
+
+        return f"""{content_prompt}
+
+Visual style: {style_instructions.get(style, style_instructions["typographic"])}
+
+Brand specifications:
+- Background: {bg} (exact hex)
+- Primary accent: {primary} (exact hex, use for headlines and key elements)
+- Secondary accent: {secondary} (use sparingly for highlights)
+- Mood: {mood}
+- Typography: {fonts} style
+- Format: square 1:1 social media post, 1080x1080px equivalent
+
+Quality requirements:
+- High contrast between text and background
+- Text must be perfectly legible
+- Professional graphic design quality
+- No watermarks, no borders, no stock photo look
+- The background MUST be very dark (close to {bg})
+- Primary color {primary} MUST be prominently visible""".strip()
+
     async def generate_image(
         self,
         prompt: str,
+        media_config: dict = {},
+        # Legacy params kept for backward compatibility — prefer media_config
         style: str = "typographic",
         aspect_ratio: str = "1:1",
         color_palette: str = "dark",
@@ -50,8 +91,17 @@ class IdeogramProvider(BaseImageProvider):
         """Call Ideogram /generate, upload the result to S3, and return the public URL."""
         from app.services.storage.s3 import S3Service
 
-        color_hint = self.COLOR_PROMPTS.get(color_palette, self.COLOR_PROMPTS["dark"])
-        full_prompt = f"{prompt}. Style: {color_hint}. Clean, bold, professional."
+        # If media_config is provided with brand colors, use the rich build_prompt
+        if media_config and ("image_primary_color" in media_config or "image_style" in media_config):
+            full_prompt = self.build_prompt(prompt, media_config)
+            effective_style = media_config.get("image_style", "typographic")
+            effective_ratio = media_config.get("image_aspect_ratio", "1:1")
+        else:
+            # Legacy path: use individual params
+            color_hint = self.COLOR_PROMPTS.get(color_palette, self.COLOR_PROMPTS["dark"])
+            full_prompt = f"{prompt}. Style: {color_hint}. Clean, bold, professional."
+            effective_style = style
+            effective_ratio = aspect_ratio
 
         async with httpx.AsyncClient() as client:
             response = await client.post(
@@ -60,9 +110,9 @@ class IdeogramProvider(BaseImageProvider):
                 json={
                     "image_request": {
                         "prompt": full_prompt,
-                        "aspect_ratio": self.RATIO_MAP.get(aspect_ratio, "ASPECT_1_1"),
+                        "aspect_ratio": self.RATIO_MAP.get(effective_ratio, "ASPECT_1_1"),
                         "model": "V_2",
-                        "style_type": self.STYLE_MAP.get(style, "DESIGN"),
+                        "style_type": self.STYLE_MAP.get(effective_style, "DESIGN"),
                         "negative_prompt": "blurry, low quality, distorted text, pixelated",
                     }
                 },

@@ -260,9 +260,7 @@ async def generate_content(
                         if (project.credits_balance or 0) >= credits_per_image:
                             generated_url = await provider.generate_image(
                                 prompt=slide_prompt,
-                                style=media_config.get("image_style", "typographic"),
-                                aspect_ratio=media_config.get("image_aspect_ratio", "1:1"),
-                                color_palette=media_config.get("image_color_palette", "dark"),
+                                media_config=media_config,
                             )
                             generated_urls.append(generated_url)
                             project.credits_balance = (project.credits_balance or 0) - credits_per_image
@@ -294,9 +292,7 @@ async def generate_content(
                 provider = get_image_provider(effective_provider)
                 image_url = await provider.generate_image(
                     prompt=image_prompt,
-                    style=media_config.get("image_style", "typographic"),
-                    aspect_ratio=media_config.get("image_aspect_ratio", "1:1"),
-                    color_palette=media_config.get("image_color_palette", "dark"),
+                    media_config=media_config,
                 )
                 image_urls = [image_url]
                 project.credits_balance = (project.credits_balance or 0) - 10
@@ -655,13 +651,18 @@ async def generate_image_for_post(
     image_provider_name = media_config.get("image_provider", "ideogram")
     image_provider = get_image_provider(image_provider_name)
 
-    # 6. Generate image using request body params (not media_config defaults)
+    # 6. Generate image — merge request body params into media_config (body overrides project defaults)
+    effective_media_config = {**media_config}
+    if body.style:
+        effective_media_config["image_style"] = body.style
+    if body.aspect_ratio:
+        effective_media_config["image_aspect_ratio"] = body.aspect_ratio
+    if body.color_palette:
+        effective_media_config["image_color_palette"] = body.color_palette
     try:
         image_url = await image_provider.generate_image(
             prompt=prompt,
-            style=body.style,
-            aspect_ratio=body.aspect_ratio,
-            color_palette=body.color_palette,
+            media_config=effective_media_config,
         )
     except Exception as e:
         raise HTTPException(status_code=503, detail=f"Image generation failed: {str(e)}")
