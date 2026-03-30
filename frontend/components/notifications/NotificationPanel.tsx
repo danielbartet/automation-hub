@@ -481,7 +481,13 @@ export function NotificationPanel({ onClose }: NotificationPanelProps) {
               ad_id: uploadModalNotif.action_data.ad_id ?? "",
               ad_name: uploadModalNotif.action_data.ad_name ?? "",
               approval_token: uploadModalNotif.action_data.approval_token ?? "",
-              creative_brief: uploadModalNotif.action_data.creative_brief,
+              creative_brief: {
+                suggested_hook: uploadModalNotif.action_data.creative_brief?.suggested_hook ?? "",
+                suggested_body: uploadModalNotif.action_data.creative_brief?.suggested_body ?? "",
+                fatigue_diagnosis: uploadModalNotif.action_data.creative_brief?.fatigue_diagnosis ?? "",
+                replacement_angle: uploadModalNotif.action_data.creative_brief?.replacement_angle ?? "",
+                visual_direction: uploadModalNotif.action_data.creative_brief?.visual_direction ?? "",
+              },
             },
           }}
           onSuccess={() => {
