@@ -103,25 +103,34 @@ Quality requirements:
             effective_style = style
             effective_ratio = aspect_ratio
 
-        async with httpx.AsyncClient() as client:
-            response = await client.post(
-                f"{self.BASE_URL}/generate",
-                headers={"Api-Key": self.api_key, "Content-Type": "application/json"},
-                json={
-                    "image_request": {
-                        "prompt": full_prompt,
-                        "aspect_ratio": self.RATIO_MAP.get(effective_ratio, "ASPECT_1_1"),
-                        "model": "V_2",
-                        "style_type": self.STYLE_MAP.get(effective_style, "DESIGN"),
-                        "negative_prompt": "blurry, low quality, distorted text, pixelated",
-                    }
-                },
-                timeout=60.0,
-            )
-            if response.status_code != 200:
-                raise HTTPException(status_code=502, detail=f"Ideogram API error: {response.text}")
+        try:
+            async with httpx.AsyncClient() as client:
+                response = await client.post(
+                    f"{self.BASE_URL}/generate",
+                    headers={"Api-Key": self.api_key, "Content-Type": "application/json"},
+                    json={
+                        "image_request": {
+                            "prompt": full_prompt,
+                            "aspect_ratio": self.RATIO_MAP.get(effective_ratio, "ASPECT_1_1"),
+                            "model": "V_2_TURBO",
+                            "style_type": self.STYLE_MAP.get(effective_style, "DESIGN"),
+                            "negative_prompt": "blurry, low quality, distorted text, pixelated",
+                        }
+                    },
+                    timeout=60.0,
+                )
+                if response.status_code != 200:
+                    logger.error(
+                        f"Ideogram API error {response.status_code}: {response.text}"
+                    )
+                    raise HTTPException(status_code=502, detail=f"Ideogram API error: {response.text}")
 
-            image_url = response.json()["data"][0]["url"]
+                image_url = response.json()["data"][0]["url"]
+        except HTTPException:
+            raise
+        except Exception as exc:
+            logger.error(f"Ideogram generate_image unexpected error: {exc}", exc_info=True)
+            raise
 
         s3_service = S3Service()
         return await s3_service.upload_from_url(image_url, folder="generated/images")

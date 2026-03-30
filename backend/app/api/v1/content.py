@@ -1,9 +1,12 @@
 """Content management endpoints."""
 import json
+import logging
 import re
 import uuid
 from datetime import datetime, timedelta
 from typing import List, Optional
+
+logger = logging.getLogger(__name__)
 
 from fastapi import APIRouter, Depends, HTTPException
 from pydantic import BaseModel
@@ -269,7 +272,7 @@ async def generate_content(
                             # Not enough credits for this slide — use placeholder
                             generated_urls.append(fallback_url)
                     except Exception as e:
-                        print(f"[ImageGen] Slide {i + 1} generation failed, using placeholder: {e}")
+                        logger.warning(f"Image provider failed for slide {i}, falling back to placeholder: {e}")
                         generated_urls.append(fallback_url)
                 if generated_urls:
                     image_urls = generated_urls
@@ -306,8 +309,8 @@ async def generate_content(
                     image_urls = [image_url]
                 except Exception:
                     pass
-        except Exception:
-            pass  # Never break flow due to image provider failure
+        except Exception as e:
+            logger.warning(f"Image provider failed for single_image, falling back to placeholder: {e}")
 
     # text_post: no image needed
 
