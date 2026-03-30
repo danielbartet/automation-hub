@@ -402,6 +402,31 @@ export async function generateVideo(contentId: number): Promise<{ video_url: str
   return res.json();
 }
 
+export async function importCampaigns(projectSlug: string): Promise<{
+  imported: number
+  updated: number
+  total: number
+  optimizer_ran: number
+  campaigns: Array<{
+    id: number
+    meta_campaign_id: string
+    name: string
+    objective: string | null
+    status: string
+    daily_budget: number | null
+    action: "imported" | "updated"
+  }>
+}> {
+  const res = await fetch(`${API_BASE}/api/v1/ads/import/${projectSlug}`, {
+    cache: "no-store",
+  });
+  if (!res.ok) {
+    const err = await res.json().catch(() => ({}));
+    throw new Error((err as { detail?: string }).detail || "Error al importar campañas de Meta");
+  }
+  return res.json();
+}
+
 export async function importFromMeta(projectSlug: string): Promise<{ imported: number; skipped: number; errors: string[]; message: string }> {
   const res = await fetch(`${API_BASE}/api/v1/content/import-from-meta/${projectSlug}`, {
     method: "POST",

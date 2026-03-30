@@ -6,8 +6,8 @@ import { Header } from "@/components/layout/Header";
 import { KPICard } from "@/components/dashboard/KPICard";
 import { CreateCampaignModal } from "@/components/dashboard/CreateCampaignModal";
 import { CampaignOptimizationPanel } from "@/components/dashboard/CampaignOptimizationPanel";
-import { fetchProjects, fetchDashboard } from "@/lib/api";
-import { Loader2, Plus } from "lucide-react";
+import { fetchProjects, fetchDashboard, importCampaigns } from "@/lib/api";
+import { Loader2, Plus, Download } from "lucide-react";
 import Link from "next/link";
 import {
   LineChart,
@@ -97,6 +97,25 @@ export default function AdsPage() {
   const [error, setError] = useState<string | null>(null);
   const [showCreateModal, setShowCreateModal] = useState(false);
   const [selectedCampaign, setSelectedCampaign] = useState<Campaign | null>(null);
+  const [importing, setImporting] = useState(false);
+  const [importResult, setImportResult] = useState<{ imported: number; updated: number } | null>(null);
+  const [importError, setImportError] = useState<string | null>(null);
+
+  const handleImport = useCallback(async () => {
+    if (!selectedSlug) return;
+    setImporting(true);
+    setImportResult(null);
+    setImportError(null);
+    try {
+      const result = await importCampaigns(selectedSlug);
+      setImportResult({ imported: result.imported, updated: result.updated });
+      loadData();
+    } catch (err) {
+      setImportError(err instanceof Error ? err.message : "Error al importar campañas");
+    } finally {
+      setImporting(false);
+    }
+  }, [selectedSlug, loadData]);
 
   useEffect(() => {
     fetchProjects()
@@ -153,7 +172,24 @@ export default function AdsPage() {
           )}
           {loadingData && <Loader2 className="h-4 w-4 animate-spin text-gray-400" />}
           {!isClient && (
-            <div className="ml-auto">
+            <div className="ml-auto flex items-center gap-2">
+              <button
+                onClick={handleImport}
+                disabled={!selectedProject || importing}
+                className="flex items-center gap-2 px-4 py-2 bg-white border border-gray-300 text-gray-700 text-sm font-medium rounded-lg hover:bg-gray-50 disabled:opacity-50"
+              >
+                {importing ? (
+                  <>
+                    <Loader2 className="h-4 w-4 animate-spin" />
+                    Importando campañas...
+                  </>
+                ) : (
+                  <>
+                    <Download className="h-4 w-4" />
+                    Importar de Meta
+                  </>
+                )}
+              </button>
               <button
                 onClick={() => setShowCreateModal(true)}
                 disabled={!selectedProject}
@@ -168,6 +204,41 @@ export default function AdsPage() {
         {error && (
           <div className="bg-red-50 border border-red-200 rounded-md p-4 text-sm text-red-700">
             Error: {error}
+          </div>
+        )}
+
+        {importResult && (
+          <div className="bg-green-50 border border-green-200 rounded-md p-4 text-sm text-green-700 flex items-center justify-between">
+            <span>
+              {importResult.imported > 0 && (
+                <span><strong>{importResult.imported}</strong> {importResult.imported === 1 ? "campaña importada" : "campañas importadas"}</span>
+              )}
+              {importResult.imported > 0 && importResult.updated > 0 && <span>, </span>}
+              {importResult.updated > 0 && (
+                <span><strong>{importResult.updated}</strong> {importResult.updated === 1 ? "campaña actualizada" : "campañas actualizadas"}</span>
+              )}
+              {importResult.imported === 0 && importResult.updated === 0 && (
+                <span>No se encontraron campañas nuevas o modificadas en Meta.</span>
+              )}
+            </span>
+            <button
+              onClick={() => setImportResult(null)}
+              className="ml-4 text-green-500 hover:text-green-700 font-medium"
+            >
+              &times;
+            </button>
+          </div>
+        )}
+
+        {importError && (
+          <div className="bg-red-50 border border-red-200 rounded-md p-4 text-sm text-red-700 flex items-center justify-between">
+            <span>Error al importar: {importError}</span>
+            <button
+              onClick={() => setImportError(null)}
+              className="ml-4 text-red-500 hover:text-red-700 font-medium"
+            >
+              &times;
+            </button>
           </div>
         )}
 

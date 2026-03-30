@@ -693,6 +693,189 @@ async def get_campaign_detail(
     }
 
 
+@router.get("/import/{project_slug}")
+async def import_campaigns(
+    project_slug: str,
+    db: AsyncSession = Depends(get_session),
+) -> dict:
+    """Import ACTIVE and PAUSED campaigns from Meta into the local DB.
+
+    For each campaign returned by Meta:
+    - If it already exists (by meta_campaign_id): update name, status, daily_budget when changed.
+    - If new: insert a new AdCampaign row.
+
+    After import, immediately run one optimization cycle for newly imported campaigns
+    that have been running > 7 days (start_time < today - 7).
+    """
+    from app.services.ads.optimizer import analyze_campaign
+    import json as _json
+
+    # 1. Load project
+    proj_result = await db.execute(select(Project).where(Project.slug == project_slug))
+    project = proj_result.scalar_one_or_none()
+    if not project:
+        raise HTTPException(404, f"Project '{project_slug}' not found")
+
+    token = project.meta_access_token or getattr(settings, "META_ACCESS_TOKEN", "")
+    ad_account_id = (project.ad_account_id or "").removeprefix("act_")
+
+    if not token:
+        raise HTTPException(400, "Project missing meta_access_token")
+    if not ad_account_id:
+        raise HTTPException(400, "Project missing ad_account_id")
+
+    # 2. Fetch campaigns from Meta
+    try:
+        async with httpx.AsyncClient(timeout=15.0) as client:
+            resp = await client.get(
+                f"{META_BASE}/act_{ad_account_id}/campaigns",
+                params={
+                    "fields": "id,name,objective,status,daily_budget,start_time,stop_time",
+                    "filtering": _json.dumps([
+                        {
+                            "field": "effective_status",
+                            "operator": "IN",
+                            "value": ["ACTIVE", "PAUSED"],
+                        }
+                    ]),
+                    "access_token": token,
+                    "limit": 100,
+                },
+            )
+    except Exception as e:
+        raise HTTPException(502, f"Error connecting to Meta API: {str(e)}")
+
+    data = resp.json()
+    if "error" in data:
+        meta_err = data["error"]
+        raise HTTPException(
+            400,
+            f"Meta API error {meta_err.get('code', '')}: {meta_err.get('message', 'Unknown error')}",
+        )
+
+    meta_campaigns = data.get("data", [])
+
+    # 3. Load existing campaigns for this project keyed by meta_campaign_id
+    existing_result = await db.execute(
+        select(AdCampaign).where(AdCampaign.project_id == project.id)
+    )
+    existing_by_meta_id: dict[str, AdCampaign] = {
+        c.meta_campaign_id: c
+        for c in existing_result.scalars().all()
+        if c.meta_campaign_id
+    }
+
+    imported_campaigns: list[AdCampaign] = []
+    updated_campaigns: list[AdCampaign] = []
+    # Track start_date per meta_campaign_id for the optimizer step
+    start_dates: dict[str, object] = {}
+
+    today = datetime.utcnow().date()
+
+    for mc in meta_campaigns:
+        meta_id = mc["id"]
+        meta_status_raw = mc.get("status", "PAUSED").upper()
+        status = "active" if meta_status_raw == "ACTIVE" else "paused"
+        name = mc.get("name", "")
+        objective = mc.get("objective")
+
+        # daily_budget is in cents from Meta
+        daily_budget_cents = mc.get("daily_budget")
+        daily_budget = float(daily_budget_cents) / 100.0 if daily_budget_cents else None
+
+        # Parse start_time date portion (format: "2024-01-15T00:00:00+0000")
+        start_time_str = mc.get("start_time", "")
+        start_date = None
+        if start_time_str:
+            try:
+                start_date = datetime.fromisoformat(start_time_str.replace("+0000", "+00:00")).date()
+            except Exception:
+                pass
+        start_dates[meta_id] = start_date
+
+        if meta_id in existing_by_meta_id:
+            # Update if anything changed
+            campaign = existing_by_meta_id[meta_id]
+            changed = False
+            if campaign.name != name:
+                campaign.name = name
+                changed = True
+            if campaign.status != status:
+                campaign.status = status
+                changed = True
+            if daily_budget is not None and campaign.daily_budget != daily_budget:
+                campaign.daily_budget = daily_budget
+                changed = True
+            if changed:
+                updated_campaigns.append(campaign)
+        else:
+            # Insert new campaign
+            campaign = AdCampaign(
+                project_id=project.id,
+                meta_campaign_id=meta_id,
+                ad_account_id=ad_account_id,
+                name=name,
+                objective=objective,
+                status=status,
+                daily_budget=daily_budget,
+            )
+            db.add(campaign)
+            imported_campaigns.append(campaign)
+
+    await db.commit()
+
+    # Refresh new campaigns to get their DB ids
+    for c in imported_campaigns:
+        await db.refresh(c)
+
+    # 4. Run optimizer for newly imported campaigns running > 7 days
+    optimizer_results: list[dict] = []
+    for campaign in imported_campaigns:
+        # Check start_date per campaign using its meta_campaign_id
+        campaign_start = start_dates.get(campaign.meta_campaign_id or "")
+        if campaign_start is not None:
+            days_running = (today - campaign_start).days
+            if days_running < 7:
+                continue
+        try:
+            result = await analyze_campaign(campaign, project, db)
+            optimizer_results.append(result)
+        except Exception:
+            pass  # Optimizer failure must not break the import response
+
+    all_campaigns = [
+        {
+            "id": c.id,
+            "meta_campaign_id": c.meta_campaign_id,
+            "name": c.name,
+            "objective": c.objective,
+            "status": c.status,
+            "daily_budget": c.daily_budget,
+            "action": "imported",
+        }
+        for c in imported_campaigns
+    ] + [
+        {
+            "id": c.id,
+            "meta_campaign_id": c.meta_campaign_id,
+            "name": c.name,
+            "objective": c.objective,
+            "status": c.status,
+            "daily_budget": c.daily_budget,
+            "action": "updated",
+        }
+        for c in updated_campaigns
+    ]
+
+    return {
+        "imported": len(imported_campaigns),
+        "updated": len(updated_campaigns),
+        "total": len(imported_campaigns) + len(updated_campaigns),
+        "optimizer_ran": len(optimizer_results),
+        "campaigns": all_campaigns,
+    }
+
+
 @router.get("/{campaign_id}/logs")
 async def get_optimization_logs(
     campaign_id: int,
