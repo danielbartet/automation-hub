@@ -1,7 +1,8 @@
 """Campaign optimizer — uses Claude to analyze metrics and decide actions per Andromeda rules."""
 import json
+import re
 import uuid as uuid_module
-from datetime import datetime, timezone
+from datetime import datetime
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy import select
 from app.models.ad_campaign import AdCampaign
@@ -38,6 +39,118 @@ DECISION OUTPUT FORMAT (valid JSON only):
   "urgency": "low" | "medium" | "high",
   "recommendations": ["actionable tip 1", "actionable tip 2"]
 }"""
+
+
+async def generate_creative_brief(
+    campaign_name: str,
+    objective: str,
+    current_ad: dict,
+    metrics: dict,
+    project: Project,
+) -> dict:
+    """Call Claude to generate an actionable creative replacement brief for a fatigued ad."""
+    language = (project.content_config or {}).get("language", "es")
+    ctr_now = metrics.get("ctr", 0)
+    ctr_7d_ago = metrics.get("ctr_7d_ago", 0)
+    frequency = float(metrics.get("frequency", 0))
+    cost_per_result = metrics.get("cost_per_result", 0)
+    cpl_7d_ago = metrics.get("cpl_7d_ago", 0)
+    days_running = metrics.get("days_running", 0)
+
+    prompt = f"""You are a Meta Ads creative strategist expert in the Andromeda algorithm.
+
+Campaign: {campaign_name}
+Objective: {objective}
+Ad name: {current_ad.get('name', 'unknown')}
+Current ad copy: {current_ad.get('creative', {}).get('body', 'unknown')}
+
+Fatigue metrics:
+- CTR now: {ctr_now}% / CTR 7 days ago: {ctr_7d_ago}%
+- Frequency: {frequency} (Andromeda limit: 3.0)
+- CPL now: ${cost_per_result} / CPL 7 days ago: ${cpl_7d_ago}
+- Days running: {days_running}
+
+Brand:
+- Product: {(project.content_config or {}).get('core_message')}
+- Audience: {(project.content_config or {}).get('target_audience')}
+- Language: {language}
+
+The creative is fatigued. Generate a replacement brief.
+Return ONLY valid JSON:
+{{
+  "fatigue_diagnosis": "one sentence — exactly why this creative is fatigued",
+  "current_angle": "Logical | Emotional | Social Proof | Problem-Solution",
+  "current_persona": "who the current ad targets",
+  "replacement_angle": "OPPOSITE angle — must differ from current",
+  "replacement_persona": "different persona to target",
+  "replacement_awareness": "Problem-aware | Solution-aware | Product-aware",
+  "suggested_hook": "exact opening line in {language}",
+  "suggested_body": "main message max 125 chars in {language}",
+  "visual_direction": "what image/video should show — specific and actionable",
+  "what_to_avoid": "exactly what NOT to repeat from current creative",
+  "urgency": "high | medium",
+  "urgency_reason": "why replace now vs later"
+}}"""
+
+    response = await claude_client.generate_content(prompt)
+    text = re.sub(r'^```(?:json)?\n?', '', response.strip())
+    text = re.sub(r'\n?```$', '', text)
+    return json.loads(text)
+
+
+def _detect_fatigue(metrics: dict, days_since_created: int) -> dict | None:
+    """
+    Check Andromeda fatigue conditions.
+    Returns a dict with fatigue details if fatigued, else None.
+    """
+    frequency = float(metrics.get("frequency", 0))
+    ctr_now = float(metrics.get("ctr", 0))
+    ctr_7d_ago = float(metrics.get("ctr_7d_ago", ctr_now))  # fallback to current if not available
+    cost_per_result = float(metrics.get("cost_per_result", 0))
+    cpl_7d_ago = float(metrics.get("cpl_7d_ago", cost_per_result))
+
+    fatigued = False
+    reasons = []
+
+    if frequency > 3.0:
+        fatigued = True
+        reasons.append(f"frequency_over_3 ({frequency:.1f})")
+
+    if ctr_7d_ago > 0:
+        ctr_drop_pct = ((ctr_7d_ago - ctr_now) / ctr_7d_ago) * 100
+        if ctr_drop_pct >= 30:
+            fatigued = True
+            reasons.append(f"ctr_dropped_{ctr_drop_pct:.0f}pct")
+    else:
+        ctr_drop_pct = 0.0
+
+    if cpl_7d_ago > 0:
+        cpl_increase_pct = ((cost_per_result - cpl_7d_ago) / cpl_7d_ago) * 100
+        if cpl_increase_pct >= 50:
+            fatigued = True
+            reasons.append(f"cpl_increased_{cpl_increase_pct:.0f}pct")
+    else:
+        cpl_increase_pct = 0.0
+
+    if not fatigued:
+        return None
+
+    # Compute a friendly ctr_drop for display (0 if no historical data)
+    if ctr_7d_ago > 0:
+        display_ctr_drop = ((ctr_7d_ago - ctr_now) / ctr_7d_ago) * 100
+    else:
+        display_ctr_drop = 0.0
+
+    return {
+        "frequency": frequency,
+        "ctr_now": ctr_now,
+        "ctr_7d_ago": ctr_7d_ago,
+        "ctr_drop_pct": display_ctr_drop,
+        "cost_per_result": cost_per_result,
+        "cpl_7d_ago": cpl_7d_ago,
+        "days_running": days_since_created,
+        "reasons": reasons,
+    }
 
 
 async def analyze_campaign(
@@ -113,6 +226,9 @@ Apply Andromeda rules and return your JSON decision."""
     notification_svc = NotificationService(db)
     action_taken = "NOTIFICATION_SENT"
 
+    # 5. Detect fatigue independently of Claude's decision
+    fatigue_info = _detect_fatigue(metrics, days_since_created)
+
     try:
         if decision == "SCALE":
             new_budget = round(old_budget * analysis.get("new_budget_multiplier", 1.2), 2)
@@ -157,11 +273,21 @@ Apply Andromeda rules and return your JSON decision."""
         elif decision == "KEEP":
             action_taken = "NO_ACTION"
 
+        # 6. If fatigue detected, generate creative brief and create dedicated notification
+        if fatigue_info:
+            await _create_fatigue_notification(
+                campaign=campaign,
+                project=project,
+                metrics=metrics,
+                fatigue_info=fatigue_info,
+                notification_svc=notification_svc,
+            )
+
     except Exception as e:
         rationale = f"{rationale} (Notification failed: {str(e)})"
         action_taken = "ERROR"
 
-    # 5. Log to DB
+    # 7. Log to DB
     log = CampaignOptimizationLog(
         campaign_id=campaign.id,
         project_id=campaign.project_id,
@@ -185,7 +311,124 @@ Apply Andromeda rules and return your JSON decision."""
         "old_budget": old_budget,
         "new_budget": new_budget,
         "recommendations": analysis.get("recommendations", []),
+        "fatigue_detected": fatigue_info is not None,
     }
+
+
+async def _create_fatigue_notification(
+    campaign: AdCampaign,
+    project: Project,
+    metrics: dict,
+    fatigue_info: dict,
+    notification_svc,
+) -> None:
+    """Generate creative brief and create campaign_fatigued notification + Telegram message."""
+    # Determine current ad info (use campaign stored copy info as fallback)
+    current_ad = {
+        "name": campaign.name,
+        "creative": {"body": campaign.ad_copy or ""},
+    }
+
+    # Enrich metrics for brief generation
+    enriched_metrics = {
+        **metrics,
+        "ctr": fatigue_info["ctr_now"],
+        "ctr_7d_ago": fatigue_info["ctr_7d_ago"],
+        "cost_per_result": fatigue_info["cost_per_result"],
+        "cpl_7d_ago": fatigue_info["cpl_7d_ago"],
+        "days_running": fatigue_info["days_running"],
+        "frequency": fatigue_info["frequency"],
+    }
+
+    # Generate creative brief via Claude
+    brief: dict = {}
+    try:
+        brief = await generate_creative_brief(
+            campaign_name=campaign.name,
+            objective=campaign.objective or "OUTCOME_LEADS",
+            current_ad=current_ad,
+            metrics=enriched_metrics,
+            project=project,
+        )
+    except Exception:
+        brief = {
+            "fatigue_diagnosis": "Creativo fatigado por alta frecuencia o caída de CTR.",
+            "current_angle": "Desconocido",
+            "current_persona": "Audiencia general",
+            "replacement_angle": "Emocional",
+            "replacement_persona": "Nueva audiencia objetivo",
+            "replacement_awareness": "Problem-aware",
+            "suggested_hook": "Descubrí una forma mejor de lograrlo",
+            "suggested_body": "Mensaje de reemplazo sugerido por Andromeda.",
+            "visual_direction": "Imagen de persona usando el producto con resultado visible.",
+            "what_to_avoid": "Repetir el mismo ángulo y mensaje del creativo actual.",
+            "urgency": "high",
+            "urgency_reason": "Frecuencia alta deteriora la tasa de conversión rápidamente.",
+        }
+
+    frequency = fatigue_info["frequency"]
+    ctr_drop = fatigue_info["ctr_drop_pct"]
+    approval_token = str(uuid_module.uuid4())[:16]
+
+    message = (
+        f"CTR cayó {ctr_drop:.0f}% en 7 días. "
+        f"Frecuencia: {frequency:.1f}. "
+        f"Sugerencia: cambiar a ángulo {brief.get('replacement_angle', 'diferente')}."
+    )
+
+    action_data = {
+        "type": "creative_refresh",
+        "campaign_id": campaign.id,
+        "campaign_name": campaign.name,
+        "ad_id": campaign.meta_ad_id or "",
+        "ad_name": current_ad["name"],
+        "approval_token": approval_token,
+        "metrics": {
+            "ctr_current": fatigue_info["ctr_now"],
+            "ctr_7d_ago": fatigue_info["ctr_7d_ago"],
+            "ctr_drop_pct": ctr_drop,
+            "frequency": frequency,
+            "cost_per_result": fatigue_info["cost_per_result"],
+            "cpl_7d_ago": fatigue_info["cpl_7d_ago"],
+            "days_running": fatigue_info["days_running"],
+        },
+        "creative_brief": brief,
+    }
+
+    await notification_svc.create(
+        type="campaign_fatigued",
+        title=f"⚠️ Creativo fatigado — {campaign.name}",
+        message=message,
+        project_id=campaign.project_id,
+        action_url=f"/dashboard/ads/{campaign.id}",
+        action_label="Ver brief completo",
+        action_data=action_data,
+    )
+
+    # Send Telegram notification if configured
+    if project.telegram_chat_id:
+        try:
+            from app.services.telegram.bot import TelegramBot
+            from app.core.config import settings as app_settings
+
+            telegram_token = getattr(app_settings, "TELEGRAM_BOT_TOKEN", "")
+            if telegram_token:
+                bot = TelegramBot(telegram_token)
+                current_angle = brief.get("current_angle", "desconocido")
+                replacement_angle = brief.get("replacement_angle", "diferente")
+                suggested_hook = brief.get("suggested_hook", "")
+                telegram_text = (
+                    f"⚠️ Creativo fatigado — {campaign.name}\n\n"
+                    f"📉 CTR cayó {ctr_drop:.0f}% en 7 días\n"
+                    f"📊 Frecuencia: {frequency:.1f} (límite Andromeda: 3.0)\n\n"
+                    f"💡 Claude sugiere:\n"
+                    f"Cambiar de ángulo {current_angle} → {replacement_angle}\n"
+                    f"Hook sugerido: '{suggested_hook}'\n\n"
+                    f"👉 Abrí el dashboard para ver el brief completo y subir el nuevo creativo."
+                )
+                await bot.send_message(project.telegram_chat_id, telegram_text)
+        except Exception:
+            pass  # Telegram failure should never break the optimizer flow
 
 
 async def run_optimization_cycle(db: AsyncSession) -> list[dict]:

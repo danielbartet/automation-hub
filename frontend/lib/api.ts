@@ -434,6 +434,29 @@ export async function generateImage(
   return res.json();
 }
 
+export async function refreshCreative(
+  token: string,
+  campaignId: number,
+  data: {
+    ad_id: string;
+    image_url: string;
+    headline: string;
+    body: string;
+    approval_token: string;
+  }
+): Promise<{ success: boolean; new_creative_id: string }> {
+  const res = await fetch(`${API_BASE}/api/v1/ads/${campaignId}/refresh-creative`, {
+    method: "POST",
+    headers: authHeaders(token),
+    body: JSON.stringify(data),
+  });
+  if (!res.ok) {
+    const err = await res.json().catch(() => ({}));
+    throw new Error((err as { detail?: string }).detail || "Failed to refresh creative");
+  }
+  return res.json();
+}
+
 export function buildAutoPrompt(post: any, project: any): string {
   const content = typeof post.content === "string" ? JSON.parse(post.content) : post.content;
   const slide1 = content?.slides?.[0] ?? {};

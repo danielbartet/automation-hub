@@ -572,45 +572,80 @@ export default function CampaignDetailPage() {
             )}
           </div>
 
-          {/* Ads */}
+          {/* Ads — Creativos activos */}
           <div className="bg-gray-800 rounded-lg border border-gray-700 p-4">
-            <h3 className="text-white font-semibold mb-4 text-sm">Anuncios</h3>
+            <h3 className="text-white font-semibold mb-4 text-sm">Creativos activos</h3>
             {detail.ads.length === 0 ? (
               <p className="text-gray-500 text-sm">Sin datos</p>
             ) : (
-              <div className="space-y-2">
-                {detail.ads.map((ad) => (
-                  <div
-                    key={ad.id}
-                    className="flex items-center gap-3 border-b border-gray-700/50 pb-2 last:border-0"
-                  >
-                    {ad.creative_thumbnail ? (
-                      <img
-                        src={ad.creative_thumbnail}
-                        alt={ad.name}
-                        className="w-12 h-12 rounded object-cover flex-shrink-0 bg-gray-700"
-                      />
-                    ) : (
-                      <div className="w-12 h-12 rounded bg-gray-700 flex items-center justify-center flex-shrink-0">
-                        <span className="text-gray-500 text-xs">Sin img</span>
+              <div className="space-y-3">
+                {detail.ads.map((ad) => {
+                  // Determine Andromeda health badge per ad using campaign-level metrics
+                  const daysRunning = (Date.now() - new Date(detail.campaign.created_at).getTime()) / 86400000
+                  const adHealth =
+                    daysRunning < 7
+                      ? { label: "Nuevo", cls: "bg-blue-900 text-blue-300" }
+                      : detail.andromeda_status === "fatigued"
+                      ? { label: "Fatigado", cls: "bg-orange-900 text-orange-300" }
+                      : { label: "Saludable", cls: "bg-emerald-900 text-emerald-300" }
+
+                  // Check if there's a creative_brief in the latest MODIFY/fatigue log
+                  const hasBrief = detail.andromeda_status === "fatigued"
+
+                  return (
+                    <div
+                      key={ad.id}
+                      className="flex items-start gap-3 border-b border-gray-700/50 pb-3 last:border-0"
+                    >
+                      {ad.creative_thumbnail ? (
+                        <img
+                          src={ad.creative_thumbnail}
+                          alt={ad.name}
+                          className="w-12 h-12 rounded object-cover flex-shrink-0 bg-gray-700"
+                        />
+                      ) : (
+                        <div className="w-12 h-12 rounded bg-gray-700 flex items-center justify-center flex-shrink-0">
+                          <span className="text-gray-500 text-xs">Sin img</span>
+                        </div>
+                      )}
+                      <div className="flex-1 min-w-0">
+                        <p className="text-white text-xs truncate font-medium" title={ad.name}>
+                          {ad.name}
+                        </p>
+                        <div className="flex flex-wrap gap-1.5 mt-1">
+                          <span
+                            className={`text-xs px-1.5 py-0.5 rounded ${
+                              ad.status === "ACTIVE"
+                                ? "bg-green-900 text-green-300"
+                                : "bg-gray-700 text-gray-300"
+                            }`}
+                          >
+                            {ad.status}
+                          </span>
+                          <span
+                            className={`text-xs px-1.5 py-0.5 rounded font-medium ${adHealth.cls}`}
+                            title={detail.andromeda_reason}
+                          >
+                            {adHealth.label}
+                          </span>
+                        </div>
+                        <div className="flex flex-wrap gap-x-3 mt-1.5 text-[10px] text-gray-500">
+                          <span>CTR: {ins.avg_ctr?.toFixed(2) ?? "—"}%</span>
+                          <span>Freq: {ins.avg_frequency?.toFixed(1) ?? "—"}</span>
+                          <span>{Math.floor(daysRunning)}d corriendo</span>
+                        </div>
+                        {hasBrief && (
+                          <button
+                            onClick={() => showToast("Abrí el panel de notificaciones para ver el brief completo.")}
+                            className="mt-1.5 text-[10px] text-orange-400 hover:text-orange-300 transition-colors"
+                          >
+                            Ver brief →
+                          </button>
+                        )}
                       </div>
-                    )}
-                    <div className="flex-1 min-w-0">
-                      <p className="text-white text-xs truncate" title={ad.name}>
-                        {ad.name}
-                      </p>
-                      <span
-                        className={`text-xs px-1.5 py-0.5 rounded mt-1 inline-block ${
-                          ad.status === "ACTIVE"
-                            ? "bg-green-900 text-green-300"
-                            : "bg-gray-700 text-gray-300"
-                        }`}
-                      >
-                        {ad.status}
-                      </span>
                     </div>
-                  </div>
-                ))}
+                  )
+                })}
               </div>
             )}
           </div>

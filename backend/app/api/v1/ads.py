@@ -724,6 +724,116 @@ async def get_optimization_logs(
     ]
 
 
+class RefreshCreativeRequest(BaseModel):
+    ad_id: str
+    image_url: str
+    headline: str
+    body: str
+    approval_token: str
+
+
+@router.post("/{campaign_id}/refresh-creative")
+async def refresh_creative(
+    campaign_id: int,
+    body: RefreshCreativeRequest,
+    db: AsyncSession = Depends(get_session),
+    current_user=Depends(get_current_user),
+) -> dict:
+    """Upload a new creative to Meta Ads to replace a fatigued ad. Requires valid approval_token from a campaign_fatigued notification."""
+    from app.models.optimization_log import CampaignOptimizationLog
+    from app.services.notifications import NotificationService
+
+    # 1. Find matching campaign_fatigued notification by approval_token
+    notif_result = await db.execute(
+        select(Notification).where(
+            Notification.user_id == current_user.id,
+            Notification.type == "campaign_fatigued",
+            Notification.is_read == False,
+        )
+    )
+    notif = None
+    for n in notif_result.scalars().all():
+        if n.action_data and n.action_data.get("approval_token") == body.approval_token:
+            notif = n
+            break
+
+    if not notif:
+        raise HTTPException(404, "Approval token not found or already used")
+
+    # 2. Get campaign + project
+    campaign_result = await db.execute(select(AdCampaign).where(AdCampaign.id == campaign_id))
+    campaign = campaign_result.scalar_one_or_none()
+    if not campaign:
+        raise HTTPException(404, "Campaign not found")
+
+    proj_result = await db.execute(select(Project).where(Project.id == campaign.project_id))
+    project = proj_result.scalar_one_or_none()
+    if not project:
+        raise HTTPException(404, "Project not found")
+
+    token = project.meta_access_token or getattr(settings, "META_ACCESS_TOKEN", "")
+    ad_account_id = (project.ad_account_id or "").removeprefix("act_")
+    facebook_page_id = project.facebook_page_id or ""
+
+    if not token or not ad_account_id:
+        raise HTTPException(400, "Project missing meta credentials")
+
+    # 3. Create new AdCreative + Ad on Meta
+    destination_url = campaign.destination_url or ""
+    if not destination_url:
+        raise HTTPException(400, "Campaign has no destination_url configured")
+
+    try:
+        async with httpx.AsyncClient(timeout=20.0) as client:
+            new_ids = await meta_service.create_creative_and_ad(
+                client=client,
+                token=token,
+                ad_account_id=ad_account_id,
+                facebook_page_id=facebook_page_id,
+                adset_id=campaign.meta_adset_id or "",
+                campaign_name=campaign.name,
+                concept_id=0,
+                hook_3s=body.headline,
+                body=body.body,
+                cta="Learn More",
+                image_url=body.image_url,
+                destination_url=destination_url,
+            )
+    except Exception as e:
+        raise HTTPException(500, f"Meta API error: {str(e)}")
+
+    new_creative_id = new_ids.get("creative_id", "")
+
+    # 4. Update optimization log: mark creative_refreshed
+    logs_result = await db.execute(
+        select(CampaignOptimizationLog)
+        .where(CampaignOptimizationLog.campaign_id == campaign_id)
+        .order_by(CampaignOptimizationLog.checked_at.desc())
+        .limit(1)
+    )
+    latest_log = logs_result.scalar_one_or_none()
+    if latest_log:
+        latest_log.creative_refreshed = True
+        latest_log.new_creative_id = new_creative_id
+
+    # 5. Mark notification as read
+    notif.is_read = True
+    notif.action_data = {**(notif.action_data or {}), "creative_refreshed": True, "new_creative_id": new_creative_id}
+
+    # 6. Create success notification
+    notification_svc = NotificationService(db)
+    await notification_svc.create(
+        type="system",
+        title=f"✅ Creativo actualizado — {campaign.name}",
+        message="El nuevo creativo está activo en Meta Ads.",
+        project_id=campaign.project_id,
+    )
+
+    await db.commit()
+
+    return {"success": True, "new_creative_id": new_creative_id}
+
+
 class UpdateBudgetRequest(BaseModel):
     daily_budget: float
 

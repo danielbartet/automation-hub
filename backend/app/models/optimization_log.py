@@ -1,6 +1,6 @@
 """Campaign optimization log model — records every optimizer decision."""
 from datetime import datetime
-from sqlalchemy import DateTime, Float, ForeignKey, Integer, String, Text, func
+from sqlalchemy import Boolean, DateTime, Float, ForeignKey, Integer, String, Text, func
 from sqlalchemy.orm import Mapped, mapped_column
 from app.core.database import Base
 
@@ -20,3 +20,5 @@ class CampaignOptimizationLog(Base):
     action_taken: Mapped[str | None] = mapped_column(String(20), nullable=True)
     old_budget: Mapped[float | None] = mapped_column(Float, nullable=True)
     new_budget: Mapped[float | None] = mapped_column(Float, nullable=True)
+    creative_refreshed: Mapped[bool] = mapped_column(Boolean, default=False, nullable=False, server_default="0")
+    new_creative_id: Mapped[str | None] = mapped_column(String(100), nullable=True)
