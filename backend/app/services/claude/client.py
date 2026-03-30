@@ -67,7 +67,39 @@ RULES:
 
     async def generate_carousel_content(self, project) -> dict:
         """Generate carousel content for a project using Claude."""
-        system_prompt = self._build_system_prompt(project)
+        return await self.generate_content_by_type(project, content_type="carousel_6_slides")
+
+    async def generate_content_by_type(
+        self,
+        project,
+        content_type: str = "carousel_6_slides",
+        category: str | None = None,
+        hint: str | None = None,
+    ) -> dict:
+        """Generate content for a project based on content_type.
+
+        Supports: carousel_6_slides | single_image | text_post
+        Optional category and hint are injected into the user message when provided.
+        """
+        if content_type == "single_image":
+            system_prompt = self._build_single_image_system_prompt(project)
+            user_msg = f"Generate one single-image post for {project.name} following your instructions exactly."
+        elif content_type == "text_post":
+            system_prompt = self._build_text_post_system_prompt(project)
+            user_msg = f"Generate one text post for {project.name} following your instructions exactly."
+        else:
+            # Default: carousel_6_slides
+            system_prompt = self._build_system_prompt(project)
+            user_msg = f"Generate one carousel for {project.name} following your instructions exactly."
+
+        # Append optional modifiers
+        extras: list[str] = []
+        if category:
+            extras.append(f"Focus on the category: {category}")
+        if hint:
+            extras.append(f"Topic hint from the user: {hint}")
+        if extras:
+            user_msg += " " + " | ".join(extras)
 
         response = self.client.messages.create(
             model=self.MODEL,
@@ -82,7 +114,7 @@ RULES:
             messages=[
                 {
                     "role": "user",
-                    "content": f"Generate one carousel for {project.name} following your instructions exactly.",
+                    "content": user_msg,
                 }
             ],
             extra_headers={"anthropic-beta": "prompt-caching-2024-07-31"},
@@ -96,6 +128,85 @@ RULES:
                 content = content[4:]
             content = content.rsplit("```", 1)[0].strip()
         return json.loads(content)
+
+    def _build_single_image_system_prompt(self, project) -> str:
+        config = project.content_config or {}
+        brand_name = config.get("brand_name", project.name)
+        tone = config.get("tone", "professional, clear")
+        core_message = config.get("core_message", "")
+        target_audience = config.get("target_audience", "general audience")
+        language = config.get("language", "en")
+        additional_rules = config.get("additional_rules", [])
+        rules_text = "\n".join([f"- {rule}" for rule in additional_rules]) if additional_rules else ""
+
+        return f"""You are the content generation system for {brand_name}.
+
+BRAND POSITIONING:
+- Brand name: {brand_name}
+- Core message: {core_message}
+- Target audience: {target_audience}
+
+TONE:
+{tone}
+
+{f"ADDITIONAL RULES:{chr(10)}{rules_text}" if rules_text else ""}
+
+OUTPUT FORMAT:
+Always respond with a valid JSON object and nothing else:
+{{
+  "format": "single_image",
+  "category": "string (topic category)",
+  "topic": "string (specific topic of this post)",
+  "headline": "max 10 words — one strong hook line",
+  "subtext": "max 20 words — supporting idea",
+  "caption": "max 150 chars — social media caption",
+  "hashtags": ["tag1", "tag2", "tag3", "tag4", "tag5"]
+}}
+
+RULES:
+- Always return valid JSON, nothing else before or after
+- Generate ALL content in: {language}
+- Headline must stop the scroll in under 2 seconds
+- Never use generic or cliché phrases"""
+
+    def _build_text_post_system_prompt(self, project) -> str:
+        config = project.content_config or {}
+        brand_name = config.get("brand_name", project.name)
+        tone = config.get("tone", "professional, clear")
+        core_message = config.get("core_message", "")
+        target_audience = config.get("target_audience", "general audience")
+        language = config.get("language", "en")
+        additional_rules = config.get("additional_rules", [])
+        rules_text = "\n".join([f"- {rule}" for rule in additional_rules]) if additional_rules else ""
+
+        return f"""You are the content generation system for {brand_name}.
+
+BRAND POSITIONING:
+- Brand name: {brand_name}
+- Core message: {core_message}
+- Target audience: {target_audience}
+
+TONE:
+{tone}
+
+{f"ADDITIONAL RULES:{chr(10)}{rules_text}" if rules_text else ""}
+
+OUTPUT FORMAT:
+Always respond with a valid JSON object and nothing else:
+{{
+  "format": "text_post",
+  "category": "string (topic category)",
+  "topic": "string (specific topic of this post)",
+  "title": "max 12 words — attention-grabbing opener",
+  "body": "2-3 short paragraphs, max 300 chars total",
+  "hashtags": ["tag1", "tag2", "tag3", "tag4", "tag5"]
+}}
+
+RULES:
+- Always return valid JSON, nothing else before or after
+- Generate ALL content in: {language}
+- Body must have one clear takeaway per paragraph
+- Never use generic or cliché phrases"""
 
     async def generate_content(self, prompt: str, system_prompt: str = "") -> str:
         """Generate text content — generic helper."""

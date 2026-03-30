@@ -77,6 +77,13 @@ class BatchContentRequest(BaseModel):
     content_type: str = "carousel_6_slides"
 
 
+class AutoGenerateRequest(BaseModel):
+    content_type: str = "carousel_6_slides"  # carousel_6_slides | single_image | text_post
+    category: Optional[str] = None           # must be one of project.content_config.content_categories
+    hint: Optional[str] = None               # short free-text topic hint
+    image_mode: str = "ideogram"             # ideogram | placeholder
+
+
 class GenerateImageRequest(BaseModel):
     prompt: str = ""
     style: str = "typographic"
@@ -175,9 +182,15 @@ async def list_content(project_id: int, db: AsyncSession = Depends(get_session))
 @router.post("/generate/{project_slug}")
 async def generate_content(
     project_slug: str,
+    body: AutoGenerateRequest = AutoGenerateRequest(),
     db: AsyncSession = Depends(get_session),
 ) -> dict:
-    """Generate carousel content for a project using Claude, upload placeholder to S3, trigger n8n."""
+    """Generate content for a project using Claude.
+
+    Supports content_type: carousel_6_slides | single_image | text_post
+    Optional category and hint guide Claude's output.
+    image_mode (ideogram | placeholder) controls cover-image generation for image-based types.
+    """
     # 1. Load project
     result = await db.execute(select(Project).where(Project.slug == project_slug))
     project = result.scalar_one_or_none()
@@ -188,70 +201,131 @@ async def generate_content(
     if not project.is_active:
         raise HTTPException(status_code=400, detail="Project is inactive")
 
-    # 3. Build webhook URL
+    # 3. Validate category against project config (if provided)
+    if body.category:
+        allowed_cats = (project.content_config or {}).get("content_categories", [])
+        if allowed_cats and body.category not in allowed_cats:
+            raise HTTPException(
+                status_code=422,
+                detail=f"Category '{body.category}' not in project content_categories",
+            )
+
+    # 4. Build webhook URL
     webhook_url = f"{project.n8n_webhook_base_url}/publish-meta"
 
-    # 4. Generate content with Claude
+    # 5. Generate content with Claude
     try:
-        content = await claude_client.generate_carousel_content(project)
+        content = await claude_client.generate_content_by_type(
+            project,
+            content_type=body.content_type,
+            category=body.category,
+            hint=body.hint,
+        )
     except Exception as e:
         raise HTTPException(status_code=503, detail=f"Claude generation failed: {str(e)}")
 
-    # 5. Extract caption
+    # 6. Caption extraction
     caption = content.get("caption", "")
 
-    # 6. Render carousel slides AND optionally generate a cover image via media provider
-    try:
-        image_urls = await get_s3_service().upload_carousel_slides(project_slug, content)
-        image_url = image_urls[0] if image_urls else ""
-    except Exception as e:
-        raise HTTPException(status_code=503, detail=f"S3 upload failed: {str(e)}")
-
-    # 6b. Optionally generate a cover image with the configured image provider
+    # 7. Image handling — branch by content_type
     media_config = project.media_config or {}
-    image_provider_name = media_config.get("image_provider", "placeholder")
-    if image_provider_name != "placeholder":
+    image_url: str = ""
+    image_urls: list[str] = []
+
+    if body.content_type == "carousel_6_slides":
+        # Existing carousel flow: upload slides to S3
         try:
-            slides = content.get("slides", [])
-            slide_1 = slides[0] if slides else {}
-            headline = slide_1.get("headline", "")
-            subtext = slide_1.get("subtext", "")
+            image_urls = await get_s3_service().upload_carousel_slides(project_slug, content)
+            image_url = image_urls[0] if image_urls else ""
+        except Exception as e:
+            raise HTTPException(status_code=503, detail=f"S3 upload failed: {str(e)}")
+
+        # Optionally replace cover with AI-generated image (respects project media_config)
+        carousel_image_provider = media_config.get("image_provider", "placeholder")
+        if carousel_image_provider != "placeholder":
+            try:
+                slides = content.get("slides", [])
+                slide_1 = slides[0] if slides else {}
+                headline = slide_1.get("headline", "")
+                subtext = slide_1.get("subtext", "")
+                image_prompt = f"{headline}. {subtext}. Brand: {project.name}.".strip()
+
+                if (project.credits_balance or 0) >= 10:
+                    provider = get_image_provider(carousel_image_provider)
+                    generated_url = await provider.generate_image(
+                        prompt=image_prompt,
+                        style=media_config.get("image_style", "typographic"),
+                        aspect_ratio=media_config.get("image_aspect_ratio", "1:1"),
+                        color_palette=media_config.get("image_color_palette", "dark"),
+                    )
+                    image_url = generated_url
+                    if image_urls:
+                        image_urls[0] = generated_url
+                    project.credits_balance = (project.credits_balance or 0) - 10
+                    project.credits_used_this_month = (project.credits_used_this_month or 0) + 10
+                    await db.commit()
+            except Exception:
+                pass  # Never break flow due to image provider failure
+
+    elif body.content_type == "single_image":
+        # image_mode == "placeholder" forces placeholder; otherwise use project provider (default: ideogram)
+        if body.image_mode == "placeholder":
+            effective_provider = "placeholder"
+        else:
+            effective_provider = media_config.get("image_provider", "ideogram")
+
+        try:
+            headline = content.get("headline", "")
+            subtext = content.get("subtext", "")
             image_prompt = f"{headline}. {subtext}. Brand: {project.name}.".strip()
 
-            # Fall back to placeholder if credits are insufficient
-            if (project.credits_balance or 0) >= 10:
-                image_provider = get_image_provider(image_provider_name)
-                generated_url = await image_provider.generate_image(
+            if effective_provider != "placeholder" and (project.credits_balance or 0) >= 10:
+                provider = get_image_provider(effective_provider)
+                image_url = await provider.generate_image(
                     prompt=image_prompt,
                     style=media_config.get("image_style", "typographic"),
                     aspect_ratio=media_config.get("image_aspect_ratio", "1:1"),
                     color_palette=media_config.get("image_color_palette", "dark"),
                 )
-                # Replace cover image with AI-generated one
-                image_url = generated_url
-                if image_urls:
-                    image_urls[0] = generated_url
+                image_urls = [image_url]
                 project.credits_balance = (project.credits_balance or 0) - 10
                 project.credits_used_this_month = (project.credits_used_this_month or 0) + 10
                 await db.commit()
+            else:
+                # Placeholder path: upload a placeholder image via S3
+                try:
+                    placeholder_provider = get_image_provider("placeholder")
+                    image_url = await placeholder_provider.generate_image(prompt=image_prompt)
+                    image_urls = [image_url]
+                except Exception:
+                    pass
         except Exception:
-            # Never break content generation flow due to image provider failure
-            pass
+            pass  # Never break flow due to image provider failure
 
-    # 7. Trigger n8n webhook
+    # text_post: no image needed
+
+    # 8. Trigger n8n webhook
     try:
         await n8n_client.trigger_publish(webhook_url, caption, image_urls, project_slug)
         webhook_triggered = True
     except HTTPException:
         webhook_triggered = False
 
-    # 8. Save to DB
+    # 9. Determine DB format field
+    if body.content_type == "carousel_6_slides":
+        db_format = "carousel"
+    elif body.content_type == "single_image":
+        db_format = "single_image"
+    else:
+        db_format = "text_post"
+
+    # 10. Save to DB
     post = ContentPost(
         project_id=project.id,
-        format="carousel",
+        format=db_format,
         status="pending_approval",
         content=content,
-        image_url=image_url,
+        image_url=image_url or None,
         caption=caption,
     )
     db.add(post)
@@ -260,18 +334,20 @@ async def generate_content(
 
     try:
         from app.services.notifications import NotificationService
-        notif_svc = NotificationService(db)
+        from app.core.database import AsyncSessionLocal
         topic = content.get("topic", "Contenido generado") if isinstance(content, dict) else "Contenido generado"
-        await notif_svc.create(
-            type="content_pending",
-            title=f"Nuevo contenido pendiente — {project.name}",
-            message=topic,
-            project_id=project.id,
-            action_url=f"/dashboard/content?id={post.id}",
-            action_label="Revisar",
-        )
-    except Exception:
-        pass  # Never break content generation due to notification failure
+        async with AsyncSessionLocal() as notif_db:
+            notif_svc = NotificationService(notif_db)
+            await notif_svc.create(
+                type="content_pending",
+                title=f"Nuevo contenido pendiente — {project.name}",
+                message=topic,
+                project_id=project.id,
+                action_url=f"/dashboard/content?id={post.id}",
+                action_label="Revisar",
+            )
+    except Exception as e:
+        print(f"[Notifications] Failed to create content_pending notification: {e}")
 
     return {
         "id": post.id,
@@ -339,19 +415,21 @@ async def create_content_manual(
 
     try:
         from app.services.notifications import NotificationService
-        notif_svc = NotificationService(db)
+        from app.core.database import AsyncSessionLocal
         post_content = post.content or {}
         topic = post_content.get("topic", body.topic) if isinstance(post_content, dict) else body.topic
-        await notif_svc.create(
-            type="content_pending",
-            title=f"Nuevo contenido pendiente — {project.name}",
-            message=topic,
-            project_id=project.id,
-            action_url=f"/dashboard/content?id={post.id}",
-            action_label="Revisar",
-        )
-    except Exception:
-        pass  # Never break content generation due to notification failure
+        async with AsyncSessionLocal() as notif_db:
+            notif_svc = NotificationService(notif_db)
+            await notif_svc.create(
+                type="content_pending",
+                title=f"Nuevo contenido pendiente — {project.name}",
+                message=topic,
+                project_id=project.id,
+                action_url=f"/dashboard/content?id={post.id}",
+                action_label="Revisar",
+            )
+    except Exception as e:
+        print(f"[Notifications] Failed to create content_pending notification: {e}")
 
     # Trigger n8n if project has webhook
     webhook_url = f"{project.n8n_webhook_base_url}/publish-meta" if project.n8n_webhook_base_url else None

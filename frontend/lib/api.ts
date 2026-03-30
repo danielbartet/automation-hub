@@ -22,8 +22,24 @@ export async function fetchContent(projectSlug: string) {
   return Array.isArray(data) ? data : (data.items ?? data);
 }
 
-export async function generateContent(projectSlug: string) {
-  const res = await fetch(`${API_BASE}/api/v1/content/generate/${projectSlug}`, { method: "POST" });
+export async function generateContent(
+  projectSlug: string,
+  body?: {
+    content_type?: string;
+    category?: string;
+    hint?: string;
+    image_mode?: string;
+  }
+) {
+  const res = await fetch(`${API_BASE}/api/v1/content/generate/${projectSlug}`, {
+    method: "POST",
+    ...(body
+      ? {
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify(body),
+        }
+      : {}),
+  });
   if (!res.ok) throw new Error("Failed to generate content");
   return res.json();
 }

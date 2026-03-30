@@ -404,6 +404,7 @@ export default function ContentPage() {
       {showModal && selectedProjectSlug && (
         <GenerateContentModal
           projectSlug={selectedProjectSlug}
+          project={projects.find((p) => p.slug === selectedProjectSlug)}
           onClose={() => setShowModal(false)}
           onSuccess={loadContent}
         />
