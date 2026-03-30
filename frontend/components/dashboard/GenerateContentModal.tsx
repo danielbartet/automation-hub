@@ -3,6 +3,7 @@ import { useState } from "react";
 import { X, Loader2, Sparkles, PenLine } from "lucide-react";
 import { ImageUploadZone } from "./ImageUploadZone";
 import { generateContent, createContentManual } from "@/lib/api";
+import { InstagramPostPreview } from "./InstagramPostPreview";
 
 interface Project {
   slug: string;
@@ -45,6 +46,11 @@ export function GenerateContentModal({ projectSlug, project, onClose, onSuccess 
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [result, setResult] = useState<string | null>(null);
+  const [generatedData, setGeneratedData] = useState<{
+    image_url?: string;
+    image_urls?: string[];
+    content?: { caption?: string; hashtags?: string[] };
+  } | null>(null);
 
   // Auto form state
   const [autoContentType, setAutoContentType] = useState<ContentType>("carousel_6_slides");
@@ -88,6 +94,7 @@ export function GenerateContentModal({ projectSlug, project, onClose, onSuccess 
     setLoading(true);
     setError(null);
     setResult(null);
+    setGeneratedData(null);
     try {
       const data = await generateContent(projectSlug, {
         content_type: autoContentType,
@@ -95,6 +102,7 @@ export function GenerateContentModal({ projectSlug, project, onClose, onSuccess 
         hint: autoHint.trim() || undefined,
         image_mode: autoImageMode,
       });
+      setGeneratedData(data);
       setResult(data.content?.caption || data.content?.title || "Contenido generado con éxito");
     } catch (e) {
       setError(e instanceof Error ? e.message : "Error al generar");
@@ -183,18 +191,38 @@ export function GenerateContentModal({ projectSlug, project, onClose, onSuccess 
           {tab === "auto" ? (
             <div className="space-y-5">
               {result ? (
-                <div className="p-4 bg-green-50 border border-green-200 rounded-md">
-                  <p className="text-sm font-medium text-green-700 mb-1">¡Generado con éxito!</p>
-                  <p className="text-sm text-green-600 italic">&ldquo;{result}&rdquo;</p>
-                  <button
-                    onClick={() => {
-                      onSuccess();
-                      onClose();
-                    }}
-                    className="mt-3 text-sm font-medium text-green-700 underline"
-                  >
-                    Listo
-                  </button>
+                <div className="space-y-4">
+                  {/* Success banner */}
+                  <div className="p-4 bg-green-50 border border-green-200 rounded-md">
+                    <p className="text-sm font-medium text-green-700 mb-1">Contenido generado exitosamente</p>
+                    <p className="text-sm text-green-600 italic line-clamp-2">&ldquo;{result}&rdquo;</p>
+                    <button
+                      onClick={() => {
+                        onSuccess();
+                        onClose();
+                      }}
+                      className="mt-3 text-sm font-medium text-green-700 underline"
+                    >
+                      Listo
+                    </button>
+                  </div>
+                  {/* Instagram preview */}
+                  {generatedData && (
+                    <div className="flex justify-center overflow-y-auto max-h-[520px]">
+                      <InstagramPostPreview
+                        imageUrls={
+                          generatedData.image_urls && generatedData.image_urls.length > 0
+                            ? generatedData.image_urls
+                            : generatedData.image_url
+                            ? [generatedData.image_url]
+                            : []
+                        }
+                        caption={generatedData.content?.caption ?? ""}
+                        hashtags={generatedData.content?.hashtags ?? []}
+                        username={project?.slug ?? "quantorialabs"}
+                      />
+                    </div>
+                  )}
                 </div>
               ) : (
                 <>

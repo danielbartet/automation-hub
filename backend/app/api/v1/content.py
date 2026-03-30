@@ -154,6 +154,8 @@ async def list_content_by_slug(
                 "status": p.status,
                 "caption": p.caption,
                 "image_url": p.image_url,
+                "image_urls": p.image_urls,
+                "content": p.content,
                 "scheduled_at": str(p.scheduled_at) if p.scheduled_at else None,
                 "batch_id": p.batch_id,
                 "published_at": str(p.published_at) if p.published_at else None,
@@ -240,32 +242,41 @@ async def generate_content(
         except Exception as e:
             raise HTTPException(status_code=503, detail=f"S3 upload failed: {str(e)}")
 
-        # Optionally replace cover with AI-generated image (respects project media_config)
+        # Optionally replace all slide images with AI-generated images (respects project media_config)
         carousel_image_provider = media_config.get("image_provider", "placeholder")
         if carousel_image_provider != "placeholder":
-            try:
-                slides = content.get("slides", [])
-                slide_1 = slides[0] if slides else {}
-                headline = slide_1.get("headline", "")
-                subtext = slide_1.get("subtext", "")
-                image_prompt = f"{headline}. {subtext}. Brand: {project.name}.".strip()
-
-                if (project.credits_balance or 0) >= 10:
-                    provider = get_image_provider(carousel_image_provider)
-                    generated_url = await provider.generate_image(
-                        prompt=image_prompt,
-                        style=media_config.get("image_style", "typographic"),
-                        aspect_ratio=media_config.get("image_aspect_ratio", "1:1"),
-                        color_palette=media_config.get("image_color_palette", "dark"),
-                    )
-                    image_url = generated_url
-                    if image_urls:
-                        image_urls[0] = generated_url
-                    project.credits_balance = (project.credits_balance or 0) - 10
-                    project.credits_used_this_month = (project.credits_used_this_month or 0) + 10
+            slides_data = content.get("slides", [])
+            credits_per_image = 10
+            if (project.credits_balance or 0) >= credits_per_image and slides_data:
+                provider = get_image_provider(carousel_image_provider)
+                generated_urls: list[str] = []
+                for i, slide in enumerate(slides_data):
+                    slide_headline = slide.get("headline", "")
+                    slide_subtext = slide.get("subtext", "")
+                    slide_prompt = f"{slide_headline}. {slide_subtext}. Brand: {project.name}.".strip()
+                    # Fallback to existing S3 placeholder for this slide if generation fails
+                    fallback_url = image_urls[i] if i < len(image_urls) else ""
+                    try:
+                        if (project.credits_balance or 0) >= credits_per_image:
+                            generated_url = await provider.generate_image(
+                                prompt=slide_prompt,
+                                style=media_config.get("image_style", "typographic"),
+                                aspect_ratio=media_config.get("image_aspect_ratio", "1:1"),
+                                color_palette=media_config.get("image_color_palette", "dark"),
+                            )
+                            generated_urls.append(generated_url)
+                            project.credits_balance = (project.credits_balance or 0) - credits_per_image
+                            project.credits_used_this_month = (project.credits_used_this_month or 0) + credits_per_image
+                        else:
+                            # Not enough credits for this slide — use placeholder
+                            generated_urls.append(fallback_url)
+                    except Exception as e:
+                        print(f"[ImageGen] Slide {i + 1} generation failed, using placeholder: {e}")
+                        generated_urls.append(fallback_url)
+                if generated_urls:
+                    image_urls = generated_urls
+                    image_url = image_urls[0]
                     await db.commit()
-            except Exception:
-                pass  # Never break flow due to image provider failure
 
     elif body.content_type == "single_image":
         # image_mode == "placeholder" forces placeholder; otherwise use project provider (default: ideogram)
@@ -326,6 +337,7 @@ async def generate_content(
         status="pending_approval",
         content=content,
         image_url=image_url or None,
+        image_urls=json.dumps(image_urls) if image_urls else None,
         caption=caption,
     )
     db.add(post)

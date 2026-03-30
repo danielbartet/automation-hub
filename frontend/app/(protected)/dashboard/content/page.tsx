@@ -24,6 +24,7 @@ interface ContentPost {
   caption: string;
   status: "pending_approval" | "published" | "draft" | "approved" | "rejected";
   image_url?: string;
+  image_urls?: string;
   video_url?: string;
   created_at: string;
   published_at?: string;

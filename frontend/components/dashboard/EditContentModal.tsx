@@ -4,6 +4,7 @@ import { X, Loader2, Save, CheckCircle, XCircle, Sparkles } from "lucide-react";
 import { ImageUploadZone } from "./ImageUploadZone";
 import { updateContent } from "@/lib/api";
 import { ImageGeneratorModal } from "./ImageGeneratorModal";
+import { InstagramPostPreview } from "./InstagramPostPreview";
 
 interface Slide {
   slide_number: number;
@@ -18,6 +19,7 @@ interface ContentPost {
   id: number;
   caption: string;
   image_url?: string;
+  image_urls?: string;
   scheduled_at?: string;
   content?: { slides?: Slide[] | unknown[]; hashtags?: string[] };
   status: string;
@@ -45,6 +47,20 @@ export function EditContentModal({ post, projectSlug, project, onClose, onSaved 
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [showImageGen, setShowImageGen] = useState(false);
+  const [activeTab, setActiveTab] = useState<"edit" | "preview">("edit");
+
+  // Parse image_urls for preview
+  const previewImageUrls: string[] = (() => {
+    if (post.image_urls) {
+      try {
+        const parsed = JSON.parse(post.image_urls);
+        if (Array.isArray(parsed) && parsed.length > 0) return parsed;
+      } catch {
+        // fall through
+      }
+    }
+    return post.image_url ? [post.image_url] : [];
+  })();
 
   const handleSave = async () => {
     setLoading(true);
@@ -105,11 +121,53 @@ export function EditContentModal({ post, projectSlug, project, onClose, onSaved 
     <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50 p-4">
       <div className="bg-white rounded-xl shadow-xl w-full max-w-2xl max-h-[90vh] overflow-y-auto">
         <div className="flex items-center justify-between p-6 border-b">
-          <h2 className="text-lg font-semibold">Edit Content</h2>
+          <h2 className="text-lg font-semibold">Editar contenido</h2>
           <button onClick={onClose} className="p-1 hover:bg-gray-100 rounded-md">
             <X className="h-5 w-5" />
           </button>
         </div>
+
+        {/* Tab switcher */}
+        <div className="flex gap-2 px-6 pt-4">
+          <button
+            type="button"
+            onClick={() => setActiveTab("edit")}
+            className={`px-4 py-1.5 rounded-full text-sm font-medium border transition-colors ${
+              activeTab === "edit"
+                ? "bg-gray-900 text-white border-gray-900"
+                : "bg-white text-gray-600 border-gray-300 hover:border-gray-500"
+            }`}
+          >
+            ✏️ Editar
+          </button>
+          <button
+            type="button"
+            onClick={() => setActiveTab("preview")}
+            className={`px-4 py-1.5 rounded-full text-sm font-medium border transition-colors ${
+              activeTab === "preview"
+                ? "bg-gray-900 text-white border-gray-900"
+                : "bg-white text-gray-600 border-gray-300 hover:border-gray-500"
+            }`}
+          >
+            👁 Vista previa
+          </button>
+        </div>
+
+        {activeTab === "preview" ? (
+          <div className="flex justify-center p-6">
+            <InstagramPostPreview
+              imageUrls={previewImageUrls}
+              caption={caption}
+              hashtags={(post.content?.hashtags ?? []).concat(
+                hashtags
+                  .split(",")
+                  .map((t) => t.trim().replace(/^#/, ""))
+                  .filter(Boolean)
+              ).filter((v, i, arr) => arr.indexOf(v) === i)}
+              username={projectSlug}
+            />
+          </div>
+        ) : (
         <div className="p-6 space-y-5">
           {error && (
             <div className="p-3 bg-red-50 border border-red-200 rounded-md text-sm text-red-700">
@@ -252,7 +310,7 @@ export function EditContentModal({ post, projectSlug, project, onClose, onSaved 
               onClick={onClose}
               className="flex-1 px-4 py-2 border border-gray-200 text-sm font-medium rounded-lg hover:bg-gray-50"
             >
-              Cancel
+              Cancelar
             </button>
             <button
               onClick={handleSave}
@@ -260,10 +318,11 @@ export function EditContentModal({ post, projectSlug, project, onClose, onSaved 
               className="flex-1 flex items-center justify-center gap-2 px-4 py-2 bg-gray-900 text-white text-sm font-medium rounded-lg hover:bg-gray-700 disabled:opacity-50"
             >
               {loading ? <Loader2 className="h-4 w-4 animate-spin" /> : <Save className="h-4 w-4" />}
-              Save Changes
+              Guardar cambios
             </button>
           </div>
         </div>
+        )}
       </div>
     </div>
     </>
