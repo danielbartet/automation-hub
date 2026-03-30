@@ -26,14 +26,17 @@ def upgrade() -> None:
         op.create_table(
             'campaign_optimization_logs',
             sa.Column('id', sa.Integer(), nullable=False),
-            sa.Column('campaign_id', sa.Integer(), nullable=True),
-            sa.Column('decision', sa.String(50), nullable=True),
-            sa.Column('reason', sa.Text(), nullable=True),
+            sa.Column('campaign_id', sa.Integer(), nullable=False),
+            sa.Column('project_id', sa.Integer(), nullable=False),
+            sa.Column('checked_at', sa.DateTime(), server_default=sa.text('CURRENT_TIMESTAMP')),
             sa.Column('metrics_snapshot', sa.Text(), nullable=True),
-            sa.Column('action_taken', sa.Boolean(), nullable=True, server_default='0'),
+            sa.Column('decision', sa.String(20), nullable=True),
+            sa.Column('rationale', sa.Text(), nullable=True),
+            sa.Column('action_taken', sa.String(20), nullable=True),
+            sa.Column('old_budget', sa.Float(), nullable=True),
+            sa.Column('new_budget', sa.Float(), nullable=True),
             sa.Column('creative_refreshed', sa.Boolean(), nullable=False, server_default='0'),
             sa.Column('new_creative_id', sa.String(100), nullable=True),
-            sa.Column('created_at', sa.DateTime(), nullable=True),
             sa.PrimaryKeyConstraint('id'),
         )
     else:
