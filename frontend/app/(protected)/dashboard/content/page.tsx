@@ -3,8 +3,8 @@
 import { useEffect, useState, useCallback } from "react";
 import { useSession } from "next-auth/react";
 import { Header } from "@/components/layout/Header";
-import { fetchProjects, fetchContent, importFromMeta, generateVideo } from "@/lib/api";
-import { PlusCircle, FileText, Loader2, Pencil, Download, Video, Image } from "lucide-react";
+import { fetchProjects, fetchContent, generateVideo } from "@/lib/api";
+import { PlusCircle, FileText, Loader2, Pencil, Video, Image } from "lucide-react";
 import { GenerateContentModal } from "@/components/dashboard/GenerateContentModal";
 import { EditContentModal } from "@/components/dashboard/EditContentModal";
 import { ImageGeneratorModal } from "@/components/dashboard/ImageGeneratorModal";
@@ -76,8 +76,6 @@ export default function ContentPage() {
   const [filter, setFilter] = useState<StatusFilter>("all");
   const [showModal, setShowModal] = useState(false);
   const [editPost, setEditPost] = useState<ContentPost | null>(null);
-  const [importingMeta, setImportingMeta] = useState(false);
-  const [importResult, setImportResult] = useState<{ imported: number; skipped: number; message: string } | null>(null);
   const [generatingVideoId, setGeneratingVideoId] = useState<number | null>(null);
   const [videoResults, setVideoResults] = useState<Record<number, { video_url: string; credits_remaining: number }>>({});
   const [imageGenPost, setImageGenPost] = useState<ContentPost | null>(null);
@@ -132,24 +130,6 @@ export default function ContentPage() {
     }
   };
 
-  const handleImportFromMeta = async () => {
-    if (!selectedProjectSlug) return;
-    setImportingMeta(true);
-    setImportResult(null);
-    setError(null);
-    try {
-      const result = await importFromMeta(selectedProjectSlug);
-      setImportResult({ imported: result.imported, skipped: result.skipped, message: result.message });
-      if (result.imported > 0) {
-        loadContent();
-      }
-    } catch (err) {
-      setError(err instanceof Error ? err.message : "Import failed");
-    } finally {
-      setImportingMeta(false);
-    }
-  };
-
   const filtered =
     filter === "all" ? content : content.filter((c) => c.status === filter);
 
@@ -189,18 +169,6 @@ export default function ContentPage() {
           {!isClient && (
             <div className="flex items-center gap-2">
               <button
-                onClick={handleImportFromMeta}
-                disabled={!selectedProjectSlug || importingMeta}
-                className="inline-flex items-center gap-2 px-4 py-2 bg-white border border-gray-300 text-gray-700 text-sm font-medium rounded-md hover:bg-gray-50 disabled:opacity-50 disabled:cursor-not-allowed transition-colors"
-              >
-                {importingMeta ? (
-                  <Loader2 className="h-4 w-4 animate-spin" />
-                ) : (
-                  <Download className="h-4 w-4" />
-                )}
-                Importar desde Meta
-              </button>
-              <button
                 onClick={() => setShowModal(true)}
                 disabled={!selectedProjectSlug}
                 className="inline-flex items-center gap-2 px-4 py-2 bg-gray-900 text-white text-sm font-medium rounded-md hover:bg-gray-700 disabled:opacity-50 disabled:cursor-not-allowed transition-colors"
@@ -215,18 +183,6 @@ export default function ContentPage() {
         {error && (
           <div className="bg-red-50 border border-red-200 rounded-md p-4 text-sm text-red-700">
             Error: {error}
-          </div>
-        )}
-
-        {importResult && (
-          <div className="bg-green-50 border border-green-200 rounded-md p-4 text-sm text-green-700 flex items-center justify-between">
-            <span>{importResult.message}</span>
-            <button
-              onClick={() => setImportResult(null)}
-              className="ml-4 text-green-500 hover:text-green-700 font-medium"
-            >
-              Dismiss
-            </button>
           </div>
         )}
 

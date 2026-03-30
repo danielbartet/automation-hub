@@ -101,22 +101,6 @@ export default function AdsPage() {
   const [importResult, setImportResult] = useState<{ imported: number; updated: number } | null>(null);
   const [importError, setImportError] = useState<string | null>(null);
 
-  const handleImport = useCallback(async () => {
-    if (!selectedSlug) return;
-    setImporting(true);
-    setImportResult(null);
-    setImportError(null);
-    try {
-      const result = await importCampaigns(selectedSlug);
-      setImportResult({ imported: result.imported, updated: result.updated });
-      loadData();
-    } catch (err) {
-      setImportError(err instanceof Error ? err.message : "Error al importar campañas");
-    } finally {
-      setImporting(false);
-    }
-  }, [selectedSlug, loadData]);
-
   useEffect(() => {
     fetchProjects()
       .then((list: Project[]) => {
@@ -137,6 +121,22 @@ export default function AdsPage() {
       .catch((err) => setError(err.message))
       .finally(() => setLoadingData(false));
   }, [selectedSlug]);
+
+  const handleImport = useCallback(async () => {
+    if (!selectedSlug) return;
+    setImporting(true);
+    setImportResult(null);
+    setImportError(null);
+    try {
+      const result = await importCampaigns(selectedSlug);
+      setImportResult({ imported: result.imported, updated: result.updated });
+      loadData();
+    } catch (err) {
+      setImportError(err instanceof Error ? err.message : "Error al importar campañas");
+    } finally {
+      setImporting(false);
+    }
+  }, [selectedSlug, loadData]);
 
   useEffect(() => {
     loadData();
