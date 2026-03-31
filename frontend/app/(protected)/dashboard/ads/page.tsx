@@ -72,18 +72,18 @@ interface DashboardData {
 }
 
 const CAMPAIGN_STATUS_CLASSES: Record<string, string> = {
-  ACTIVE: "bg-green-100 text-green-700",
-  active: "bg-green-100 text-green-700",
-  PAUSED: "bg-gray-100 text-gray-500",
-  paused: "bg-gray-100 text-gray-500",
-  DELETED: "bg-red-100 text-red-700",
+  ACTIVE: "bg-green-900/50 text-green-400",
+  active: "bg-green-900/50 text-green-400",
+  PAUSED: "bg-gray-800 text-gray-400",
+  paused: "bg-gray-800 text-gray-400",
+  DELETED: "bg-red-900/50 text-red-400",
 };
 
 const ANDROMEDA_STATUS_CLASSES: Record<string, string> = {
-  running: "bg-blue-100 text-blue-700",
-  paused: "bg-yellow-100 text-yellow-700",
-  stopped: "bg-gray-100 text-gray-500",
-  error: "bg-red-100 text-red-700",
+  running: "bg-blue-900/50 text-blue-400",
+  paused: "bg-yellow-900/50 text-yellow-400",
+  stopped: "bg-gray-800 text-gray-500",
+  error: "bg-red-900/50 text-red-400",
 };
 
 export default function AdsPage() {
@@ -154,14 +154,15 @@ export default function AdsPage() {
       <div className="p-6 space-y-6">
         {/* Project selector + Create Campaign button */}
         <div className="flex items-center gap-3 flex-wrap">
-          <label className="text-sm font-medium text-gray-700">Project:</label>
+          <label className="text-sm font-medium" style={{ color: "#9ca3af" }}>Project:</label>
           {loadingProjects ? (
-            <span className="text-sm text-gray-400">Loading...</span>
+            <span className="text-sm" style={{ color: "#9ca3af" }}>Loading...</span>
           ) : (
             <select
               value={selectedSlug}
               onChange={(e) => setSelectedSlug(e.target.value)}
-              className="text-sm border border-gray-200 rounded-md px-3 py-2 bg-white text-gray-900 focus:outline-none focus:ring-2 focus:ring-gray-400"
+              className="text-sm rounded-md px-3 py-2 focus:outline-none focus:ring-2 focus:ring-[#7c3aed]"
+              style={{ backgroundColor: "#1a1a1a", border: "1px solid #333333", color: "#ffffff" }}
             >
               {projects.map((p) => (
                 <option key={p.id} value={p.slug}>
@@ -176,7 +177,10 @@ export default function AdsPage() {
               <button
                 onClick={handleImport}
                 disabled={!selectedProject || importing}
-                className="flex items-center gap-2 px-4 py-2 bg-white border border-gray-300 text-gray-700 text-sm font-medium rounded-lg hover:bg-gray-50 disabled:opacity-50"
+                className="flex items-center gap-2 px-4 py-2 text-sm font-medium rounded-lg transition-colors disabled:opacity-50"
+                style={{ border: "1px solid #333333", color: "#9ca3af" }}
+                onMouseEnter={e => { if (!(e.currentTarget as HTMLButtonElement).disabled) { (e.currentTarget as HTMLButtonElement).style.backgroundColor = "#1a1a1a"; (e.currentTarget as HTMLButtonElement).style.color = "#ffffff"; } }}
+                onMouseLeave={e => { (e.currentTarget as HTMLButtonElement).style.backgroundColor = "transparent"; (e.currentTarget as HTMLButtonElement).style.color = "#9ca3af"; }}
               >
                 {importing ? (
                   <>
@@ -193,7 +197,10 @@ export default function AdsPage() {
               <button
                 onClick={() => setShowCreateModal(true)}
                 disabled={!selectedProject}
-                className="flex items-center gap-2 px-4 py-2 bg-gray-900 text-white text-sm font-medium rounded-lg hover:bg-gray-700 disabled:opacity-50"
+                className="flex items-center gap-2 px-4 py-2 text-white text-sm font-medium rounded-lg transition-colors disabled:opacity-50"
+                style={{ backgroundColor: "#7c3aed" }}
+                onMouseEnter={e => { if (!(e.currentTarget as HTMLButtonElement).disabled) (e.currentTarget as HTMLButtonElement).style.backgroundColor = "#6d28d9"; }}
+                onMouseLeave={e => { (e.currentTarget as HTMLButtonElement).style.backgroundColor = "#7c3aed"; }}
               >
                 <Plus className="h-4 w-4" />Create Campaign
               </button>
@@ -202,13 +209,13 @@ export default function AdsPage() {
         </div>
 
         {error && (
-          <div className="bg-red-50 border border-red-200 rounded-md p-4 text-sm text-red-700">
+          <div className="rounded-md p-4 text-sm text-red-400" style={{ backgroundColor: "#450a0a", border: "1px solid #7f1d1d" }}>
             Error: {error}
           </div>
         )}
 
         {importResult && (
-          <div className="bg-green-50 border border-green-200 rounded-md p-4 text-sm text-green-700 flex items-center justify-between">
+          <div className="rounded-md p-4 text-sm text-green-400 flex items-center justify-between" style={{ backgroundColor: "#052e16", border: "1px solid #166534" }}>
             <span>
               {importResult.imported > 0 && (
                 <span><strong>{importResult.imported}</strong> {importResult.imported === 1 ? "campaña importada" : "campañas importadas"}</span>
@@ -223,7 +230,7 @@ export default function AdsPage() {
             </span>
             <button
               onClick={() => setImportResult(null)}
-              className="ml-4 text-green-500 hover:text-green-700 font-medium"
+              className="ml-4 text-green-400 hover:text-green-300 font-medium"
             >
               &times;
             </button>
@@ -231,11 +238,11 @@ export default function AdsPage() {
         )}
 
         {importError && (
-          <div className="bg-red-50 border border-red-200 rounded-md p-4 text-sm text-red-700 flex items-center justify-between">
+          <div className="rounded-md p-4 text-sm text-red-400 flex items-center justify-between" style={{ backgroundColor: "#450a0a", border: "1px solid #7f1d1d" }}>
             <span>Error al importar: {importError}</span>
             <button
               onClick={() => setImportError(null)}
-              className="ml-4 text-red-500 hover:text-red-700 font-medium"
+              className="ml-4 text-red-400 hover:text-red-300 font-medium"
             >
               &times;
             </button>
@@ -263,18 +270,22 @@ export default function AdsPage() {
 
         {/* Spend chart */}
         {spendData.length > 0 && (
-          <div className="bg-white rounded-lg border border-gray-200 shadow-sm p-6">
-            <h3 className="text-base font-semibold text-gray-900 mb-4">Ad Spend (30 days)</h3>
+          <div className="rounded-lg p-6" style={{ backgroundColor: "#111111", border: "1px solid #222222" }}>
+            <h3 className="text-base font-semibold text-white mb-4">Ad Spend (30 days)</h3>
             <ResponsiveContainer width="100%" height={220}>
               <LineChart data={spendData}>
-                <CartesianGrid strokeDasharray="3 3" stroke="#f0f0f0" />
-                <XAxis dataKey="date" tick={{ fontSize: 12 }} />
-                <YAxis tick={{ fontSize: 12 }} tickFormatter={(v) => `$${v}`} />
-                <Tooltip formatter={(v: number) => [`$${v.toFixed(2)}`, "Spend"]} />
+                <CartesianGrid strokeDasharray="3 3" stroke="#222222" />
+                <XAxis dataKey="date" tick={{ fontSize: 12, fill: "#9ca3af" }} />
+                <YAxis tick={{ fontSize: 12, fill: "#9ca3af" }} tickFormatter={(v) => `$${v}`} />
+                <Tooltip
+                  formatter={(v: number) => [`$${v.toFixed(2)}`, "Spend"]}
+                  contentStyle={{ backgroundColor: "#1a1a1a", border: "1px solid #333333", borderRadius: "8px", color: "#ffffff" }}
+                  labelStyle={{ color: "#9ca3af" }}
+                />
                 <Line
                   type="monotone"
                   dataKey="spend"
-                  stroke="#111827"
+                  stroke="#7c3aed"
                   strokeWidth={2}
                   dot={false}
                 />
@@ -284,46 +295,49 @@ export default function AdsPage() {
         )}
 
         {/* Campaigns table */}
-        <div className="bg-white rounded-lg border border-gray-200 shadow-sm overflow-hidden">
-          <div className="px-6 py-4 border-b border-gray-100">
-            <h3 className="text-base font-semibold text-gray-900">Campaigns</h3>
+        <div className="rounded-lg overflow-hidden" style={{ backgroundColor: "#111111", border: "1px solid #222222" }}>
+          <div className="px-6 py-4" style={{ borderBottom: "1px solid #222222" }}>
+            <h3 className="text-base font-semibold text-white">Campaigns</h3>
           </div>
           {loadingData ? (
-            <div className="flex items-center justify-center h-40 text-sm text-gray-500">
+            <div className="flex items-center justify-center h-40 text-sm" style={{ color: "#9ca3af" }}>
               <Loader2 className="h-5 w-5 animate-spin mr-2" />
               Loading campaigns...
             </div>
           ) : campaigns.length === 0 ? (
-            <div className="flex items-center justify-center h-40 text-sm text-gray-500">
+            <div className="flex items-center justify-center h-40 text-sm" style={{ color: "#9ca3af" }}>
               No campaigns found.
             </div>
           ) : (
             <div className="overflow-x-auto">
               <table className="w-full text-sm">
-                <thead className="bg-gray-50 border-b border-gray-200">
+                <thead style={{ backgroundColor: "#111111", borderBottom: "1px solid #222222" }}>
                   <tr>
-                    <th className="text-left px-4 py-3 font-medium text-gray-600">Name</th>
-                    <th className="text-left px-4 py-3 font-medium text-gray-600">Objective</th>
-                    <th className="text-left px-4 py-3 font-medium text-gray-600">Status</th>
-                    <th className="text-left px-4 py-3 font-medium text-gray-600">Daily Budget</th>
-                    <th className="text-left px-4 py-3 font-medium text-gray-600">Spend Today</th>
-                    <th className="text-left px-4 py-3 font-medium text-gray-600">Spend / Month</th>
-                    <th className="text-left px-4 py-3 font-medium text-gray-600">KPIs</th>
-                    <th className="text-left px-4 py-3 font-medium text-gray-600">Andromeda</th>
-                    <th className="text-left px-4 py-3 font-medium text-gray-600">Detalle</th>
+                    <th className="text-left px-4 py-3 font-medium" style={{ color: "#9ca3af" }}>Name</th>
+                    <th className="text-left px-4 py-3 font-medium" style={{ color: "#9ca3af" }}>Objective</th>
+                    <th className="text-left px-4 py-3 font-medium" style={{ color: "#9ca3af" }}>Status</th>
+                    <th className="text-left px-4 py-3 font-medium" style={{ color: "#9ca3af" }}>Daily Budget</th>
+                    <th className="text-left px-4 py-3 font-medium" style={{ color: "#9ca3af" }}>Spend Today</th>
+                    <th className="text-left px-4 py-3 font-medium" style={{ color: "#9ca3af" }}>Spend / Month</th>
+                    <th className="text-left px-4 py-3 font-medium" style={{ color: "#9ca3af" }}>KPIs</th>
+                    <th className="text-left px-4 py-3 font-medium" style={{ color: "#9ca3af" }}>Andromeda</th>
+                    <th className="text-left px-4 py-3 font-medium" style={{ color: "#9ca3af" }}>Detalle</th>
                   </tr>
                 </thead>
-                <tbody className="divide-y divide-gray-100">
+                <tbody>
                   {campaigns.map((c, i) => (
                     <tr
                       key={c.id ?? i}
                       onClick={() => { if (!isClient) setSelectedCampaign(c); }}
-                      className={`hover:bg-gray-50 transition-colors ${!isClient ? "cursor-pointer" : ""}`}
+                      className={`transition-colors ${!isClient ? "cursor-pointer" : ""}`}
+                      style={{ borderTop: i > 0 ? "1px solid #1a1a1a" : undefined }}
+                      onMouseEnter={e => (e.currentTarget.style.backgroundColor = "#161616")}
+                      onMouseLeave={e => (e.currentTarget.style.backgroundColor = "transparent")}
                     >
-                      <td className="px-4 py-3 font-medium text-gray-900 max-w-[200px] truncate">
+                      <td className="px-4 py-3 font-medium text-white max-w-[200px] truncate">
                         {c.name}
                       </td>
-                      <td className="px-4 py-3 text-gray-600">{c.objective ?? "—"}</td>
+                      <td className="px-4 py-3" style={{ color: "#9ca3af" }}>{c.objective ?? "—"}</td>
                       <td className="px-4 py-3">
                         <span
                           className={`inline-flex items-center px-2 py-0.5 rounded-full text-xs font-medium ${
@@ -333,16 +347,16 @@ export default function AdsPage() {
                           {c.status}
                         </span>
                       </td>
-                      <td className="px-4 py-3 text-gray-700">
+                      <td className="px-4 py-3" style={{ color: "#9ca3af" }}>
                         {c.daily_budget != null ? `$${c.daily_budget.toFixed(2)}` : "—"}
                       </td>
-                      <td className="px-4 py-3 text-gray-700">
+                      <td className="px-4 py-3" style={{ color: "#9ca3af" }}>
                         {c.spend_today != null ? `$${c.spend_today.toFixed(2)}` : "—"}
                       </td>
-                      <td className="px-4 py-3 text-gray-700">
+                      <td className="px-4 py-3" style={{ color: "#9ca3af" }}>
                         {c.spend_this_month != null ? `$${c.spend_this_month.toFixed(2)}` : "—"}
                       </td>
-                      <td className="px-4 py-3 text-gray-600 text-xs">
+                      <td className="px-4 py-3 text-xs" style={{ color: "#9ca3af" }}>
                         {c.objective === "LEADS" || c.objective === "OUTCOME_LEADS" ? (
                           <span>
                             {c.kpis?.leads != null ? `${c.kpis.leads} leads` : "—"}
@@ -364,19 +378,19 @@ export default function AdsPage() {
                         {c.andromeda_status ? (
                           <span
                             className={`inline-flex items-center px-2 py-0.5 rounded-full text-xs font-medium ${
-                              ANDROMEDA_STATUS_CLASSES[c.andromeda_status] ?? "bg-gray-100 text-gray-600"
+                              ANDROMEDA_STATUS_CLASSES[c.andromeda_status] ?? "bg-gray-800 text-gray-400"
                             }`}
                           >
                             {c.andromeda_status}
                           </span>
                         ) : (
-                          <span className="text-gray-400">—</span>
+                          <span style={{ color: "#9ca3af" }}>—</span>
                         )}
                       </td>
                       <td className="px-4 py-3" onClick={(e) => e.stopPropagation()}>
                         <Link
                           href={`/dashboard/ads/${c.id}?project_slug=${selectedSlug}`}
-                          className="text-blue-600 hover:text-blue-800 text-xs font-medium"
+                          className="text-blue-400 hover:text-blue-300 text-xs font-medium"
                         >
                           Ver detalle →
                         </Link>

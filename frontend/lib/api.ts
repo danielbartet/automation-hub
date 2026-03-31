@@ -99,6 +99,7 @@ export async function updateContent(
   data: {
     caption?: string;
     image_url?: string;
+    image_urls?: string[];
     video_url?: string;
     hashtags?: string[];
     slides?: unknown[];

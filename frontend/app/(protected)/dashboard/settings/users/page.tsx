@@ -385,33 +385,36 @@ export default function UsersPage() {
 
   if (status === "loading") {
     return (
-      <div className="flex items-center justify-center min-h-screen bg-gray-950">
-        <Loader2 className="h-6 w-6 animate-spin text-gray-400" />
+      <div className="flex items-center justify-center min-h-screen" style={{ backgroundColor: "#0a0a0a" }}>
+        <Loader2 className="h-6 w-6 animate-spin" style={{ color: "#9ca3af" }} />
       </div>
     );
   }
 
   if (session?.user?.role !== "admin") {
     return (
-      <div className="flex flex-col items-center justify-center min-h-screen bg-gray-950 gap-3">
+      <div className="flex flex-col items-center justify-center min-h-screen gap-3" style={{ backgroundColor: "#0a0a0a" }}>
         <ShieldAlert className="h-10 w-10 text-red-400" />
-        <p className="text-gray-400 text-sm">Access denied</p>
+        <p className="text-sm" style={{ color: "#9ca3af" }}>Access denied</p>
       </div>
     );
   }
 
   return (
-    <div className="p-6 bg-gray-950 min-h-screen">
+    <div className="p-6 min-h-screen" style={{ backgroundColor: "#0a0a0a" }}>
       <div className="max-w-5xl mx-auto">
         {/* Header */}
         <div className="flex items-center justify-between mb-6">
           <div>
             <h1 className="text-2xl font-bold text-white">Users</h1>
-            <p className="text-gray-400 text-sm mt-1">Manage user accounts and permissions</p>
+            <p className="text-sm mt-1" style={{ color: "#9ca3af" }}>Manage user accounts and permissions</p>
           </div>
           <button
             onClick={() => setShowCreate(true)}
-            className="flex items-center gap-2 px-4 py-2 bg-blue-600 hover:bg-blue-500 text-white text-sm font-medium rounded-lg transition-colors"
+            className="flex items-center gap-2 px-4 py-2 text-white text-sm font-medium rounded-lg transition-colors"
+            style={{ backgroundColor: "#7c3aed" }}
+            onMouseEnter={e => (e.currentTarget.style.backgroundColor = "#6d28d9")}
+            onMouseLeave={e => (e.currentTarget.style.backgroundColor = "#7c3aed")}
           >
             <Plus className="h-4 w-4" />
             New User
@@ -419,35 +422,35 @@ export default function UsersPage() {
         </div>
 
         {/* Table */}
-        <div className="bg-gray-900 border border-gray-800 rounded-xl overflow-hidden">
+        <div className="rounded-xl overflow-hidden" style={{ backgroundColor: "#111111", border: "1px solid #222222" }}>
           {loadingUsers ? (
-            <div className="flex items-center justify-center py-16 text-gray-500 text-sm gap-2">
+            <div className="flex items-center justify-center py-16 text-sm gap-2" style={{ color: "#9ca3af" }}>
               <Loader2 className="h-4 w-4 animate-spin" />
               Loading users...
             </div>
           ) : users.length === 0 ? (
-            <div className="flex items-center justify-center py-16 text-gray-500 text-sm">
+            <div className="flex items-center justify-center py-16 text-sm" style={{ color: "#9ca3af" }}>
               No users found.
             </div>
           ) : (
             <table className="w-full">
               <thead>
-                <tr className="border-b border-gray-800">
-                  <th className="text-left px-5 py-3 text-xs font-medium text-gray-500 uppercase tracking-wider">Name</th>
-                  <th className="text-left px-5 py-3 text-xs font-medium text-gray-500 uppercase tracking-wider">Email</th>
-                  <th className="text-left px-5 py-3 text-xs font-medium text-gray-500 uppercase tracking-wider">Role</th>
-                  <th className="text-left px-5 py-3 text-xs font-medium text-gray-500 uppercase tracking-wider">Status</th>
-                  <th className="text-right px-5 py-3 text-xs font-medium text-gray-500 uppercase tracking-wider">Actions</th>
+                <tr style={{ borderBottom: "1px solid #222222" }}>
+                  <th className="text-left px-5 py-3 text-xs font-medium uppercase tracking-wider" style={{ color: "#9ca3af" }}>Name</th>
+                  <th className="text-left px-5 py-3 text-xs font-medium uppercase tracking-wider" style={{ color: "#9ca3af" }}>Email</th>
+                  <th className="text-left px-5 py-3 text-xs font-medium uppercase tracking-wider" style={{ color: "#9ca3af" }}>Role</th>
+                  <th className="text-left px-5 py-3 text-xs font-medium uppercase tracking-wider" style={{ color: "#9ca3af" }}>Status</th>
+                  <th className="text-right px-5 py-3 text-xs font-medium uppercase tracking-wider" style={{ color: "#9ca3af" }}>Actions</th>
                 </tr>
               </thead>
-              <tbody className="divide-y divide-gray-800">
+              <tbody>
                 {users.map(user => (
-                  <tr key={user.id} className="hover:bg-gray-800/40 transition-colors">
+                  <tr key={user.id} style={{ borderTop: "1px solid #1a1a1a" }} className="hover:bg-[#161616] transition-colors">
                     <td className="px-5 py-4">
                       <span className="text-white text-sm font-medium">{user.name}</span>
                     </td>
                     <td className="px-5 py-4">
-                      <span className="text-gray-400 text-sm">{user.email}</span>
+                      <span className="text-sm" style={{ color: "#9ca3af" }}>{user.email}</span>
                     </td>
                     <td className="px-5 py-4">
                       <Badge role={user.role} />
@@ -461,7 +464,10 @@ export default function UsersPage() {
                     <td className="px-5 py-4 text-right">
                       <button
                         onClick={() => setEditingUser(user)}
-                        className="inline-flex items-center gap-1.5 px-3 py-1.5 text-xs font-medium text-gray-300 hover:text-white border border-gray-700 hover:border-gray-500 rounded-md transition-colors"
+                        className="inline-flex items-center gap-1.5 px-3 py-1.5 text-xs font-medium rounded-md transition-colors"
+                        style={{ color: "#9ca3af", border: "1px solid #333333" }}
+                        onMouseEnter={e => { (e.currentTarget as HTMLButtonElement).style.color = "#ffffff"; (e.currentTarget as HTMLButtonElement).style.borderColor = "#555555"; }}
+                        onMouseLeave={e => { (e.currentTarget as HTMLButtonElement).style.color = "#9ca3af"; (e.currentTarget as HTMLButtonElement).style.borderColor = "#333333"; }}
                       >
                         <Pencil className="h-3 w-3" />
                         Edit

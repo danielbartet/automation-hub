@@ -337,26 +337,40 @@ export function NotificationPanel({ onClose }: NotificationPanelProps) {
     <>
       <div
         ref={panelRef}
-        className="fixed right-0 top-0 h-full w-full sm:w-[400px] bg-gray-900 border-l border-gray-700 shadow-2xl z-50 flex flex-col"
+        className="fixed right-0 top-0 h-full w-full sm:w-[400px] shadow-2xl z-50 flex flex-col"
+        style={{ backgroundColor: "#111111", borderLeft: "1px solid #222222" }}
       >
         {/* Header */}
-        <div className="flex items-center justify-between p-4 border-b border-gray-700">
+        <div className="flex items-center justify-between p-4" style={{ borderBottom: "1px solid #222222" }}>
           <h3 className="text-white font-semibold">Notificaciones</h3>
           <div className="flex items-center gap-2">
-            <button onClick={handleMarkAllRead} className="text-xs text-gray-400 hover:text-white transition-colors">
+            <button onClick={handleMarkAllRead} className="text-xs transition-colors" style={{ color: "#9ca3af" }}
+              onMouseEnter={e => (e.currentTarget.style.color = "#ffffff")}
+              onMouseLeave={e => (e.currentTarget.style.color = "#9ca3af")}
+            >
               Marcar todo
             </button>
-            <button onClick={onClose} className="p-1 hover:bg-gray-700 rounded-md">
-              <X className="h-4 w-4 text-gray-400" />
+            <button
+              onClick={onClose}
+              className="p-1 rounded-md transition-colors"
+              style={{ color: "#9ca3af" }}
+              onMouseEnter={e => { (e.currentTarget as HTMLButtonElement).style.backgroundColor = "#1a1a1a"; (e.currentTarget as HTMLButtonElement).style.color = "#ffffff"; }}
+              onMouseLeave={e => { (e.currentTarget as HTMLButtonElement).style.backgroundColor = "transparent"; (e.currentTarget as HTMLButtonElement).style.color = "#9ca3af"; }}
+            >
+              <X className="h-4 w-4" />
             </button>
           </div>
         </div>
 
         {/* Filter tabs */}
-        <div className="flex border-b border-gray-700">
+        <div className="flex" style={{ borderBottom: "1px solid #222222" }}>
           {(["all", "unread", "pending"] as const).map(f => (
             <button key={f} onClick={() => setFilter(f)}
-              className={`flex-1 py-2 text-xs font-medium transition-colors ${filter === f ? "text-white border-b-2 border-white" : "text-gray-500 hover:text-gray-300"}`}>
+              className="flex-1 py-2 text-xs font-medium transition-colors"
+              style={filter === f ? { color: "#ffffff", borderBottom: "2px solid #7c3aed" } : { color: "#9ca3af" }}
+              onMouseEnter={e => { if (filter !== f) (e.currentTarget as HTMLButtonElement).style.color = "#ffffff"; }}
+              onMouseLeave={e => { if (filter !== f) (e.currentTarget as HTMLButtonElement).style.color = "#9ca3af"; }}
+            >
               {f === "all" ? "Todas" : f === "unread" ? "No leídas" : "Pendientes"}
             </button>
           ))}
@@ -374,7 +388,7 @@ export function NotificationPanel({ onClose }: NotificationPanelProps) {
               <p className="text-sm">No hay notificaciones</p>
             </div>
           ) : (
-            <div className="divide-y divide-gray-800">
+            <div className="divide-y" style={{ borderColor: "#1a1a1a" }}>
               {filtered.map(notif => {
                 const style = TYPE_STYLES[notif.type] || { border: "border-l-gray-500", icon: <Bell className="h-4 w-4 text-gray-400" /> };
                 const isAction = isOptimizerAction(notif);
@@ -386,7 +400,9 @@ export function NotificationPanel({ onClose }: NotificationPanelProps) {
                 return (
                   <div
                     key={notif.id}
-                    className={`border-l-4 ${style.border} ${notif.is_read ? "opacity-60" : ""} p-4 hover:bg-gray-800/50 transition-colors`}
+                    className={`border-l-4 ${style.border} ${notif.is_read ? "opacity-60" : ""} p-4 transition-colors`}
+                    onMouseEnter={e => (e.currentTarget.style.backgroundColor = "#161616")}
+                    onMouseLeave={e => (e.currentTarget.style.backgroundColor = "transparent")}
                   >
                     <div className="flex gap-3">
                       <div className="flex-shrink-0 mt-0.5">{style.icon}</div>
@@ -425,9 +441,13 @@ export function NotificationPanel({ onClose }: NotificationPanelProps) {
                         )}
 
                         {/* Campaign detail link for optimizer/fatigue notifications */}
-                        {(notif.type === "optimizer_scale" || notif.type === "optimizer_pause" || notif.type === "optimizer_modify" || notif.type === "campaign_fatigued") && notif.action_url && (
+                        {(notif.type === "optimizer_scale" || notif.type === "optimizer_pause" || notif.type === "optimizer_modify" || notif.type === "campaign_fatigued") && (
                           <a
-                            href={notif.action_url}
+                            href={
+                              notif.action_data?.campaign_id
+                                ? `/dashboard/ads/${notif.action_data.campaign_id}`
+                                : notif.action_url
+                            }
                             className="mt-2 block text-sm text-blue-400 hover:text-blue-300 hover:underline transition-colors"
                           >
                             Ver campaña completa →

@@ -3,6 +3,7 @@ import { useEffect, useState, useCallback } from "react"
 import { useParams, useRouter, useSearchParams } from "next/navigation"
 import { useSession } from "next-auth/react"
 import Link from "next/link"
+import { Header } from "@/components/layout/Header"
 import {
   LineChart,
   Line,
@@ -185,6 +186,7 @@ export default function CampaignDetailPage() {
   const [toast, setToast] = useState<string | null>(null)
   const [chartMetric, setChartMetric] = useState<"ctr" | "cpc" | "frequency">("ctr")
   const [dateRange, setDateRange] = useState("last_30d")
+  const [expandedRationale, setExpandedRationale] = useState<Record<number, boolean>>({})
 
   const showToast = (msg: string) => {
     setToast(msg)
@@ -276,16 +278,22 @@ export default function CampaignDetailPage() {
   // ── Loading ────────────────────────────────────────────────────────────────
   if (loading) {
     return (
-      <div className="min-h-screen bg-gray-900 flex items-center justify-center">
-        <Loader2 className="h-8 w-8 animate-spin text-gray-400" />
+      <div className="min-h-screen bg-gray-900 text-white">
+        <Header title="Detalle de campaña" />
+        <div className="flex items-center justify-center py-32">
+          <Loader2 className="h-8 w-8 animate-spin text-gray-400" />
+        </div>
       </div>
     )
   }
 
   if (!detail) {
     return (
-      <div className="min-h-screen bg-gray-900 flex items-center justify-center">
-        <p className="text-gray-400">No se pudo cargar la campaña.</p>
+      <div className="min-h-screen bg-gray-900 text-white">
+        <Header title="Detalle de campaña" />
+        <div className="flex items-center justify-center py-32">
+          <p className="text-gray-400">No se pudo cargar la campaña.</p>
+        </div>
       </div>
     )
   }
@@ -351,6 +359,7 @@ export default function CampaignDetailPage() {
 
   return (
     <div className="min-h-screen bg-gray-900 text-white">
+      <Header title="Detalle de campaña" />
       <div className="p-6 space-y-6 max-w-[1400px] mx-auto">
 
         {/* ── OPTIMIZACIONES PROPUESTAS ───────────────────────────────────── */}
@@ -761,14 +770,24 @@ export default function CampaignDetailPage() {
                       </span>
                     </div>
 
-                    <p
-                      className="text-gray-300 text-xs leading-relaxed"
-                      title={log.rationale}
-                    >
-                      {log.rationale.length > 120
-                        ? log.rationale.slice(0, 120) + "…"
+                    <p className="text-gray-300 text-xs leading-relaxed">
+                      {log.rationale.length > 200 && !expandedRationale[log.id]
+                        ? log.rationale.slice(0, 200) + "…"
                         : log.rationale}
                     </p>
+                    {log.rationale.length > 200 && (
+                      <button
+                        onClick={() =>
+                          setExpandedRationale((prev) => ({
+                            ...prev,
+                            [log.id]: !prev[log.id],
+                          }))
+                        }
+                        className="mt-1 text-[10px] text-indigo-400 hover:text-indigo-300 transition-colors"
+                      >
+                        {expandedRationale[log.id] ? "Ver menos" : "Ver más"}
+                      </button>
+                    )}
 
                     {log.budget_before != null && log.budget_after != null && (
                       <p className="text-gray-500 text-xs mt-1">

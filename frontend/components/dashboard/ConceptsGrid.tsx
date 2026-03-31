@@ -11,15 +11,15 @@ interface ConceptsGridProps {
 }
 
 const ANGLE_BADGE_CLASSES: Record<string, string> = {
-  Logical: "bg-blue-100 text-blue-700",
-  Emotional: "bg-red-100 text-red-700",
-  "Social Proof": "bg-green-100 text-green-700",
-  "Problem-Solution": "bg-orange-100 text-orange-700",
+  Logical: "bg-blue-900/50 text-blue-400",
+  Emotional: "bg-red-900/50 text-red-400",
+  "Social Proof": "bg-green-900/50 text-green-400",
+  "Problem-Solution": "bg-orange-900/50 text-orange-400",
 };
 
 const RISK_BADGE_CLASSES: Record<string, string> = {
-  LOW: "bg-green-100 text-green-700",
-  MEDIUM: "bg-yellow-100 text-yellow-700",
+  LOW: "bg-green-900/50 text-green-400",
+  MEDIUM: "bg-yellow-900/50 text-yellow-400",
 };
 
 export function ConceptsGrid({ concepts, diversityAudit, approvedIds, onToggle }: ConceptsGridProps) {
@@ -44,12 +44,12 @@ export function ConceptsGrid({ concepts, diversityAudit, approvedIds, onToggle }
   return (
     <div className="space-y-4">
       {/* Audit summary */}
-      <div className="p-3 bg-gray-50 rounded-lg border border-gray-200">
-        <p className="text-sm font-medium text-gray-700">{auditSummary}</p>
+      <div className="p-3 rounded-lg" style={{ backgroundColor: "#1a1a1a", border: "1px solid #222222" }}>
+        <p className="text-sm font-medium text-white">{auditSummary}</p>
         {diversityAudit.warnings && diversityAudit.warnings.length > 0 && (
           <div className="mt-2 space-y-1">
             {diversityAudit.warnings.map((w, i) => (
-              <div key={i} className="flex items-start gap-1.5 text-xs text-yellow-700">
+              <div key={i} className="flex items-start gap-1.5 text-xs text-yellow-400">
                 <AlertTriangle className="h-3.5 w-3.5 flex-shrink-0 mt-0.5" />
                 <span>{w}</span>
               </div>
@@ -66,31 +66,31 @@ export function ConceptsGrid({ concepts, diversityAudit, approvedIds, onToggle }
             <div
               key={concept.id}
               onClick={() => onToggle(concept.id)}
-              className={`relative p-3 rounded-xl border-2 cursor-pointer transition-all select-none ${
-                isApproved
-                  ? "border-gray-900 bg-gray-50"
-                  : "border-gray-200 bg-white hover:border-gray-300"
-              }`}
+              className="relative p-3 rounded-xl border-2 cursor-pointer transition-all select-none"
+              style={{
+                borderColor: isApproved ? "#7c3aed" : "#333333",
+                backgroundColor: isApproved ? "rgba(124,58,237,0.08)" : "#0d0d0d",
+              }}
             >
               {/* Approve indicator */}
               <div
-                className={`absolute top-2 right-2 w-5 h-5 rounded-full border-2 flex items-center justify-center flex-shrink-0 transition-colors ${
-                  isApproved
-                    ? "border-gray-900 bg-gray-900"
-                    : "border-gray-300 bg-white"
-                }`}
+                className="absolute top-2 right-2 w-5 h-5 rounded-full border-2 flex items-center justify-center flex-shrink-0 transition-colors"
+                style={{
+                  borderColor: isApproved ? "#7c3aed" : "#444444",
+                  backgroundColor: isApproved ? "#7c3aed" : "transparent",
+                }}
               >
                 {isApproved && <Check className="h-3 w-3 text-white" />}
               </div>
 
               {/* Top badges row */}
               <div className="flex flex-wrap gap-1 mb-2 pr-6">
-                <span className="px-1.5 py-0.5 text-xs font-medium rounded bg-gray-100 text-gray-600 truncate max-w-[120px]">
+                <span className="px-1.5 py-0.5 text-xs font-medium rounded truncate max-w-[120px]" style={{ backgroundColor: "#1a1a1a", color: "#9ca3af" }}>
                   {concept.persona}
                 </span>
                 <span
                   className={`px-1.5 py-0.5 text-xs font-medium rounded ${
-                    ANGLE_BADGE_CLASSES[concept.psychological_angle] ?? "bg-gray-100 text-gray-600"
+                    ANGLE_BADGE_CLASSES[concept.psychological_angle] ?? "bg-gray-800 text-gray-400"
                   }`}
                 >
                   {concept.psychological_angle}
@@ -98,26 +98,26 @@ export function ConceptsGrid({ concepts, diversityAudit, approvedIds, onToggle }
               </div>
 
               {/* Hook */}
-              <p className="text-sm font-bold text-gray-900 leading-snug mb-1.5 line-clamp-3">
+              <p className="text-sm font-bold text-white leading-snug mb-1.5 line-clamp-3">
                 {concept.hook_3s}
               </p>
 
               {/* Body */}
-              <p className="text-xs text-gray-500 line-clamp-2 mb-2">{concept.body}</p>
+              <p className="text-xs line-clamp-2 mb-2" style={{ color: "#9ca3af" }}>{concept.body}</p>
 
               {/* Bottom badges row */}
               <div className="flex flex-wrap items-center gap-1.5 mt-auto">
-                <span className="px-1.5 py-0.5 text-xs rounded border border-gray-200 text-gray-500">
+                <span className="px-1.5 py-0.5 text-xs rounded" style={{ border: "1px solid #333333", color: "#9ca3af" }}>
                   {concept.format}
                 </span>
                 <span
                   className={`px-1.5 py-0.5 text-xs font-medium rounded ${
-                    RISK_BADGE_CLASSES[concept.entity_id_risk] ?? "bg-gray-100 text-gray-600"
+                    RISK_BADGE_CLASSES[concept.entity_id_risk] ?? "bg-gray-800 text-gray-400"
                   }`}
                 >
                   {concept.entity_id_risk} riesgo
                 </span>
-                <span className="px-1.5 py-0.5 text-xs rounded bg-gray-100 text-gray-500 ml-auto">
+                <span className="px-1.5 py-0.5 text-xs rounded ml-auto" style={{ backgroundColor: "#1a1a1a", color: "#9ca3af" }}>
                   {concept.cta}
                 </span>
               </div>
@@ -128,11 +128,11 @@ export function ConceptsGrid({ concepts, diversityAudit, approvedIds, onToggle }
 
       {/* Counter + warning */}
       <div className="flex items-center justify-between pt-1">
-        <p className="text-sm text-gray-600 font-medium">
+        <p className="text-sm font-medium" style={{ color: "#9ca3af" }}>
           {approvedCount}/{concepts.length} conceptos aprobados
         </p>
         {needsMoreApprovals && (
-          <p className="text-xs text-red-600 flex items-center gap-1">
+          <p className="text-xs text-red-400 flex items-center gap-1">
             <X className="h-3.5 w-3.5" />
             Andromeda requiere mínimo 6 creativos
           </p>

@@ -76,22 +76,22 @@ function ReelModal({ post, projectSlug, onClose, onSuccess }: ReelModalProps) {
   };
 
   return (
-    <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50 p-4">
-      <div className="bg-white rounded-xl shadow-xl w-full max-w-md">
-        <div className="flex items-center justify-between p-5 border-b">
-          <h2 className="text-base font-semibold">Agregar Reel a este post</h2>
-          <button onClick={onClose} className="p-1 hover:bg-gray-100 rounded-md">
+    <div className="fixed inset-0 bg-black/70 flex items-center justify-center z-50 p-4">
+      <div className="rounded-xl shadow-xl w-full max-w-md" style={{ backgroundColor: "#111111", border: "1px solid #222222" }}>
+        <div className="flex items-center justify-between p-5" style={{ borderBottom: "1px solid #222222" }}>
+          <h2 className="text-base font-semibold text-white">Agregar Reel a este post</h2>
+          <button onClick={onClose} className="p-1 rounded-md transition-colors" style={{ color: "#9ca3af" }} onMouseEnter={e => (e.currentTarget.style.backgroundColor = "#1f1f1f")} onMouseLeave={e => (e.currentTarget.style.backgroundColor = "transparent")}>
             <X className="h-4 w-4" />
           </button>
         </div>
 
         <div className="p-5 space-y-4">
           {/* Tab switcher */}
-          <div className="flex gap-1 border border-gray-200 rounded-lg p-1">
+          <div className="flex gap-1 rounded-lg p-1" style={{ border: "1px solid #333333", backgroundColor: "#0d0d0d" }}>
             <button
               onClick={() => setTab("upload")}
               className={`flex-1 py-1.5 text-xs font-medium rounded-md transition-colors ${
-                tab === "upload" ? "bg-gray-900 text-white" : "text-gray-600 hover:bg-gray-50"
+                tab === "upload" ? "bg-[#7c3aed] text-white" : "text-gray-400 hover:text-white"
               }`}
             >
               Subir video manualmente
@@ -99,7 +99,7 @@ function ReelModal({ post, projectSlug, onClose, onSuccess }: ReelModalProps) {
             <button
               onClick={() => setTab("kling")}
               className={`flex-1 py-1.5 text-xs font-medium rounded-md transition-colors ${
-                tab === "kling" ? "bg-gray-900 text-white" : "text-gray-600 hover:bg-gray-50"
+                tab === "kling" ? "bg-[#7c3aed] text-white" : "text-gray-400 hover:text-white"
               }`}
             >
               Generar con Kling AI
@@ -109,36 +109,39 @@ function ReelModal({ post, projectSlug, onClose, onSuccess }: ReelModalProps) {
           {tab === "upload" ? (
             <div className="space-y-3">
               {videoFile ? (
-                <div className="flex items-center gap-3 p-3 border border-gray-200 rounded-lg">
-                  <Video className="h-5 w-5 text-gray-500 flex-shrink-0" />
+                <div className="flex items-center gap-3 p-3 rounded-lg" style={{ border: "1px solid #333333" }}>
+                  <Video className="h-5 w-5 flex-shrink-0" style={{ color: "#9ca3af" }} />
                   <div className="flex-1 min-w-0">
-                    <p className="text-sm font-medium text-gray-800 truncate">{videoFile.name}</p>
-                    <p className="text-xs text-gray-400">{(videoFile.size / 1024 / 1024).toFixed(1)} MB</p>
+                    <p className="text-sm font-medium text-white truncate">{videoFile.name}</p>
+                    <p className="text-xs" style={{ color: "#9ca3af" }}>{(videoFile.size / 1024 / 1024).toFixed(1)} MB</p>
                   </div>
-                  <button onClick={() => setVideoFile(null)} className="p-1 hover:bg-gray-100 rounded">
-                    <X className="h-3 w-3 text-gray-500" />
+                  <button onClick={() => setVideoFile(null)} className="p-1 rounded" style={{ color: "#9ca3af" }}>
+                    <X className="h-3 w-3" />
                   </button>
                 </div>
               ) : (
-                <label className="flex flex-col items-center justify-center w-full h-28 border-2 border-dashed border-gray-300 rounded-lg cursor-pointer hover:bg-gray-50 transition-colors">
+                <label className="flex flex-col items-center justify-center w-full h-28 rounded-lg cursor-pointer transition-colors" style={{ border: "2px dashed #333333" }} onMouseEnter={e => (e.currentTarget.style.backgroundColor = "#161616")} onMouseLeave={e => (e.currentTarget.style.backgroundColor = "transparent")}>
                   <input
                     type="file"
                     className="hidden"
                     accept="video/mp4,video/quicktime"
                     onChange={handleFileChange}
                   />
-                  <Upload className="h-6 w-6 text-gray-400 mb-1" />
-                  <span className="text-xs text-gray-500">Arrastrá o hacé clic para subir</span>
-                  <span className="text-xs text-gray-400 mt-0.5">MP4, MOV · máx 100MB</span>
+                  <Upload className="h-6 w-6 mb-1" style={{ color: "#9ca3af" }} />
+                  <span className="text-xs" style={{ color: "#9ca3af" }}>Arrastrá o hacé clic para subir</span>
+                  <span className="text-xs mt-0.5" style={{ color: "#6b7280" }}>MP4, MOV · máx 100MB</span>
                 </label>
               )}
 
-              {error && <p className="text-xs text-red-600">{error}</p>}
+              {error && <p className="text-xs text-red-400">{error}</p>}
 
               <button
                 onClick={handleSubmit}
                 disabled={!videoFile || uploading}
-                className="w-full flex items-center justify-center gap-2 py-2 bg-gray-900 text-white text-sm font-medium rounded-lg hover:bg-gray-700 disabled:opacity-50 transition-colors"
+                className="w-full flex items-center justify-center gap-2 py-2 text-white text-sm font-medium rounded-lg disabled:opacity-50 transition-colors"
+                style={{ backgroundColor: "#7c3aed" }}
+                onMouseEnter={e => (e.currentTarget.style.backgroundColor = "#6d28d9")}
+                onMouseLeave={e => (e.currentTarget.style.backgroundColor = "#7c3aed")}
               >
                 {uploading ? (
                   <>
@@ -152,17 +155,18 @@ function ReelModal({ post, projectSlug, onClose, onSuccess }: ReelModalProps) {
             </div>
           ) : (
             <div className="space-y-3 text-center py-4">
-              <span className="inline-flex items-center px-2.5 py-1 rounded-full text-xs font-medium bg-gray-100 text-gray-500">
+              <span className="inline-flex items-center px-2.5 py-1 rounded-full text-xs font-medium" style={{ backgroundColor: "#1f1f1f", color: "#9ca3af" }}>
                 Próximamente
               </span>
               <div>
                 <button
                   disabled
-                  className="w-full py-2 bg-gray-100 text-gray-400 text-sm font-medium rounded-lg cursor-not-allowed"
+                  className="w-full py-2 text-sm font-medium rounded-lg cursor-not-allowed"
+                  style={{ backgroundColor: "#1a1a1a", color: "#6b7280" }}
                 >
                   Generar con Kling AI
                 </button>
-                <p className="text-xs text-gray-400 mt-2">Disponible próximamente</p>
+                <p className="text-xs mt-2" style={{ color: "#6b7280" }}>Disponible próximamente</p>
               </div>
             </div>
           )}
@@ -220,19 +224,19 @@ function StoryCreatorModal({ projectSlug, onClose, onSuccess }: StoryCreatorModa
   };
 
   return (
-    <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50 p-4">
-      <div className="bg-white rounded-xl shadow-xl w-full max-w-md">
-        <div className="flex items-center justify-between p-5 border-b">
-          <h2 className="text-base font-semibold">Nueva Historia</h2>
-          <button onClick={onClose} className="p-1 hover:bg-gray-100 rounded-md">
+    <div className="fixed inset-0 bg-black/70 flex items-center justify-center z-50 p-4">
+      <div className="rounded-xl shadow-xl w-full max-w-md" style={{ backgroundColor: "#111111", border: "1px solid #222222" }}>
+        <div className="flex items-center justify-between p-5" style={{ borderBottom: "1px solid #222222" }}>
+          <h2 className="text-base font-semibold text-white">Nueva Historia</h2>
+          <button onClick={onClose} className="p-1 rounded-md transition-colors" style={{ color: "#9ca3af" }} onMouseEnter={e => (e.currentTarget.style.backgroundColor = "#1f1f1f")} onMouseLeave={e => (e.currentTarget.style.backgroundColor = "transparent")}>
             <X className="h-4 w-4" />
           </button>
         </div>
 
         <div className="p-5 space-y-4">
           <div>
-            <label className="block text-sm font-medium text-gray-700 mb-2">
-              Imagen * <span className="text-xs font-normal text-gray-400">(relación de aspecto 9:16 recomendada)</span>
+            <label className="block text-sm font-medium mb-2" style={{ color: "#d1d5db" }}>
+              Imagen * <span className="text-xs font-normal" style={{ color: "#9ca3af" }}>(relación de aspecto 9:16 recomendada)</span>
             </label>
             <ImageUploadZone
               projectSlug={projectSlug}
@@ -242,36 +246,38 @@ function StoryCreatorModal({ projectSlug, onClose, onSuccess }: StoryCreatorModa
           </div>
 
           <div>
-            <label className="block text-sm font-medium text-gray-700 mb-1">
+            <label className="block text-sm font-medium mb-1" style={{ color: "#d1d5db" }}>
               Texto opcional
             </label>
             <textarea
               value={textOverlay}
               onChange={e => setTextOverlay(e.target.value)}
               rows={2}
-              className="w-full border border-gray-200 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-gray-400"
+              className="w-full rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-[#7c3aed] text-white placeholder-gray-500"
+              style={{ border: "1px solid #333333", backgroundColor: "#1a1a1a" }}
               placeholder="Texto para mostrar en la historia..."
             />
           </div>
 
           <div>
-            <label className="block text-sm font-medium text-gray-700 mb-1">
+            <label className="block text-sm font-medium mb-1" style={{ color: "#d1d5db" }}>
               Programar para
             </label>
             <input
               type="datetime-local"
               value={scheduledAt}
               onChange={e => setScheduledAt(e.target.value)}
-              className="w-full border border-gray-200 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-gray-400"
+              className="w-full rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-[#7c3aed] text-white"
+              style={{ border: "1px solid #333333", backgroundColor: "#1a1a1a" }}
             />
           </div>
 
-          <p className="text-xs text-gray-400 bg-gray-50 rounded-lg p-3">
+          <p className="text-xs rounded-lg p-3" style={{ color: "#9ca3af", backgroundColor: "#0d0d0d" }}>
             Las historias duran 24 horas y no pasan por aprobación de Telegram.
           </p>
 
           {error && (
-            <div className="p-3 bg-red-50 border border-red-200 rounded-lg text-sm text-red-700">
+            <div className="p-3 rounded-lg text-sm text-red-400" style={{ backgroundColor: "#450a0a", border: "1px solid #7f1d1d" }}>
               {error}
             </div>
           )}
@@ -279,7 +285,10 @@ function StoryCreatorModal({ projectSlug, onClose, onSuccess }: StoryCreatorModa
           <button
             onClick={handlePublish}
             disabled={!imageUrl || loading}
-            className="w-full flex items-center justify-center gap-2 py-2 bg-gray-900 text-white text-sm font-medium rounded-lg hover:bg-gray-700 disabled:opacity-50 transition-colors"
+            className="w-full flex items-center justify-center gap-2 py-2 text-white text-sm font-medium rounded-lg disabled:opacity-50 transition-colors"
+            style={{ backgroundColor: "#7c3aed" }}
+            onMouseEnter={e => (e.currentTarget.style.backgroundColor = "#6d28d9")}
+            onMouseLeave={e => (e.currentTarget.style.backgroundColor = "#7c3aed")}
           >
             {loading ? (
               <>
@@ -331,11 +340,11 @@ const STATUS_LABELS: Record<ContentPost["status"], string> = {
 };
 
 const STATUS_CLASSES: Record<ContentPost["status"], string> = {
-  pending_approval: "bg-yellow-100 text-yellow-700",
-  published: "bg-green-100 text-green-700",
-  draft: "bg-gray-100 text-gray-600",
-  approved: "bg-blue-100 text-blue-700",
-  rejected: "bg-red-100 text-red-700",
+  pending_approval: "bg-yellow-900/50 text-yellow-400",
+  published: "bg-green-900/50 text-green-400",
+  draft: "bg-gray-800 text-gray-400",
+  approved: "bg-blue-900/50 text-blue-400",
+  rejected: "bg-red-900/50 text-red-400",
 };
 
 function formatDate(dateStr: string) {
@@ -456,14 +465,15 @@ export default function ContentPage() {
         {/* Top bar */}
         <div className="flex flex-col sm:flex-row items-start sm:items-center gap-4 justify-between">
           <div className="flex items-center gap-3">
-            <label className="text-sm font-medium text-gray-700">Project:</label>
+            <label className="text-sm font-medium" style={{ color: "#9ca3af" }}>Project:</label>
             {loadingProjects ? (
-              <span className="text-sm text-gray-400">Loading...</span>
+              <span className="text-sm" style={{ color: "#9ca3af" }}>Loading...</span>
             ) : (
               <select
                 value={selectedProjectId}
                 onChange={handleProjectChange}
-                className="text-sm border border-gray-200 rounded-md px-3 py-2 bg-white text-gray-900 focus:outline-none focus:ring-2 focus:ring-gray-400"
+                className="text-sm rounded-md px-3 py-2 text-white focus:outline-none focus:ring-2 focus:ring-[#7c3aed]"
+                style={{ border: "1px solid #333333", backgroundColor: "#1a1a1a" }}
               >
                 {projects.map((p) => (
                   <option key={p.id} value={p.id}>
@@ -478,7 +488,10 @@ export default function ContentPage() {
               <button
                 onClick={handleImportFromMeta}
                 disabled={!selectedProjectSlug || importingMeta}
-                className="inline-flex items-center gap-2 px-4 py-2 border border-gray-300 text-gray-700 text-sm font-medium rounded-md hover:bg-gray-50 disabled:opacity-50 disabled:cursor-not-allowed transition-colors"
+                className="inline-flex items-center gap-2 px-4 py-2 text-sm font-medium rounded-md disabled:opacity-50 disabled:cursor-not-allowed transition-colors"
+                style={{ border: "1px solid #333333", color: "#9ca3af", backgroundColor: "transparent" }}
+                onMouseEnter={e => { (e.currentTarget as HTMLButtonElement).style.color = "#ffffff"; (e.currentTarget as HTMLButtonElement).style.borderColor = "#555555"; }}
+                onMouseLeave={e => { (e.currentTarget as HTMLButtonElement).style.color = "#9ca3af"; (e.currentTarget as HTMLButtonElement).style.borderColor = "#333333"; }}
               >
                 {importingMeta ? (
                   <Loader2 className="h-4 w-4 animate-spin" />
@@ -493,37 +506,46 @@ export default function ContentPage() {
                 <button
                   onClick={() => setShowGenerateDropdown(prev => !prev)}
                   disabled={!selectedProjectSlug}
-                  className="inline-flex items-center gap-2 px-4 py-2 bg-gray-900 text-white text-sm font-medium rounded-md hover:bg-gray-700 disabled:opacity-50 disabled:cursor-not-allowed transition-colors"
+                  className="inline-flex items-center gap-2 px-4 py-2 text-white text-sm font-medium rounded-md disabled:opacity-50 disabled:cursor-not-allowed transition-colors"
+                  style={{ backgroundColor: "#7c3aed" }}
+                  onMouseEnter={e => (e.currentTarget.style.backgroundColor = "#6d28d9")}
+                  onMouseLeave={e => (e.currentTarget.style.backgroundColor = "#7c3aed")}
                 >
                   <PlusCircle className="h-4 w-4" />
                   Generate New
                   <ChevronDown className="h-3.5 w-3.5 ml-0.5" />
                 </button>
                 {showGenerateDropdown && (
-                  <div className="absolute right-0 mt-1 w-64 bg-white border border-gray-200 rounded-lg shadow-lg z-20 py-1 text-sm">
+                  <div className="absolute right-0 mt-1 w-64 rounded-lg shadow-lg z-20 py-1 text-sm" style={{ backgroundColor: "#111111", border: "1px solid #222222" }}>
                     <button
                       onClick={() => { setShowModal(true); setShowGenerateDropdown(false); }}
-                      className="w-full text-left px-4 py-2.5 hover:bg-gray-50 flex items-center gap-2"
+                      className="w-full text-left px-4 py-2.5 flex items-center gap-2 transition-colors"
+                      style={{ color: "#ffffff" }}
+                      onMouseEnter={e => (e.currentTarget.style.backgroundColor = "#1a1a1a")}
+                      onMouseLeave={e => (e.currentTarget.style.backgroundColor = "transparent")}
                     >
                       <span>✨</span>
                       <div>
-                        <p className="font-medium text-gray-800">Contenido</p>
-                        <p className="text-xs text-gray-400">Carousel, imagen o texto</p>
+                        <p className="font-medium text-white">Contenido</p>
+                        <p className="text-xs" style={{ color: "#9ca3af" }}>Carousel, imagen o texto</p>
                       </div>
                     </button>
                     <button
                       onClick={() => { setShowStoryModal(true); setShowGenerateDropdown(false); }}
-                      className="w-full text-left px-4 py-2.5 hover:bg-gray-50 flex items-center gap-2"
+                      className="w-full text-left px-4 py-2.5 flex items-center gap-2 transition-colors"
+                      onMouseEnter={e => (e.currentTarget.style.backgroundColor = "#1a1a1a")}
+                      onMouseLeave={e => (e.currentTarget.style.backgroundColor = "transparent")}
                     >
                       <span>📖</span>
                       <div>
-                        <p className="font-medium text-gray-800">Historia</p>
-                        <p className="text-xs text-gray-400">Story de 24 horas</p>
+                        <p className="font-medium text-white">Historia</p>
+                        <p className="text-xs" style={{ color: "#9ca3af" }}>Story de 24 horas</p>
                       </div>
                     </button>
                     <button
                       onClick={() => { setShowGenerateDropdown(false); }}
-                      className="w-full text-left px-4 py-2.5 hover:bg-gray-50 flex items-center gap-2 text-gray-400 cursor-default"
+                      className="w-full text-left px-4 py-2.5 flex items-center gap-2 cursor-default"
+                      style={{ color: "#6b7280" }}
                     >
                       <span>🎬</span>
                       <div>
@@ -539,22 +561,23 @@ export default function ContentPage() {
         </div>
 
         {error && (
-          <div className="bg-red-50 border border-red-200 rounded-md p-4 text-sm text-red-700">
+          <div className="rounded-md p-4 text-sm text-red-400" style={{ backgroundColor: "#450a0a", border: "1px solid #7f1d1d" }}>
             Error: {error}
           </div>
         )}
 
         {/* Filter tabs */}
-        <div className="flex gap-1 border-b border-gray-200">
+        <div className="flex gap-1" style={{ borderBottom: "1px solid #222222" }}>
           {tabs.map((tab) => (
             <button
               key={tab.value}
               onClick={() => setFilter(tab.value)}
               className={`px-4 py-2 text-sm font-medium border-b-2 -mb-px transition-colors ${
                 filter === tab.value
-                  ? "border-gray-900 text-gray-900"
-                  : "border-transparent text-gray-500 hover:text-gray-700"
+                  ? "border-[#7c3aed] text-white"
+                  : "border-transparent hover:text-gray-300"
               }`}
+              style={{ color: filter === tab.value ? "#ffffff" : "#9ca3af" }}
             >
               {tab.label}
             </button>
@@ -562,49 +585,50 @@ export default function ContentPage() {
         </div>
 
         {/* Content table */}
-        <div className="bg-white rounded-lg border border-gray-200 shadow-sm overflow-hidden">
+        <div className="rounded-lg overflow-hidden" style={{ backgroundColor: "#111111", border: "1px solid #222222" }}>
           {loadingContent ? (
-            <div className="flex items-center justify-center h-40 text-sm text-gray-500">
+            <div className="flex items-center justify-center h-40 text-sm" style={{ color: "#9ca3af" }}>
               <Loader2 className="h-5 w-5 animate-spin mr-2" />
               Loading content...
             </div>
           ) : filtered.length === 0 ? (
             <div className="flex flex-col items-center justify-center h-40 gap-3">
-              <FileText className="h-10 w-10 text-gray-300" />
-              <p className="text-sm text-gray-500">No content found.</p>
+              <FileText className="h-10 w-10" style={{ color: "#374151" }} />
+              <p className="text-sm" style={{ color: "#9ca3af" }}>No content found.</p>
             </div>
           ) : (
             <table className="w-full text-sm">
-              <thead className="bg-gray-50 border-b border-gray-200">
+              <thead style={{ backgroundColor: "#111111", borderBottom: "1px solid #222222" }}>
                 <tr>
-                  <th className="text-left px-4 py-3 font-medium text-gray-600">Thumbnail</th>
-                  <th className="text-left px-4 py-3 font-medium text-gray-600">Caption</th>
-                  <th className="text-left px-4 py-3 font-medium text-gray-600">Status</th>
-                  <th className="text-left px-4 py-3 font-medium text-gray-600">Created</th>
-                  <th className="text-left px-4 py-3 font-medium text-gray-600">Video</th>
-                  <th className="text-left px-4 py-3 font-medium text-gray-600">Imagen</th>
-                  <th className="text-left px-4 py-3 font-medium text-gray-600">Actions</th>
+                  <th className="text-left px-4 py-3 font-medium" style={{ color: "#9ca3af" }}>Thumbnail</th>
+                  <th className="text-left px-4 py-3 font-medium" style={{ color: "#9ca3af" }}>Caption</th>
+                  <th className="text-left px-4 py-3 font-medium" style={{ color: "#9ca3af" }}>Status</th>
+                  <th className="text-left px-4 py-3 font-medium" style={{ color: "#9ca3af" }}>Created</th>
+                  <th className="text-left px-4 py-3 font-medium" style={{ color: "#9ca3af" }}>Video</th>
+                  <th className="text-left px-4 py-3 font-medium" style={{ color: "#9ca3af" }}>Imagen</th>
+                  <th className="text-left px-4 py-3 font-medium" style={{ color: "#9ca3af" }}>Actions</th>
                 </tr>
               </thead>
-              <tbody className="divide-y divide-gray-100">
+              <tbody>
                 {filtered.map((post) => (
-                  <tr key={post.id} className="hover:bg-gray-50 transition-colors">
+                  <tr key={post.id} style={{ borderTop: "1px solid #1a1a1a" }} className="hover:bg-[#161616] transition-colors">
                     <td className="px-4 py-3">
                       {post.image_url ? (
                         // eslint-disable-next-line @next/next/no-img-element
                         <img
                           src={post.image_url}
                           alt="thumbnail"
-                          className="h-12 w-12 object-cover rounded-md border border-gray-200"
+                          className="h-12 w-12 object-cover rounded-md"
+                          style={{ border: "1px solid #333333" }}
                         />
                       ) : (
-                        <div className="h-12 w-12 bg-gray-100 rounded-md flex items-center justify-center">
-                          <FileText className="h-5 w-5 text-gray-400" />
+                        <div className="h-12 w-12 rounded-md flex items-center justify-center" style={{ backgroundColor: "#1a1a1a" }}>
+                          <FileText className="h-5 w-5" style={{ color: "#6b7280" }} />
                         </div>
                       )}
                     </td>
                     <td className="px-4 py-3 max-w-xs">
-                      <p className="truncate text-gray-900">{post.caption}</p>
+                      <p className="truncate text-white">{post.caption}</p>
                     </td>
                     <td className="px-4 py-3">
                       <span
@@ -613,7 +637,7 @@ export default function ContentPage() {
                         {STATUS_LABELS[post.status]}
                       </span>
                     </td>
-                    <td className="px-4 py-3 text-gray-500 whitespace-nowrap">
+                    <td className="px-4 py-3 whitespace-nowrap" style={{ color: "#9ca3af" }}>
                       {formatDate(post.created_at)}
                     </td>
                     <td className="px-4 py-3">
@@ -627,13 +651,14 @@ export default function ContentPage() {
                               <video
                                 src={resolvedVideoUrl}
                                 controls
-                                className="h-14 w-24 rounded-md border border-gray-200 object-cover"
+                                className="h-14 w-24 rounded-md object-cover"
+                                style={{ border: "1px solid #333333" }}
                               />
                               <a
                                 href={resolvedVideoUrl}
                                 target="_blank"
                                 rel="noopener noreferrer"
-                                className="text-xs text-blue-600 hover:underline"
+                                className="text-xs text-blue-400 hover:underline"
                               >
                                 Descargar
                               </a>
@@ -644,7 +669,7 @@ export default function ContentPage() {
                           return (
                             <button
                               onClick={() => setReelPost(post)}
-                              className="inline-flex items-center gap-1.5 px-3 py-1.5 bg-violet-600 text-white text-xs font-medium rounded-md hover:bg-violet-700 transition-colors whitespace-nowrap"
+                              className="inline-flex items-center gap-1.5 px-3 py-1.5 bg-violet-700 text-white text-xs font-medium rounded-md hover:bg-violet-600 transition-colors whitespace-nowrap"
                               title="Agregar Reel a este post"
                             >
                               <Video className="h-3.5 w-3.5" />
@@ -652,14 +677,17 @@ export default function ContentPage() {
                             </button>
                           );
                         }
-                        return <span className="text-xs text-gray-400">—</span>;
+                        return <span className="text-xs" style={{ color: "#6b7280" }}>—</span>;
                       })()}
                     </td>
                     <td className="px-4 py-3">
                       {!isClient && (
                         <button
                           onClick={() => setImageGenPost(post)}
-                          className="inline-flex items-center gap-1.5 px-3 py-1.5 border border-gray-300 text-gray-700 text-xs font-medium rounded-md hover:bg-gray-50 transition-colors whitespace-nowrap"
+                          className="inline-flex items-center gap-1.5 px-3 py-1.5 text-xs font-medium rounded-md transition-colors whitespace-nowrap"
+                          style={{ border: "1px solid #333333", color: "#9ca3af" }}
+                          onMouseEnter={e => { (e.currentTarget as HTMLButtonElement).style.color = "#ffffff"; (e.currentTarget as HTMLButtonElement).style.backgroundColor = "#1a1a1a"; }}
+                          onMouseLeave={e => { (e.currentTarget as HTMLButtonElement).style.color = "#9ca3af"; (e.currentTarget as HTMLButtonElement).style.backgroundColor = "transparent"; }}
                           title="Generar imagen con IA"
                         >
                           {post.image_url ? (
@@ -685,10 +713,13 @@ export default function ContentPage() {
                       {!isClient && (
                         <button
                           onClick={() => setEditPost(post)}
-                          className="p-1.5 hover:bg-gray-100 rounded-md transition-colors"
+                          className="p-1.5 rounded-md transition-colors"
+                          style={{ color: "#9ca3af" }}
+                          onMouseEnter={e => (e.currentTarget.style.backgroundColor = "#1f1f1f")}
+                          onMouseLeave={e => (e.currentTarget.style.backgroundColor = "transparent")}
                           title="Edit post"
                         >
-                          <Pencil className="h-4 w-4 text-gray-500" />
+                          <Pencil className="h-4 w-4" />
                         </button>
                       )}
                     </td>

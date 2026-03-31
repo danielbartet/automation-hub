@@ -6,9 +6,11 @@ import { generateImage, buildAutoPrompt, updateContent } from "@/lib/api";
 interface ImageGeneratorModalProps {
   open: boolean;
   onClose: () => void;
-  post: { id: number; content?: any; image_url?: string };
+  post: { id: number; content?: any; image_url?: string; image_urls?: string[] };
   project: { slug: string; name?: string; media_config?: any; content_config?: any; credits_balance?: number };
-  onImageSaved: (imageUrl: string) => void;
+  /** When set, saving the generated image updates this specific slide (0-based index) in image_urls. */
+  slideIndex?: number;
+  onImageSaved: (imageUrl: string, slideIndex?: number) => void;
 }
 
 const STYLES = [
@@ -33,6 +35,7 @@ export function ImageGeneratorModal({
   onClose,
   post,
   project,
+  slideIndex,
   onImageSaved,
 }: ImageGeneratorModalProps) {
   const defaultPalette =
@@ -78,8 +81,24 @@ export function ImageGeneratorModal({
     setSaving(true);
     setError(null);
     try {
-      await updateContent(post.id, { image_url: generatedUrl });
-      onImageSaved(generatedUrl);
+      if (slideIndex !== undefined) {
+        // Update only the specific slide in image_urls
+        const currentUrls: string[] = Array.isArray(post.image_urls)
+          ? [...post.image_urls]
+          : post.image_url
+          ? [post.image_url]
+          : [];
+        // Pad the array if necessary
+        while (currentUrls.length <= slideIndex) {
+          currentUrls.push("");
+        }
+        currentUrls[slideIndex] = generatedUrl;
+        await updateContent(post.id, { image_urls: currentUrls });
+        onImageSaved(generatedUrl, slideIndex);
+      } else {
+        await updateContent(post.id, { image_url: generatedUrl });
+        onImageSaved(generatedUrl);
+      }
       onClose();
     } catch (e) {
       setError(e instanceof Error ? e.message : "Error al guardar imagen");
@@ -91,16 +110,22 @@ export function ImageGeneratorModal({
   const noCredits = credits <= 0;
 
   return (
-    <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-[100] p-4">
-      <div className="bg-white rounded-xl shadow-xl w-full max-w-3xl max-h-[90vh] overflow-y-auto">
+    <div className="fixed inset-0 bg-black/70 flex items-center justify-center z-[100] p-4">
+      <div className="rounded-xl shadow-xl w-full max-w-3xl max-h-[90vh] overflow-y-auto" style={{ backgroundColor: "#111111", border: "1px solid #222222" }}>
         {/* Header */}
-        <div className="flex items-center justify-between p-6 border-b">
-          <h2 className="text-lg font-semibold">Generar imagen con IA</h2>
+        <div className="flex items-center justify-between p-6" style={{ borderBottom: "1px solid #222222" }}>
+          <h2 className="text-lg font-semibold text-white">Generar imagen con IA</h2>
           <div className="flex items-center gap-3">
-            <span className="text-sm font-medium text-gray-600 bg-gray-100 px-3 py-1 rounded-full">
+            <span className="text-sm font-medium px-3 py-1 rounded-full" style={{ color: "#9ca3af", backgroundColor: "#1a1a1a" }}>
               💳 {credits} créditos restantes
             </span>
-            <button onClick={onClose} className="p-1 hover:bg-gray-100 rounded-md">
+            <button
+              onClick={onClose}
+              className="p-1 rounded-md transition-colors"
+              style={{ color: "#9ca3af" }}
+              onMouseEnter={e => { (e.currentTarget as HTMLButtonElement).style.backgroundColor = "#1a1a1a"; (e.currentTarget as HTMLButtonElement).style.color = "#ffffff"; }}
+              onMouseLeave={e => { (e.currentTarget as HTMLButtonElement).style.backgroundColor = "transparent"; (e.currentTarget as HTMLButtonElement).style.color = "#9ca3af"; }}
+            >
               <X className="h-5 w-5" />
             </button>
           </div>
@@ -108,13 +133,13 @@ export function ImageGeneratorModal({
 
         <div className="p-6">
           {error && (
-            <div className="mb-4 p-3 bg-red-50 border border-red-200 rounded-md text-sm text-red-700">
+            <div className="mb-4 p-3 rounded-md text-sm text-red-400" style={{ backgroundColor: "#450a0a", border: "1px solid #7f1d1d" }}>
               {error}
             </div>
           )}
 
           {noCredits && (
-            <div className="mb-4 p-3 bg-yellow-50 border border-yellow-200 rounded-md text-sm text-yellow-800">
+            <div className="mb-4 p-3 rounded-md text-sm text-yellow-400" style={{ backgroundColor: "#422006", border: "1px solid #78350f" }}>
               Sin créditos disponibles. Contactar para recargar.
             </div>
           )}
@@ -124,18 +149,19 @@ export function ImageGeneratorModal({
             <div className="space-y-5">
               {/* Prompt */}
               <div>
-                <label className="block text-sm font-medium text-gray-700 mb-1">Prompt</label>
+                <label className="block text-sm font-medium text-white mb-1">Prompt</label>
                 <textarea
                   value={prompt}
                   onChange={(e) => setPrompt(e.target.value)}
                   rows={4}
-                  className="w-full border border-gray-200 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-violet-400 resize-none"
+                  className="w-full rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-[#7c3aed] resize-none"
+                  style={{ backgroundColor: "#1a1a1a", border: "1px solid #333333", color: "#ffffff" }}
                   placeholder="Describe la imagen que querés generar. Ej: 'El developer que ejecuta instrucciones será reemplazado. Dark background, neon purple, bold typography'"
                 />
                 <button
                   type="button"
                   onClick={handleAutoPrompt}
-                  className="mt-1 text-xs text-violet-600 hover:text-violet-800 underline"
+                  className="mt-1 text-xs text-violet-400 hover:text-violet-300 underline"
                 >
                   Usar prompt automático
                 </button>
@@ -143,18 +169,19 @@ export function ImageGeneratorModal({
 
               {/* Style pills */}
               <div>
-                <label className="block text-sm font-medium text-gray-700 mb-2">Estilo</label>
+                <label className="block text-sm font-medium text-white mb-2">Estilo</label>
                 <div className="flex flex-wrap gap-2">
                   {STYLES.map((s) => (
                     <button
                       key={s.value}
                       type="button"
                       onClick={() => setStyle(s.value)}
-                      className={`px-3 py-1.5 text-xs font-medium rounded-full border transition-colors ${
+                      className="px-3 py-1.5 text-xs font-medium rounded-full transition-colors"
+                      style={
                         style === s.value
-                          ? "bg-violet-600 text-white border-violet-600"
-                          : "bg-white text-gray-600 border-gray-300 hover:border-gray-400"
-                      }`}
+                          ? { backgroundColor: "#7c3aed", color: "#ffffff", border: "1px solid #7c3aed" }
+                          : { backgroundColor: "transparent", color: "#9ca3af", border: "1px solid #333333" }
+                      }
                     >
                       {s.label}
                     </button>
@@ -164,7 +191,7 @@ export function ImageGeneratorModal({
 
               {/* Color palette swatches */}
               <div>
-                <label className="block text-sm font-medium text-gray-700 mb-2">
+                <label className="block text-sm font-medium text-white mb-2">
                   Paleta de colores
                 </label>
                 <div className="flex flex-wrap gap-3">
@@ -174,17 +201,17 @@ export function ImageGeneratorModal({
                       type="button"
                       onClick={() => setColorPalette(p.value)}
                       title={p.label}
-                      className={`flex flex-col items-center gap-1 group`}
+                      className="flex flex-col items-center gap-1 group"
                     >
                       <div
-                        className={`h-8 w-8 rounded-full border-2 transition-all ${
-                          colorPalette === p.value
-                            ? "border-violet-600 scale-110 shadow-md"
-                            : "border-gray-200 hover:border-gray-400"
-                        }`}
-                        style={{ backgroundColor: p.hex }}
+                        className="h-8 w-8 rounded-full border-2 transition-all"
+                        style={{
+                          backgroundColor: p.hex,
+                          borderColor: colorPalette === p.value ? "#7c3aed" : "#444444",
+                          transform: colorPalette === p.value ? "scale(1.1)" : "scale(1)",
+                        }}
                       />
-                      <span className="text-xs text-gray-500 leading-none">{p.label}</span>
+                      <span className="text-xs leading-none" style={{ color: "#9ca3af" }}>{p.label}</span>
                     </button>
                   ))}
                 </div>
@@ -192,7 +219,7 @@ export function ImageGeneratorModal({
 
               {/* Aspect ratio pills */}
               <div>
-                <label className="block text-sm font-medium text-gray-700 mb-2">
+                <label className="block text-sm font-medium text-white mb-2">
                   Relación de aspecto
                 </label>
                 <div className="flex gap-2">
@@ -201,11 +228,12 @@ export function ImageGeneratorModal({
                       key={ar}
                       type="button"
                       onClick={() => setAspectRatio(ar)}
-                      className={`px-4 py-1.5 text-xs font-medium rounded-full border transition-colors ${
+                      className="px-4 py-1.5 text-xs font-medium rounded-full transition-colors"
+                      style={
                         aspectRatio === ar
-                          ? "bg-violet-600 text-white border-violet-600"
-                          : "bg-white text-gray-600 border-gray-300 hover:border-gray-400"
-                      }`}
+                          ? { backgroundColor: "#7c3aed", color: "#ffffff", border: "1px solid #7c3aed" }
+                          : { backgroundColor: "transparent", color: "#9ca3af", border: "1px solid #333333" }
+                      }
                     >
                       {ar}
                     </button>
@@ -233,13 +261,14 @@ export function ImageGeneratorModal({
 
             {/* Right panel — preview */}
             <div className="flex flex-col gap-3">
-              <label className="block text-sm font-medium text-gray-700">Vista previa</label>
+              <label className="block text-sm font-medium text-white">Vista previa</label>
               <div
-                className={`flex-1 min-h-[240px] flex flex-col items-center justify-center rounded-lg border-2 ${
-                  generatedUrl
-                    ? "border-gray-200"
-                    : "border-dashed border-gray-300"
-                } overflow-hidden`}
+                className="flex-1 min-h-[240px] flex flex-col items-center justify-center rounded-lg border-2 overflow-hidden"
+                style={{
+                  borderColor: generatedUrl ? "#333333" : "#222222",
+                  borderStyle: generatedUrl ? "solid" : "dashed",
+                  backgroundColor: "#0d0d0d",
+                }}
               >
                 {generatedUrl ? (
                   // eslint-disable-next-line @next/next/no-img-element
@@ -249,7 +278,7 @@ export function ImageGeneratorModal({
                     className="w-full rounded-lg object-contain"
                   />
                 ) : (
-                  <div className="flex flex-col items-center gap-3 text-gray-400 p-8">
+                  <div className="flex flex-col items-center gap-3 p-8" style={{ color: "#9ca3af" }}>
                     <ImageIcon className="h-12 w-12" />
                     <p className="text-sm text-center">La imagen aparecerá aquí</p>
                   </div>
@@ -262,7 +291,10 @@ export function ImageGeneratorModal({
                     type="button"
                     onClick={handleGenerate}
                     disabled={generating || noCredits}
-                    className="flex-1 flex items-center justify-center gap-2 px-3 py-2 border border-gray-300 text-gray-700 text-sm font-medium rounded-lg hover:bg-gray-50 disabled:opacity-50 disabled:cursor-not-allowed transition-colors"
+                    className="flex-1 flex items-center justify-center gap-2 px-3 py-2 text-sm font-medium rounded-lg transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
+                    style={{ border: "1px solid #333333", color: "#9ca3af" }}
+                    onMouseEnter={e => { if (!(e.currentTarget as HTMLButtonElement).disabled) { (e.currentTarget as HTMLButtonElement).style.backgroundColor = "#1a1a1a"; (e.currentTarget as HTMLButtonElement).style.color = "#ffffff"; } }}
+                    onMouseLeave={e => { (e.currentTarget as HTMLButtonElement).style.backgroundColor = "transparent"; (e.currentTarget as HTMLButtonElement).style.color = "#9ca3af"; }}
                   >
                     <RefreshCw className="h-4 w-4" />
                     Regenerar

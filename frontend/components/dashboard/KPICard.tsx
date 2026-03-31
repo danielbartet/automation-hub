@@ -7,10 +7,10 @@ interface KPICardProps {
 
 export function KPICard({ title, value, subtitle }: KPICardProps) {
   return (
-    <div className="bg-white rounded-lg border border-gray-200 p-6 shadow-sm">
-      <p className="text-sm font-medium text-gray-500">{title}</p>
-      <p className="mt-2 text-3xl font-bold text-gray-900">{value}</p>
-      {subtitle && <p className="mt-1 text-sm text-gray-500">{subtitle}</p>}
+    <div className="rounded-lg p-6" style={{ backgroundColor: "#111111", border: "1px solid #222222" }}>
+      <p className="text-sm font-medium" style={{ color: "#9ca3af" }}>{title}</p>
+      <p className="mt-2 text-3xl font-bold text-white">{value}</p>
+      {subtitle && <p className="mt-1 text-sm" style={{ color: "#9ca3af" }}>{subtitle}</p>}
     </div>
   );
 }

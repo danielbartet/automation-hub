@@ -143,34 +143,46 @@ export function PlanContentModal({
   const removePost = (id: number) =>
     setBatchResult((prev) => (prev ? prev.filter((p) => p.id !== id) : null));
 
+  const inputStyle = {
+    backgroundColor: "#1a1a1a",
+    border: "1px solid #333333",
+    color: "#ffffff",
+  };
+
   if (batchResult) {
     return (
-      <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50 p-4">
-        <div className="bg-white rounded-xl shadow-xl w-full max-w-2xl max-h-[90vh] overflow-y-auto">
-          <div className="flex items-center justify-between p-6 border-b">
+      <div className="fixed inset-0 bg-black/70 flex items-center justify-center z-50 p-4">
+        <div className="rounded-xl shadow-xl w-full max-w-2xl max-h-[90vh] overflow-y-auto" style={{ backgroundColor: "#111111", border: "1px solid #222222" }}>
+          <div className="flex items-center justify-between p-6" style={{ borderBottom: "1px solid #222222" }}>
             <div>
-              <h2 className="text-lg font-semibold">Batch Preview</h2>
-              <p className="text-sm text-gray-500">{batchResult.length} posts generated</p>
+              <h2 className="text-lg font-semibold text-white">Batch Preview</h2>
+              <p className="text-sm" style={{ color: "#9ca3af" }}>{batchResult.length} posts generated</p>
             </div>
-            <button onClick={onClose} className="p-1 hover:bg-gray-100 rounded-md">
+            <button
+              onClick={onClose}
+              className="p-1 rounded-md transition-colors"
+              style={{ color: "#9ca3af" }}
+              onMouseEnter={e => { (e.currentTarget as HTMLButtonElement).style.backgroundColor = "#1a1a1a"; (e.currentTarget as HTMLButtonElement).style.color = "#ffffff"; }}
+              onMouseLeave={e => { (e.currentTarget as HTMLButtonElement).style.backgroundColor = "transparent"; (e.currentTarget as HTMLButtonElement).style.color = "#9ca3af"; }}
+            >
               <X className="h-5 w-5" />
             </button>
           </div>
           <div className="p-6 space-y-3">
             {error && (
-              <div className="p-3 bg-red-50 border border-red-200 rounded-md text-sm text-red-700">
+              <div className="p-3 rounded-md text-sm text-red-400" style={{ backgroundColor: "#450a0a", border: "1px solid #7f1d1d" }}>
                 {error}
               </div>
             )}
             {batchResult.map((post) => (
-              <div key={post.id} className="border border-gray-200 rounded-lg p-4">
+              <div key={post.id} className="rounded-lg p-4" style={{ border: "1px solid #222222" }}>
                 <div className="flex items-start justify-between gap-3">
                   <div className="flex-1 min-w-0">
                     {post.topic && (
-                      <p className="text-xs font-medium text-gray-500 uppercase mb-1">{post.topic}</p>
+                      <p className="text-xs font-medium uppercase mb-1" style={{ color: "#9ca3af" }}>{post.topic}</p>
                     )}
-                    <p className="text-sm text-gray-700 line-clamp-2">{post.caption}</p>
-                    <p className="text-xs text-gray-400 mt-1">
+                    <p className="text-sm text-white line-clamp-2">{post.caption}</p>
+                    <p className="text-xs mt-1" style={{ color: "#6b7280" }}>
                       Scheduled:{" "}
                       {new Date(post.scheduled_at).toLocaleDateString("en-US", {
                         weekday: "short",
@@ -185,7 +197,8 @@ export function PlanContentModal({
                         {(post.slides as Array<{ headline?: string }>).slice(0, 3).map((s, i) => (
                           <span
                             key={i}
-                            className="text-xs bg-gray-100 text-gray-600 px-2 py-0.5 rounded"
+                            className="text-xs px-2 py-0.5 rounded"
+                            style={{ backgroundColor: "#1a1a1a", color: "#9ca3af" }}
                           >
                             {s.headline || `Slide ${i + 1}`}
                           </span>
@@ -196,31 +209,43 @@ export function PlanContentModal({
                   <div className="flex items-center gap-1 flex-shrink-0">
                     <button
                       onClick={() => setEditingPost(post)}
-                      className="p-1.5 hover:bg-gray-100 rounded-md"
+                      className="p-1.5 rounded-md transition-colors"
+                      style={{ color: "#9ca3af" }}
+                      onMouseEnter={e => { (e.currentTarget as HTMLButtonElement).style.backgroundColor = "#1a1a1a"; (e.currentTarget as HTMLButtonElement).style.color = "#ffffff"; }}
+                      onMouseLeave={e => { (e.currentTarget as HTMLButtonElement).style.backgroundColor = "transparent"; (e.currentTarget as HTMLButtonElement).style.color = "#9ca3af"; }}
                     >
-                      <Pencil className="h-4 w-4 text-gray-500" />
+                      <Pencil className="h-4 w-4" />
                     </button>
                     <button
                       onClick={() => removePost(post.id)}
-                      className="p-1.5 hover:bg-red-50 rounded-md"
+                      className="p-1.5 rounded-md transition-colors"
+                      style={{ color: "#9ca3af" }}
+                      onMouseEnter={e => { (e.currentTarget as HTMLButtonElement).style.backgroundColor = "#450a0a"; (e.currentTarget as HTMLButtonElement).style.color = "#f87171"; }}
+                      onMouseLeave={e => { (e.currentTarget as HTMLButtonElement).style.backgroundColor = "transparent"; (e.currentTarget as HTMLButtonElement).style.color = "#9ca3af"; }}
                     >
-                      <Trash2 className="h-4 w-4 text-red-400" />
+                      <Trash2 className="h-4 w-4" />
                     </button>
                   </div>
                 </div>
               </div>
             ))}
-            <div className="flex gap-3 pt-2 border-t border-gray-100">
+            <div className="flex gap-3 pt-2" style={{ borderTop: "1px solid #222222" }}>
               <button
                 onClick={saveDrafts}
-                className="flex-1 px-4 py-2 border border-gray-200 text-sm font-medium rounded-lg hover:bg-gray-50"
+                className="flex-1 px-4 py-2 text-sm font-medium rounded-lg transition-colors"
+                style={{ border: "1px solid #333333", color: "#9ca3af" }}
+                onMouseEnter={e => { (e.currentTarget as HTMLButtonElement).style.color = "#ffffff"; (e.currentTarget as HTMLButtonElement).style.borderColor = "#555555"; }}
+                onMouseLeave={e => { (e.currentTarget as HTMLButtonElement).style.color = "#9ca3af"; (e.currentTarget as HTMLButtonElement).style.borderColor = "#333333"; }}
               >
                 Save as Drafts
               </button>
               <button
                 onClick={sendForApproval}
                 disabled={loading}
-                className="flex-1 flex items-center justify-center gap-2 px-4 py-2 bg-gray-900 text-white text-sm font-medium rounded-lg hover:bg-gray-700 disabled:opacity-50"
+                className="flex-1 flex items-center justify-center gap-2 px-4 py-2 text-white text-sm font-medium rounded-lg transition-colors disabled:opacity-50"
+                style={{ backgroundColor: "#7c3aed" }}
+                onMouseEnter={e => { if (!(e.currentTarget as HTMLButtonElement).disabled) (e.currentTarget as HTMLButtonElement).style.backgroundColor = "#6d28d9"; }}
+                onMouseLeave={e => { (e.currentTarget as HTMLButtonElement).style.backgroundColor = "#7c3aed"; }}
               >
                 {loading ? <Loader2 className="h-4 w-4 animate-spin" /> : null}
                 Send All for Approval
@@ -249,27 +274,34 @@ export function PlanContentModal({
   }
 
   return (
-    <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50 p-4">
-      <div className="bg-white rounded-xl shadow-xl w-full max-w-lg max-h-[90vh] overflow-y-auto">
-        <div className="flex items-center justify-between p-6 border-b">
-          <h2 className="text-lg font-semibold">Plan Content</h2>
-          <button onClick={onClose} className="p-1 hover:bg-gray-100 rounded-md">
+    <div className="fixed inset-0 bg-black/70 flex items-center justify-center z-50 p-4">
+      <div className="rounded-xl shadow-xl w-full max-w-lg max-h-[90vh] overflow-y-auto" style={{ backgroundColor: "#111111", border: "1px solid #222222" }}>
+        <div className="flex items-center justify-between p-6" style={{ borderBottom: "1px solid #222222" }}>
+          <h2 className="text-lg font-semibold text-white">Plan Content</h2>
+          <button
+            onClick={onClose}
+            className="p-1 rounded-md transition-colors"
+            style={{ color: "#9ca3af" }}
+            onMouseEnter={e => { (e.currentTarget as HTMLButtonElement).style.backgroundColor = "#1a1a1a"; (e.currentTarget as HTMLButtonElement).style.color = "#ffffff"; }}
+            onMouseLeave={e => { (e.currentTarget as HTMLButtonElement).style.backgroundColor = "transparent"; (e.currentTarget as HTMLButtonElement).style.color = "#9ca3af"; }}
+          >
             <X className="h-5 w-5" />
           </button>
         </div>
         <div className="p-6 space-y-5">
           {error && (
-            <div className="p-3 bg-red-50 border border-red-200 rounded-md text-sm text-red-700">
+            <div className="p-3 rounded-md text-sm text-red-400" style={{ backgroundColor: "#450a0a", border: "1px solid #7f1d1d" }}>
               {error}
             </div>
           )}
 
           <div>
-            <label className="block text-sm font-medium text-gray-700 mb-1">Project</label>
+            <label className="block text-sm font-medium text-white mb-1">Project</label>
             <select
               value={projectSlug}
               onChange={(e) => setProjectSlug(e.target.value)}
-              className="w-full border border-gray-200 rounded-lg px-3 py-2 text-sm"
+              className="w-full rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-[#7c3aed]"
+              style={inputStyle}
             >
               {projects.map((p) => (
                 <option key={p.id} value={p.slug}>
@@ -280,7 +312,7 @@ export function PlanContentModal({
           </div>
 
           <div>
-            <label className="block text-sm font-medium text-gray-700 mb-2">Period</label>
+            <label className="block text-sm font-medium text-white mb-2">Period</label>
             <div className="grid grid-cols-3 gap-2 mb-3">
               {(
                 [
@@ -294,11 +326,14 @@ export function PlanContentModal({
                 <button
                   key={v}
                   onClick={() => setPeriod(v)}
-                  className={`px-3 py-1.5 text-sm rounded-lg border transition-colors ${
+                  className="px-3 py-1.5 text-sm rounded-lg transition-colors"
+                  style={
                     period === v
-                      ? "bg-gray-900 text-white border-gray-900"
-                      : "border-gray-200 text-gray-700 hover:bg-gray-50"
-                  }`}
+                      ? { backgroundColor: "#7c3aed", color: "#ffffff", border: "1px solid #7c3aed" }
+                      : { backgroundColor: "transparent", color: "#9ca3af", border: "1px solid #333333" }
+                  }
+                  onMouseEnter={e => { if (period !== v) { (e.currentTarget as HTMLButtonElement).style.borderColor = "#555555"; (e.currentTarget as HTMLButtonElement).style.color = "#ffffff"; } }}
+                  onMouseLeave={e => { if (period !== v) { (e.currentTarget as HTMLButtonElement).style.borderColor = "#333333"; (e.currentTarget as HTMLButtonElement).style.color = "#9ca3af"; } }}
                 >
                   {l}
                 </button>
@@ -307,21 +342,23 @@ export function PlanContentModal({
             {period === "custom" && (
               <div className="grid grid-cols-2 gap-3">
                 <div>
-                  <label className="text-xs text-gray-500 block mb-1">Start</label>
+                  <label className="text-xs block mb-1" style={{ color: "#9ca3af" }}>Start</label>
                   <input
                     type="date"
                     value={customStart}
                     onChange={(e) => setCustomStart(e.target.value)}
-                    className="w-full border border-gray-200 rounded px-2 py-1.5 text-sm"
+                    className="w-full rounded px-2 py-1.5 text-sm focus:outline-none focus:ring-2 focus:ring-[#7c3aed]"
+                    style={inputStyle}
                   />
                 </div>
                 <div>
-                  <label className="text-xs text-gray-500 block mb-1">End</label>
+                  <label className="text-xs block mb-1" style={{ color: "#9ca3af" }}>End</label>
                   <input
                     type="date"
                     value={customEnd}
                     onChange={(e) => setCustomEnd(e.target.value)}
-                    className="w-full border border-gray-200 rounded px-2 py-1.5 text-sm"
+                    className="w-full rounded px-2 py-1.5 text-sm focus:outline-none focus:ring-2 focus:ring-[#7c3aed]"
+                    style={inputStyle}
                   />
                 </div>
               </div>
@@ -330,39 +367,44 @@ export function PlanContentModal({
 
           <div className="grid grid-cols-2 gap-4">
             <div>
-              <label className="block text-sm font-medium text-gray-700 mb-1">Posts count</label>
+              <label className="block text-sm font-medium text-white mb-1">Posts count</label>
               <input
                 type="number"
                 min={1}
                 max={30}
                 value={count}
                 onChange={(e) => setCount(Number(e.target.value))}
-                className="w-full border border-gray-200 rounded-lg px-3 py-2 text-sm"
+                className="w-full rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-[#7c3aed]"
+                style={inputStyle}
               />
             </div>
             <div>
-              <label className="block text-sm font-medium text-gray-700 mb-1">Publish time</label>
+              <label className="block text-sm font-medium text-white mb-1">Publish time</label>
               <input
                 type="time"
                 value={publishTime}
                 onChange={(e) => setPublishTime(e.target.value)}
-                className="w-full border border-gray-200 rounded-lg px-3 py-2 text-sm"
+                className="w-full rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-[#7c3aed]"
+                style={inputStyle}
               />
             </div>
           </div>
 
           <div>
-            <label className="block text-sm font-medium text-gray-700 mb-2">Publish days</label>
+            <label className="block text-sm font-medium text-white mb-2">Publish days</label>
             <div className="flex gap-2">
               {DAY_LABELS.map((d, i) => (
                 <button
                   key={i}
                   onClick={() => toggleDay(i)}
-                  className={`flex-1 py-1.5 text-xs font-medium rounded-lg border transition-colors ${
+                  className="flex-1 py-1.5 text-xs font-medium rounded-lg transition-colors"
+                  style={
                     daysOfWeek.includes(i)
-                      ? "bg-gray-900 text-white border-gray-900"
-                      : "border-gray-200 text-gray-600 hover:bg-gray-50"
-                  }`}
+                      ? { backgroundColor: "#7c3aed", color: "#ffffff", border: "1px solid #7c3aed" }
+                      : { backgroundColor: "transparent", color: "#9ca3af", border: "1px solid #333333" }
+                  }
+                  onMouseEnter={e => { if (!daysOfWeek.includes(i)) { (e.currentTarget as HTMLButtonElement).style.borderColor = "#555555"; (e.currentTarget as HTMLButtonElement).style.color = "#ffffff"; } }}
+                  onMouseLeave={e => { if (!daysOfWeek.includes(i)) { (e.currentTarget as HTMLButtonElement).style.borderColor = "#333333"; (e.currentTarget as HTMLButtonElement).style.color = "#9ca3af"; } }}
                 >
                   {d}
                 </button>
@@ -371,11 +413,12 @@ export function PlanContentModal({
           </div>
 
           <div>
-            <label className="block text-sm font-medium text-gray-700 mb-1">Content type</label>
+            <label className="block text-sm font-medium text-white mb-1">Content type</label>
             <select
               value={contentType}
               onChange={(e) => setContentType(e.target.value)}
-              className="w-full border border-gray-200 rounded-lg px-3 py-2 text-sm"
+              className="w-full rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-[#7c3aed]"
+              style={inputStyle}
             >
               <option value="carousel_6_slides">Carousel (6 slides)</option>
               <option value="single_image">Single Image</option>
@@ -386,7 +429,10 @@ export function PlanContentModal({
           <button
             onClick={handleGenerate}
             disabled={loading || daysOfWeek.length === 0}
-            className="w-full flex items-center justify-center gap-2 px-4 py-3 bg-gray-900 text-white text-sm font-medium rounded-lg hover:bg-gray-700 disabled:opacity-50"
+            className="w-full flex items-center justify-center gap-2 px-4 py-3 text-white text-sm font-medium rounded-lg transition-colors disabled:opacity-50"
+            style={{ backgroundColor: "#7c3aed" }}
+            onMouseEnter={e => { if (!(e.currentTarget as HTMLButtonElement).disabled) (e.currentTarget as HTMLButtonElement).style.backgroundColor = "#6d28d9"; }}
+            onMouseLeave={e => { (e.currentTarget as HTMLButtonElement).style.backgroundColor = "#7c3aed"; }}
           >
             {loading ? (
               <>

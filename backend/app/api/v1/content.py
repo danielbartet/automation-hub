@@ -65,6 +65,7 @@ class ManualContentRequest(BaseModel):
 class UpdateContentRequest(BaseModel):
     caption: Optional[str] = None
     image_url: Optional[str] = None
+    image_urls: Optional[list[str]] = None  # per-slide image URLs; replaces stored image_urls array
     hashtags: Optional[list[str]] = None
     slides: Optional[list[dict]] = None  # updated slide data
     scheduled_at: Optional[str] = None
@@ -524,6 +525,11 @@ async def update_content(
         post.caption = body.caption
     if body.image_url is not None:
         post.image_url = body.image_url
+    if body.image_urls is not None:
+        post.image_urls = json.dumps(body.image_urls)
+        # Keep image_url in sync with the first slide
+        if body.image_urls:
+            post.image_url = body.image_urls[0]
     if body.status is not None:
         post.status = body.status
     if body.scheduled_at is not None:
@@ -560,11 +566,21 @@ async def update_content(
             except Exception:
                 pass  # Never block the approval response if n8n is unreachable
 
+    # Parse image_urls JSON string back to a list for the response
+    parsed_image_urls: list[str] = []
+    if post.image_urls:
+        try:
+            parsed_image_urls = json.loads(post.image_urls)
+        except (json.JSONDecodeError, TypeError):
+            if post.image_url:
+                parsed_image_urls = [post.image_url]
+
     return {
         "id": post.id,
         "status": post.status,
         "caption": post.caption,
         "image_url": post.image_url,
+        "image_urls": parsed_image_urls,
         "scheduled_at": str(post.scheduled_at) if post.scheduled_at else None,
         "content": post.content,
     }

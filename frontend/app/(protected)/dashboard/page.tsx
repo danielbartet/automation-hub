@@ -56,9 +56,9 @@ interface DashboardData {
 }
 
 const STATUS_CLASSES: Record<string, string> = {
-  pending_approval: "bg-yellow-100 text-yellow-700",
-  published: "bg-green-100 text-green-700",
-  draft: "bg-gray-100 text-gray-600",
+  pending_approval: "bg-yellow-900/50 text-yellow-400",
+  published: "bg-green-900/50 text-green-400",
+  draft: "bg-gray-800 text-gray-400",
 };
 
 const STATUS_LABELS: Record<string, string> = {
@@ -68,8 +68,8 @@ const STATUS_LABELS: Record<string, string> = {
 };
 
 const CAMPAIGN_STATUS_CLASSES: Record<string, string> = {
-  ACTIVE: "bg-green-100 text-green-700",
-  PAUSED: "bg-gray-100 text-gray-500",
+  ACTIVE: "bg-green-900/50 text-green-400",
+  PAUSED: "bg-gray-800 text-gray-400",
 };
 
 function formatDate(dateStr: string) {
@@ -137,14 +137,19 @@ export default function DashboardPage() {
       <div className="p-6 space-y-6">
         {/* Project selector */}
         <div className="flex items-center gap-3">
-          <label className="text-sm font-medium text-gray-700">Project:</label>
+          <label className="text-sm font-medium" style={{ color: "#9ca3af" }}>Project:</label>
           {loadingProjects ? (
-            <span className="text-sm text-gray-400">Loading...</span>
+            <span className="text-sm" style={{ color: "#9ca3af" }}>Loading...</span>
           ) : (
             <select
               value={selectedSlug}
               onChange={(e) => setSelectedSlug(e.target.value)}
-              className="text-sm border border-gray-200 rounded-md px-3 py-2 bg-white text-gray-900 focus:outline-none focus:ring-2 focus:ring-gray-400"
+              className="text-sm rounded-md px-3 py-2 focus:outline-none focus:ring-2"
+              style={{
+                border: "1px solid #333333",
+                backgroundColor: "#1a1a1a",
+                color: "#ffffff",
+              }}
             >
               {projects.map((p) => (
                 <option key={p.id} value={p.slug}>
@@ -153,11 +158,11 @@ export default function DashboardPage() {
               ))}
             </select>
           )}
-          {loadingData && <Loader2 className="h-4 w-4 animate-spin text-gray-400" />}
+          {loadingData && <Loader2 className="h-4 w-4 animate-spin" style={{ color: "#9ca3af" }} />}
         </div>
 
         {error && (
-          <div className="bg-red-50 border border-red-200 rounded-md p-4 text-sm text-red-700">
+          <div className="rounded-md p-4 text-sm" style={{ backgroundColor: "#450a0a", border: "1px solid #7f1d1d", color: "#fca5a5" }}>
             Error: {error}
           </div>
         )}
@@ -198,45 +203,45 @@ export default function DashboardPage() {
 
         <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
           {/* Recent Posts */}
-          <div className="bg-white rounded-lg border border-gray-200 shadow-sm overflow-hidden">
-            <div className="px-6 py-4 border-b border-gray-100">
-              <h3 className="text-base font-semibold text-gray-900">Recent Posts</h3>
+          <div className="rounded-lg overflow-hidden" style={{ backgroundColor: "#111111", border: "1px solid #222222" }}>
+            <div className="px-6 py-4" style={{ borderBottom: "1px solid #222222" }}>
+              <h3 className="text-base font-semibold text-white">Recent Posts</h3>
             </div>
             {loadingData ? (
-              <div className="flex items-center justify-center h-40 text-sm text-gray-500">
+              <div className="flex items-center justify-center h-40 text-sm" style={{ color: "#9ca3af" }}>
                 <Loader2 className="h-5 w-5 animate-spin mr-2" />
                 Loading...
               </div>
             ) : recentPosts.length === 0 ? (
               <div className="flex flex-col items-center justify-center h-40 gap-2">
-                <FileText className="h-8 w-8 text-gray-300" />
-                <p className="text-sm text-gray-500">No recent posts.</p>
+                <FileText className="h-8 w-8" style={{ color: "#374151" }} />
+                <p className="text-sm" style={{ color: "#9ca3af" }}>No recent posts.</p>
               </div>
             ) : (
               <table className="w-full text-sm">
-                <thead className="bg-gray-50 border-b border-gray-200">
+                <thead style={{ backgroundColor: "#111111", borderBottom: "1px solid #222222" }}>
                   <tr>
-                    <th className="text-left px-4 py-3 font-medium text-gray-600">Caption</th>
-                    <th className="text-left px-4 py-3 font-medium text-gray-600">Status</th>
-                    <th className="text-left px-4 py-3 font-medium text-gray-600">Date</th>
+                    <th className="text-left px-4 py-3 font-medium" style={{ color: "#9ca3af" }}>Caption</th>
+                    <th className="text-left px-4 py-3 font-medium" style={{ color: "#9ca3af" }}>Status</th>
+                    <th className="text-left px-4 py-3 font-medium" style={{ color: "#9ca3af" }}>Date</th>
                   </tr>
                 </thead>
-                <tbody className="divide-y divide-gray-100">
+                <tbody>
                   {recentPosts.map((post) => (
-                    <tr key={post.id} className="hover:bg-gray-50">
-                      <td className="px-4 py-3 max-w-[180px] truncate text-gray-900">
+                    <tr key={post.id} style={{ borderTop: "1px solid #1a1a1a" }} className="hover:bg-[#161616] transition-colors">
+                      <td className="px-4 py-3 max-w-[180px] truncate text-white">
                         {post.caption}
                       </td>
                       <td className="px-4 py-3">
                         <span
                           className={`inline-flex items-center px-2 py-0.5 rounded-full text-xs font-medium ${
-                            STATUS_CLASSES[post.status] ?? "bg-gray-100 text-gray-600"
+                            STATUS_CLASSES[post.status] ?? "bg-gray-800 text-gray-400"
                           }`}
                         >
                           {STATUS_LABELS[post.status] ?? post.status}
                         </span>
                       </td>
-                      <td className="px-4 py-3 text-gray-500 whitespace-nowrap">
+                      <td className="px-4 py-3 whitespace-nowrap" style={{ color: "#9ca3af" }}>
                         {formatDate(post.created_at)}
                       </td>
                     </tr>
@@ -247,48 +252,48 @@ export default function DashboardPage() {
           </div>
 
           {/* Campaigns */}
-          <div className="bg-white rounded-lg border border-gray-200 shadow-sm overflow-hidden">
-            <div className="px-6 py-4 border-b border-gray-100">
-              <h3 className="text-base font-semibold text-gray-900">Campaigns</h3>
+          <div className="rounded-lg overflow-hidden" style={{ backgroundColor: "#111111", border: "1px solid #222222" }}>
+            <div className="px-6 py-4" style={{ borderBottom: "1px solid #222222" }}>
+              <h3 className="text-base font-semibold text-white">Campaigns</h3>
             </div>
             {loadingData ? (
-              <div className="flex items-center justify-center h-40 text-sm text-gray-500">
+              <div className="flex items-center justify-center h-40 text-sm" style={{ color: "#9ca3af" }}>
                 <Loader2 className="h-5 w-5 animate-spin mr-2" />
                 Loading...
               </div>
             ) : campaigns.length === 0 ? (
-              <div className="flex items-center justify-center h-40 text-sm text-gray-500">
+              <div className="flex items-center justify-center h-40 text-sm" style={{ color: "#9ca3af" }}>
                 No campaigns found.
               </div>
             ) : (
               <table className="w-full text-sm">
-                <thead className="bg-gray-50 border-b border-gray-200">
+                <thead style={{ backgroundColor: "#111111", borderBottom: "1px solid #222222" }}>
                   <tr>
-                    <th className="text-left px-4 py-3 font-medium text-gray-600">Campaign</th>
-                    <th className="text-left px-4 py-3 font-medium text-gray-600">Status</th>
-                    <th className="text-left px-4 py-3 font-medium text-gray-600">Today</th>
-                    <th className="text-left px-4 py-3 font-medium text-gray-600">This Month</th>
+                    <th className="text-left px-4 py-3 font-medium" style={{ color: "#9ca3af" }}>Campaign</th>
+                    <th className="text-left px-4 py-3 font-medium" style={{ color: "#9ca3af" }}>Status</th>
+                    <th className="text-left px-4 py-3 font-medium" style={{ color: "#9ca3af" }}>Today</th>
+                    <th className="text-left px-4 py-3 font-medium" style={{ color: "#9ca3af" }}>This Month</th>
                   </tr>
                 </thead>
-                <tbody className="divide-y divide-gray-100">
+                <tbody>
                   {campaigns.map((c, i) => (
-                    <tr key={i} className="hover:bg-gray-50">
-                      <td className="px-4 py-3 max-w-[160px] truncate font-medium text-gray-900">
+                    <tr key={i} style={{ borderTop: "1px solid #1a1a1a" }} className="hover:bg-[#161616] transition-colors">
+                      <td className="px-4 py-3 max-w-[160px] truncate font-medium text-white">
                         {c.name}
                       </td>
                       <td className="px-4 py-3">
                         <span
                           className={`inline-flex items-center px-2 py-0.5 rounded-full text-xs font-medium ${
-                            CAMPAIGN_STATUS_CLASSES[c.status] ?? "bg-gray-100 text-gray-600"
+                            CAMPAIGN_STATUS_CLASSES[c.status] ?? "bg-gray-800 text-gray-400"
                           }`}
                         >
                           {c.status}
                         </span>
                       </td>
-                      <td className="px-4 py-3 text-gray-700">
+                      <td className="px-4 py-3" style={{ color: "#d1d5db" }}>
                         {c.spend_today != null ? `$${c.spend_today.toFixed(2)}` : "—"}
                       </td>
-                      <td className="px-4 py-3 text-gray-700">
+                      <td className="px-4 py-3" style={{ color: "#d1d5db" }}>
                         {c.spend_this_month != null ? `$${c.spend_this_month.toFixed(2)}` : "—"}
                       </td>
                     </tr>

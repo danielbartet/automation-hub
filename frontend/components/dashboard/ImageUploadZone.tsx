@@ -85,12 +85,15 @@ export function ImageUploadZone({ projectSlug, onUpload, currentUrl }: ImageUplo
       {preview ? (
         <div className="relative inline-block">
           {/* eslint-disable-next-line @next/next/no-img-element */}
-          <img src={preview} alt="preview" className="h-32 w-32 object-cover rounded-lg border border-gray-200" />
+          <img src={preview} alt="preview" className="h-32 w-32 object-cover rounded-lg" style={{ border: "1px solid #333333" }} />
           <button
             onClick={clear}
-            className="absolute -top-2 -right-2 bg-white border border-gray-200 rounded-full p-0.5 shadow-sm hover:bg-gray-50"
+            className="absolute -top-2 -right-2 rounded-full p-0.5 shadow-sm transition-colors"
+            style={{ backgroundColor: "#1a1a1a", border: "1px solid #333333" }}
+            onMouseEnter={e => (e.currentTarget.style.backgroundColor = "#2a2a2a")}
+            onMouseLeave={e => (e.currentTarget.style.backgroundColor = "#1a1a1a")}
           >
-            <X className="h-3 w-3 text-gray-600" />
+            <X className="h-3 w-3" style={{ color: "#9ca3af" }} />
           </button>
         </div>
       ) : (
@@ -101,9 +104,11 @@ export function ImageUploadZone({ projectSlug, onUpload, currentUrl }: ImageUplo
           }}
           onDragLeave={() => setDragging(false)}
           onDrop={handleDrop}
-          className={`flex flex-col items-center justify-center w-full h-28 border-2 border-dashed rounded-lg cursor-pointer transition-colors ${
-            dragging ? "border-gray-500 bg-gray-50" : "border-gray-300 bg-gray-50 hover:bg-gray-100"
-          }`}
+          className="flex flex-col items-center justify-center w-full h-28 border-2 border-dashed rounded-lg cursor-pointer transition-colors"
+          style={{
+            borderColor: dragging ? "#7c3aed" : "#333333",
+            backgroundColor: dragging ? "rgba(124,58,237,0.05)" : "#1a1a1a",
+          }}
         >
           <input
             type="file"
@@ -111,20 +116,20 @@ export function ImageUploadZone({ projectSlug, onUpload, currentUrl }: ImageUplo
             accept="image/jpeg,image/png,image/webp,video/mp4"
             onChange={handleChange}
           />
-          <Upload className="h-6 w-6 text-gray-400 mb-1" />
-          <span className="text-xs text-gray-500">Drop image here or click to browse</span>
-          <span className="text-xs text-gray-400 mt-0.5">JPEG, PNG, WebP, MP4 · max 50MB</span>
+          <Upload className="h-6 w-6 mb-1" style={{ color: "#9ca3af" }} />
+          <span className="text-xs" style={{ color: "#9ca3af" }}>Drop image here or click to browse</span>
+          <span className="text-xs mt-0.5" style={{ color: "#6b7280" }}>JPEG, PNG, WebP, MP4 · max 50MB</span>
         </label>
       )}
       {uploading && (
-        <div className="w-full bg-gray-200 rounded-full h-1.5">
+        <div className="w-full rounded-full h-1.5" style={{ backgroundColor: "#1a1a1a" }}>
           <div
-            className="bg-gray-900 h-1.5 rounded-full transition-all"
-            style={{ width: `${progress}%` }}
+            className="h-1.5 rounded-full transition-all"
+            style={{ width: `${progress}%`, backgroundColor: "#7c3aed" }}
           />
         </div>
       )}
-      {error && <p className="text-xs text-red-600">{error}</p>}
+      {error && <p className="text-xs text-red-400">{error}</p>}
     </div>
   );
 }

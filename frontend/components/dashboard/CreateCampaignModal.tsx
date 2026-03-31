@@ -185,31 +185,29 @@ export function CreateCampaignModal({ projectSlug, projectId, onClose, onSuccess
   const allChecklistOk = checklist.every(c => c.ok);
 
   return (
-    <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50 p-4">
-      <div className="bg-white rounded-xl shadow-xl w-full max-w-2xl max-h-[90vh] overflow-y-auto">
+    <div className="fixed inset-0 bg-black/70 flex items-center justify-center z-50 p-4">
+      <div className="rounded-xl shadow-xl w-full max-w-2xl max-h-[90vh] overflow-y-auto" style={{ backgroundColor: "#111111", border: "1px solid #222222" }}>
         {/* Header */}
-        <div className="flex items-center justify-between p-6 border-b">
+        <div className="flex items-center justify-between p-6" style={{ borderBottom: "1px solid #222222" }}>
           <div>
-            <h2 className="text-lg font-semibold">Crear Campaña</h2>
-            <p className="text-sm text-gray-500">Paso {step} de {STEPS.length}</p>
+            <h2 className="text-lg font-semibold text-white">Crear Campaña</h2>
+            <p className="text-sm" style={{ color: "#9ca3af" }}>Paso {step} de {STEPS.length}</p>
           </div>
-          <button onClick={onClose} className="p-1 hover:bg-gray-100 rounded-md">
+          <button onClick={onClose} className="p-1 rounded-md transition-colors" style={{ color: "#9ca3af" }} onMouseEnter={e => (e.currentTarget.style.backgroundColor = "#1f1f1f")} onMouseLeave={e => (e.currentTarget.style.backgroundColor = "transparent")}>
             <X className="h-5 w-5" />
           </button>
         </div>
 
         {/* Progress tabs */}
-        <div className="flex border-b">
+        <div className="flex" style={{ borderBottom: "1px solid #222222" }}>
           {STEPS.map((label, i) => (
             <div
               key={i}
-              className={`flex-1 py-2 text-center text-xs font-medium transition-colors ${
-                step === i + 1
-                  ? "bg-gray-900 text-white"
-                  : step > i + 1
-                  ? "bg-gray-100 text-gray-600"
-                  : "text-gray-400"
-              }`}
+              className="flex-1 py-2 text-center text-xs font-medium transition-colors"
+              style={{
+                backgroundColor: step === i + 1 ? "#7c3aed" : step > i + 1 ? "#1a1a1a" : "transparent",
+                color: step === i + 1 ? "#ffffff" : step > i + 1 ? "#9ca3af" : "#6b7280",
+              }}
             >
               {step > i + 1 ? <Check className="h-3 w-3 inline mr-1" /> : null}
               {label}
@@ -219,7 +217,7 @@ export function CreateCampaignModal({ projectSlug, projectId, onClose, onSuccess
 
         <div className="p-6">
           {error && (
-            <div className="mb-4 p-3 bg-red-50 border border-red-200 rounded-md text-sm text-red-700">
+            <div className="mb-4 p-3 rounded-md text-sm text-red-400" style={{ backgroundColor: "#450a0a", border: "1px solid #7f1d1d" }}>
               {error}
             </div>
           )}
@@ -228,38 +226,43 @@ export function CreateCampaignModal({ projectSlug, projectId, onClose, onSuccess
           {step === 1 && (
             <div className="space-y-5">
               <div>
-                <label className="block text-sm font-medium text-gray-700 mb-1">
+                <label className="block text-sm font-medium mb-1" style={{ color: "#d1d5db" }}>
                   Nombre de campaña *
                 </label>
                 <input
                   value={name}
                   onChange={e => setName(e.target.value)}
-                  className="w-full border border-gray-200 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-gray-400"
+                  className="w-full rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-[#7c3aed] text-white placeholder-gray-500"
+                  style={{ border: "1px solid #333333", backgroundColor: "#1a1a1a" }}
                   placeholder="ej. Campaña Leads Marzo"
                 />
               </div>
 
               <div>
-                <label className="block text-sm font-medium text-gray-700 mb-2">Objetivo *</label>
+                <label className="block text-sm font-medium mb-2" style={{ color: "#d1d5db" }}>Objetivo *</label>
                 <div className="space-y-2">
                   {OBJECTIVES.map(obj => (
                     <button
                       key={obj.value}
                       onClick={() => setObjective(obj.value)}
-                      className={`w-full flex items-center gap-3 p-3 rounded-lg border text-left transition-colors ${
-                        objective === obj.value
-                          ? "border-gray-900 bg-gray-50"
-                          : "border-gray-200 hover:border-gray-300"
-                      }`}
+                      className="w-full flex items-center gap-3 p-3 rounded-lg border text-left transition-colors"
+                      style={{
+                        border: objective === obj.value ? "1px solid #7c3aed" : "1px solid #333333",
+                        backgroundColor: objective === obj.value ? "rgba(124,58,237,0.1)" : "transparent",
+                      }}
+                      onMouseEnter={e => { if (objective !== obj.value) (e.currentTarget as HTMLButtonElement).style.borderColor = "#555555"; }}
+                      onMouseLeave={e => { if (objective !== obj.value) (e.currentTarget as HTMLButtonElement).style.borderColor = "#333333"; }}
                     >
                       <div
-                        className={`w-4 h-4 rounded-full border-2 flex-shrink-0 ${
-                          objective === obj.value ? "border-gray-900 bg-gray-900" : "border-gray-300"
-                        }`}
+                        className="w-4 h-4 rounded-full border-2 flex-shrink-0"
+                        style={{
+                          borderColor: objective === obj.value ? "#7c3aed" : "#555555",
+                          backgroundColor: objective === obj.value ? "#7c3aed" : "transparent",
+                        }}
                       />
                       <div>
-                        <p className="text-sm font-medium">{obj.label}</p>
-                        <p className="text-xs text-gray-500">{obj.description}</p>
+                        <p className="text-sm font-medium text-white">{obj.label}</p>
+                        <p className="text-xs" style={{ color: "#9ca3af" }}>{obj.description}</p>
                       </div>
                     </button>
                   ))}
@@ -267,25 +270,26 @@ export function CreateCampaignModal({ projectSlug, projectId, onClose, onSuccess
               </div>
 
               <div>
-                <label className="block text-sm font-medium text-gray-700 mb-1">
+                <label className="block text-sm font-medium mb-1" style={{ color: "#d1d5db" }}>
                   Presupuesto diario (USD) *
                 </label>
                 <div className="flex items-center gap-2">
-                  <span className="text-gray-500">$</span>
+                  <span style={{ color: "#9ca3af" }}>$</span>
                   <input
                     type="number"
                     min={10}
                     step={1}
                     value={budget}
                     onChange={e => setBudget(Number(e.target.value))}
-                    className="w-32 border border-gray-200 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-gray-400"
+                    className="w-32 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-[#7c3aed] text-white"
+                    style={{ border: "1px solid #333333", backgroundColor: "#1a1a1a" }}
                   />
-                  <span className="text-xs text-gray-400">mín $10/día</span>
+                  <span className="text-xs" style={{ color: "#9ca3af" }}>mín $10/día</span>
                 </div>
               </div>
 
               <div>
-                <label className="block text-sm font-medium text-gray-700 mb-2">
+                <label className="block text-sm font-medium mb-2" style={{ color: "#d1d5db" }}>
                   Países objetivo *
                 </label>
                 <div className="flex flex-wrap gap-2">
@@ -293,11 +297,14 @@ export function CreateCampaignModal({ projectSlug, projectId, onClose, onSuccess
                     <button
                       key={code}
                       onClick={() => toggleCountry(code)}
-                      className={`px-3 py-1.5 text-xs font-medium rounded-lg border transition-colors ${
-                        countries.includes(code)
-                          ? "bg-gray-900 text-white border-gray-900"
-                          : "border-gray-200 text-gray-600 hover:bg-gray-50"
-                      }`}
+                      className="px-3 py-1.5 text-xs font-medium rounded-lg border transition-colors"
+                      style={{
+                        backgroundColor: countries.includes(code) ? "#7c3aed" : "transparent",
+                        color: countries.includes(code) ? "#ffffff" : "#9ca3af",
+                        border: countries.includes(code) ? "1px solid #7c3aed" : "1px solid #333333",
+                      }}
+                      onMouseEnter={e => { if (!countries.includes(code)) (e.currentTarget as HTMLButtonElement).style.color = "#ffffff"; }}
+                      onMouseLeave={e => { if (!countries.includes(code)) (e.currentTarget as HTMLButtonElement).style.color = "#9ca3af"; }}
                     >
                       {label}
                     </button>
@@ -309,7 +316,10 @@ export function CreateCampaignModal({ projectSlug, projectId, onClose, onSuccess
                 <button
                   onClick={() => setStep(2)}
                   disabled={!canProceedStep1}
-                  className="flex items-center gap-2 px-5 py-2 bg-gray-900 text-white text-sm font-medium rounded-lg hover:bg-gray-700 disabled:opacity-50"
+                  className="flex items-center gap-2 px-5 py-2 text-white text-sm font-medium rounded-lg disabled:opacity-50 transition-colors"
+                  style={{ backgroundColor: "#7c3aed" }}
+                  onMouseEnter={e => (e.currentTarget.style.backgroundColor = "#6d28d9")}
+                  onMouseLeave={e => (e.currentTarget.style.backgroundColor = "#7c3aed")}
                 >
                   Siguiente <ChevronRight className="h-4 w-4" />
                 </button>
@@ -321,10 +331,10 @@ export function CreateCampaignModal({ projectSlug, projectId, onClose, onSuccess
           {step === 2 && (
             <div className="space-y-5">
               <div>
-                <h3 className="text-sm font-semibold text-gray-800 mb-1">
+                <h3 className="text-sm font-semibold text-white mb-1">
                   Conceptos Andromeda
                 </h3>
-                <p className="text-xs text-gray-500 mb-4">
+                <p className="text-xs mb-4" style={{ color: "#9ca3af" }}>
                   Genera 12 conceptos únicos con diversidad de ángulos, formatos y P.D.A. para maximizar el alcance del algoritmo.
                 </p>
 
@@ -332,7 +342,10 @@ export function CreateCampaignModal({ projectSlug, projectId, onClose, onSuccess
                   <button
                     onClick={handleGenerateConcepts}
                     disabled={generatingConcepts}
-                    className="w-full flex items-center justify-center gap-2 px-5 py-3 bg-purple-600 hover:bg-purple-700 disabled:opacity-50 text-white text-sm font-medium rounded-xl transition-colors"
+                    className="w-full flex items-center justify-center gap-2 px-5 py-3 disabled:opacity-50 text-white text-sm font-medium rounded-xl transition-colors"
+                    style={{ backgroundColor: "#7c3aed" }}
+                    onMouseEnter={e => (e.currentTarget.style.backgroundColor = "#6d28d9")}
+                    onMouseLeave={e => (e.currentTarget.style.backgroundColor = "#7c3aed")}
                   >
                     {generatingConcepts ? (
                       <>
@@ -357,7 +370,10 @@ export function CreateCampaignModal({ projectSlug, projectId, onClose, onSuccess
                     <button
                       onClick={handleGenerateConcepts}
                       disabled={generatingConcepts}
-                      className="mt-3 flex items-center gap-2 px-4 py-2 border border-gray-200 text-sm rounded-lg hover:bg-gray-50 disabled:opacity-50"
+                      className="mt-3 flex items-center gap-2 px-4 py-2 text-sm rounded-lg disabled:opacity-50 transition-colors"
+                      style={{ border: "1px solid #333333", color: "#9ca3af" }}
+                      onMouseEnter={e => { (e.currentTarget as HTMLButtonElement).style.color = "#ffffff"; (e.currentTarget as HTMLButtonElement).style.backgroundColor = "#1a1a1a"; }}
+                      onMouseLeave={e => { (e.currentTarget as HTMLButtonElement).style.color = "#9ca3af"; (e.currentTarget as HTMLButtonElement).style.backgroundColor = "transparent"; }}
                     >
                       {generatingConcepts ? (
                         <Loader2 className="h-4 w-4 animate-spin" />
@@ -370,7 +386,7 @@ export function CreateCampaignModal({ projectSlug, projectId, onClose, onSuccess
                 )}
 
                 {conceptsError && (
-                  <div className="mt-3 p-3 bg-red-50 border border-red-200 rounded-md text-sm text-red-700">
+                  <div className="mt-3 p-3 rounded-md text-sm text-red-400" style={{ backgroundColor: "#450a0a", border: "1px solid #7f1d1d" }}>
                     {conceptsError}
                   </div>
                 )}
@@ -379,14 +395,20 @@ export function CreateCampaignModal({ projectSlug, projectId, onClose, onSuccess
               <div className="flex gap-3 justify-between pt-2">
                 <button
                   onClick={() => setStep(1)}
-                  className="flex items-center gap-1 px-4 py-2 border border-gray-200 text-sm rounded-lg hover:bg-gray-50"
+                  className="flex items-center gap-1 px-4 py-2 text-sm rounded-lg transition-colors"
+                  style={{ border: "1px solid #333333", color: "#9ca3af" }}
+                  onMouseEnter={e => { (e.currentTarget as HTMLButtonElement).style.color = "#ffffff"; (e.currentTarget as HTMLButtonElement).style.backgroundColor = "#1a1a1a"; }}
+                  onMouseLeave={e => { (e.currentTarget as HTMLButtonElement).style.color = "#9ca3af"; (e.currentTarget as HTMLButtonElement).style.backgroundColor = "transparent"; }}
                 >
                   <ChevronLeft className="h-4 w-4" /> Atrás
                 </button>
                 <button
                   onClick={() => setStep(3)}
                   disabled={!canProceedStep2}
-                  className="flex items-center gap-2 px-5 py-2 bg-gray-900 text-white text-sm font-medium rounded-lg hover:bg-gray-700 disabled:opacity-50"
+                  className="flex items-center gap-2 px-5 py-2 text-white text-sm font-medium rounded-lg disabled:opacity-50 transition-colors"
+                  style={{ backgroundColor: "#7c3aed" }}
+                  onMouseEnter={e => (e.currentTarget.style.backgroundColor = "#6d28d9")}
+                  onMouseLeave={e => (e.currentTarget.style.backgroundColor = "#7c3aed")}
                 >
                   Siguiente <ChevronRight className="h-4 w-4" />
                 </button>
@@ -400,47 +422,49 @@ export function CreateCampaignModal({ projectSlug, projectId, onClose, onSuccess
               {approvedConcepts.length >= 6 ? (
                 /* Andromeda mode: per-concept image upload + destination URL */
                 <div className="space-y-5">
-                  <div className="p-3 bg-purple-50 border border-purple-200 rounded-lg text-xs text-purple-700">
+                  <div className="p-3 rounded-lg text-xs" style={{ backgroundColor: "rgba(124,58,237,0.1)", border: "1px solid rgba(124,58,237,0.3)", color: "#c4b5fd" }}>
                     <strong>{approvedConcepts.length} conceptos aprobados.</strong> Podés subir una imagen por concepto o dejar que se genere automáticamente.
                   </div>
 
                   <div>
-                    <label className="block text-sm font-medium text-gray-700 mb-1">
+                    <label className="block text-sm font-medium mb-1" style={{ color: "#d1d5db" }}>
                       URL de destino *
                     </label>
                     <input
                       value={destinationUrl}
                       onChange={e => setDestinationUrl(e.target.value)}
                       type="url"
-                      className="w-full border border-gray-200 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-gray-400"
+                      className="w-full rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-[#7c3aed] text-white placeholder-gray-500"
+                      style={{ border: "1px solid #333333", backgroundColor: "#1a1a1a" }}
                       placeholder="https://tusitio.com/landing"
                     />
                   </div>
 
                   <div>
-                    <p className="text-sm font-medium text-gray-700 mb-3">Imágenes por concepto (opcional)</p>
+                    <p className="text-sm font-medium mb-3" style={{ color: "#d1d5db" }}>Imágenes por concepto (opcional)</p>
                     <div className="space-y-4 max-h-[50vh] overflow-y-auto pr-1">
                       {approvedConcepts.map(concept => (
-                        <div key={concept.id} className="border border-gray-200 rounded-xl p-3">
-                          <p className="text-xs font-semibold text-gray-700 mb-2 line-clamp-1">{concept.hook_3s}</p>
+                        <div key={concept.id} className="rounded-xl p-3" style={{ border: "1px solid #222222" }}>
+                          <p className="text-xs font-semibold mb-2 line-clamp-1 text-white">{concept.hook_3s}</p>
                           <div className="flex gap-1 mb-3">
                             {(["ai", "upload"] as const).map(tab => (
                               <button
                                 key={tab}
                                 type="button"
                                 onClick={() => setConceptTab(concept.id, tab)}
-                                className={`px-3 py-1.5 text-xs font-medium rounded-lg border transition-colors ${
-                                  getConceptTab(concept.id) === tab
-                                    ? "bg-gray-900 text-white border-gray-900"
-                                    : "border-gray-200 text-gray-600 hover:bg-gray-50"
-                                }`}
+                                className="px-3 py-1.5 text-xs font-medium rounded-lg border transition-colors"
+                                style={{
+                                  backgroundColor: getConceptTab(concept.id) === tab ? "#7c3aed" : "transparent",
+                                  color: getConceptTab(concept.id) === tab ? "#ffffff" : "#9ca3af",
+                                  border: getConceptTab(concept.id) === tab ? "1px solid #7c3aed" : "1px solid #333333",
+                                }}
                               >
                                 {tab === "ai" ? "Generar con IA" : "Subir imagen"}
                               </button>
                             ))}
                           </div>
                           {getConceptTab(concept.id) === "ai" ? (
-                            <p className="text-xs text-gray-400 py-2">La imagen se generará automáticamente al lanzar la campaña.</p>
+                            <p className="text-xs py-2" style={{ color: "#9ca3af" }}>La imagen se generará automáticamente al lanzar la campaña.</p>
                           ) : (
                             <div>
                               {conceptUploadedImages[concept.id] ? (
@@ -449,14 +473,18 @@ export function CreateCampaignModal({ projectSlug, projectId, onClose, onSuccess
                                   <img
                                     src={conceptUploadedImages[concept.id]}
                                     alt="preview"
-                                    className="h-16 w-16 object-cover rounded-lg border border-gray-200"
+                                    className="h-16 w-16 object-cover rounded-lg"
+                                    style={{ border: "1px solid #333333" }}
                                   />
                                   <div className="flex-1">
-                                    <p className="text-xs text-green-600 font-medium">Imagen cargada</p>
+                                    <p className="text-xs text-green-400 font-medium">Imagen cargada</p>
                                     <button
                                       type="button"
                                       onClick={() => setConceptImage(concept.id, "")}
-                                      className="text-xs text-gray-400 hover:text-gray-600 mt-1"
+                                      className="text-xs mt-1"
+                                      style={{ color: "#9ca3af" }}
+                                      onMouseEnter={e => (e.currentTarget.style.color = "#ffffff")}
+                                      onMouseLeave={e => (e.currentTarget.style.color = "#9ca3af")}
                                     >
                                       Cambiar imagen
                                     </button>
@@ -479,7 +507,7 @@ export function CreateCampaignModal({ projectSlug, projectId, onClose, onSuccess
                 /* Legacy mode: full creative fields */
                 <>
                   <div>
-                    <label className="block text-sm font-medium text-gray-700 mb-2">
+                    <label className="block text-sm font-medium mb-2" style={{ color: "#d1d5db" }}>
                       Imagen del anuncio *
                     </label>
                     <div className="flex gap-2 mb-3">
@@ -487,11 +515,12 @@ export function CreateCampaignModal({ projectSlug, projectId, onClose, onSuccess
                         <button
                           key={src}
                           onClick={() => setImageSource(src)}
-                          className={`px-3 py-1.5 text-xs font-medium rounded-lg border transition-colors ${
-                            imageSource === src
-                              ? "bg-gray-900 text-white border-gray-900"
-                              : "border-gray-200 text-gray-600"
-                          }`}
+                          className="px-3 py-1.5 text-xs font-medium rounded-lg border transition-colors"
+                          style={{
+                            backgroundColor: imageSource === src ? "#7c3aed" : "transparent",
+                            color: imageSource === src ? "#ffffff" : "#9ca3af",
+                            border: imageSource === src ? "1px solid #7c3aed" : "1px solid #333333",
+                          }}
                         >
                           {src === "posts" ? "Desde posts existentes" : "Subir nueva"}
                         </button>
@@ -501,7 +530,7 @@ export function CreateCampaignModal({ projectSlug, projectId, onClose, onSuccess
                     {imageSource === "posts" ? (
                       <div>
                         {posts.length === 0 ? (
-                          <p className="text-sm text-gray-400 py-4 text-center">
+                          <p className="text-sm py-4 text-center" style={{ color: "#9ca3af" }}>
                             No se encontraron posts con imagen
                           </p>
                         ) : (
@@ -510,16 +539,17 @@ export function CreateCampaignModal({ projectSlug, projectId, onClose, onSuccess
                               <button
                                 key={post.id}
                                 onClick={() => setImageUrl(post.image_url!)}
-                                className={`relative aspect-square rounded-lg overflow-hidden border-2 transition-colors ${
-                                  imageUrl === post.image_url
-                                    ? "border-gray-900"
-                                    : "border-transparent hover:border-gray-300"
-                                }`}
+                                className="relative aspect-square rounded-lg overflow-hidden border-2 transition-colors"
+                                style={{
+                                  borderColor: imageUrl === post.image_url ? "#7c3aed" : "transparent",
+                                }}
+                                onMouseEnter={e => { if (imageUrl !== post.image_url) (e.currentTarget as HTMLButtonElement).style.borderColor = "#555555"; }}
+                                onMouseLeave={e => { if (imageUrl !== post.image_url) (e.currentTarget as HTMLButtonElement).style.borderColor = "transparent"; }}
                               >
                                 {/* eslint-disable-next-line @next/next/no-img-element */}
                                 <img src={post.image_url} alt="" className="w-full h-full object-cover" />
                                 {imageUrl === post.image_url && (
-                                  <div className="absolute inset-0 bg-gray-900/30 flex items-center justify-center">
+                                  <div className="absolute inset-0 bg-[#7c3aed]/40 flex items-center justify-center">
                                     <Check className="h-5 w-5 text-white" />
                                   </div>
                                 )}
@@ -528,7 +558,7 @@ export function CreateCampaignModal({ projectSlug, projectId, onClose, onSuccess
                           </div>
                         )}
                         {imageUrl && imageSource === "posts" && (
-                          <p className="text-xs text-green-600 mt-1">Imagen seleccionada</p>
+                          <p className="text-xs text-green-400 mt-1">Imagen seleccionada</p>
                         )}
                       </div>
                     ) : (
@@ -542,8 +572,8 @@ export function CreateCampaignModal({ projectSlug, projectId, onClose, onSuccess
 
                   <div>
                     <div className="flex justify-between mb-1">
-                      <label className="text-sm font-medium text-gray-700">Texto del anuncio *</label>
-                      <span className={`text-xs ${adCopy.length > 125 ? "text-orange-500" : "text-gray-400"}`}>
+                      <label className="text-sm font-medium" style={{ color: "#d1d5db" }}>Texto del anuncio *</label>
+                      <span className={`text-xs ${adCopy.length > 125 ? "text-orange-400" : "text-gray-500"}`}>
                         {adCopy.length} chars
                       </span>
                     </div>
@@ -551,41 +581,43 @@ export function CreateCampaignModal({ projectSlug, projectId, onClose, onSuccess
                       value={adCopy}
                       onChange={e => setAdCopy(e.target.value)}
                       rows={4}
-                      className="w-full border border-gray-200 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-gray-400"
+                      className="w-full rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-[#7c3aed] text-white placeholder-gray-500"
+                      style={{ border: "1px solid #333333", backgroundColor: "#1a1a1a" }}
                       placeholder="Escribe un copy convincente..."
                     />
                   </div>
 
                   <div>
-                    <label className="block text-sm font-medium text-gray-700 mb-1">
+                    <label className="block text-sm font-medium mb-1" style={{ color: "#d1d5db" }}>
                       URL de destino *
                     </label>
                     <input
                       value={destinationUrl}
                       onChange={e => setDestinationUrl(e.target.value)}
                       type="url"
-                      className="w-full border border-gray-200 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-gray-400"
+                      className="w-full rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-[#7c3aed] text-white placeholder-gray-500"
+                      style={{ border: "1px solid #333333", backgroundColor: "#1a1a1a" }}
                       placeholder="https://tusitio.com/landing"
                     />
                   </div>
 
                   {imageUrl && adCopy && (
-                    <div className="border border-gray-200 rounded-xl overflow-hidden">
-                      <div className="p-2 bg-gray-50 border-b flex items-center gap-2">
-                        <div className="w-6 h-6 bg-gray-300 rounded-full" />
+                    <div className="rounded-xl overflow-hidden" style={{ border: "1px solid #333333" }}>
+                      <div className="p-2 flex items-center gap-2" style={{ borderBottom: "1px solid #333333", backgroundColor: "#0d0d0d" }}>
+                        <div className="w-6 h-6 rounded-full" style={{ backgroundColor: "#374151" }} />
                         <div>
-                          <p className="text-xs font-medium">Tu Página</p>
-                          <p className="text-xs text-gray-400">Patrocinado</p>
+                          <p className="text-xs font-medium text-white">Tu Página</p>
+                          <p className="text-xs" style={{ color: "#9ca3af" }}>Patrocinado</p>
                         </div>
                       </div>
                       {/* eslint-disable-next-line @next/next/no-img-element */}
                       <img src={imageUrl} alt="Vista previa" className="w-full aspect-square object-cover" />
-                      <div className="p-3">
-                        <p className="text-xs text-gray-700 line-clamp-3">{adCopy}</p>
+                      <div className="p-3" style={{ backgroundColor: "#0d0d0d" }}>
+                        <p className="text-xs line-clamp-3" style={{ color: "#d1d5db" }}>{adCopy}</p>
                         <div className="mt-2 flex items-center justify-between">
                           <div>
-                            <p className="text-xs text-gray-400">{destinationUrl || "tusitio.com"}</p>
-                            <p className="text-xs font-semibold text-gray-700">Más información →</p>
+                            <p className="text-xs" style={{ color: "#9ca3af" }}>{destinationUrl || "tusitio.com"}</p>
+                            <p className="text-xs font-semibold text-white">Más información →</p>
                           </div>
                         </div>
                       </div>
@@ -597,14 +629,20 @@ export function CreateCampaignModal({ projectSlug, projectId, onClose, onSuccess
               <div className="flex gap-3 justify-between pt-2">
                 <button
                   onClick={() => setStep(2)}
-                  className="flex items-center gap-1 px-4 py-2 border border-gray-200 text-sm rounded-lg hover:bg-gray-50"
+                  className="flex items-center gap-1 px-4 py-2 text-sm rounded-lg transition-colors"
+                  style={{ border: "1px solid #333333", color: "#9ca3af" }}
+                  onMouseEnter={e => { (e.currentTarget as HTMLButtonElement).style.color = "#ffffff"; (e.currentTarget as HTMLButtonElement).style.backgroundColor = "#1a1a1a"; }}
+                  onMouseLeave={e => { (e.currentTarget as HTMLButtonElement).style.color = "#9ca3af"; (e.currentTarget as HTMLButtonElement).style.backgroundColor = "transparent"; }}
                 >
                   <ChevronLeft className="h-4 w-4" /> Atrás
                 </button>
                 <button
                   onClick={() => setStep(4)}
                   disabled={!canProceedStep3}
-                  className="flex items-center gap-2 px-5 py-2 bg-gray-900 text-white text-sm font-medium rounded-lg hover:bg-gray-700 disabled:opacity-50"
+                  className="flex items-center gap-2 px-5 py-2 text-white text-sm font-medium rounded-lg disabled:opacity-50 transition-colors"
+                  style={{ backgroundColor: "#7c3aed" }}
+                  onMouseEnter={e => (e.currentTarget.style.backgroundColor = "#6d28d9")}
+                  onMouseLeave={e => (e.currentTarget.style.backgroundColor = "#7c3aed")}
                 >
                   Siguiente <ChevronRight className="h-4 w-4" />
                 </button>
@@ -616,47 +654,47 @@ export function CreateCampaignModal({ projectSlug, projectId, onClose, onSuccess
           {step === 4 && (
             <div className="space-y-4">
               {/* Campaign summary */}
-              <div className="bg-gray-50 rounded-xl p-4 space-y-3 text-sm">
+              <div className="rounded-xl p-4 space-y-3 text-sm" style={{ backgroundColor: "#1a1a1a", border: "1px solid #222222" }}>
                 <div className="flex justify-between">
-                  <span className="text-gray-500">Nombre</span>
-                  <span className="font-medium">{name}</span>
+                  <span style={{ color: "#9ca3af" }}>Nombre</span>
+                  <span className="font-medium text-white">{name}</span>
                 </div>
                 <div className="flex justify-between">
-                  <span className="text-gray-500">Objetivo</span>
-                  <span className="font-medium">{selectedObjective?.label}</span>
+                  <span style={{ color: "#9ca3af" }}>Objetivo</span>
+                  <span className="font-medium text-white">{selectedObjective?.label}</span>
                 </div>
                 <div className="flex justify-between">
-                  <span className="text-gray-500">Presupuesto diario</span>
-                  <span className="font-medium">${budget}/día</span>
+                  <span style={{ color: "#9ca3af" }}>Presupuesto diario</span>
+                  <span className="font-medium text-white">${budget}/día</span>
                 </div>
                 <div className="flex justify-between">
-                  <span className="text-gray-500">Países</span>
-                  <span className="font-medium">{countries.join(", ")}</span>
+                  <span style={{ color: "#9ca3af" }}>Países</span>
+                  <span className="font-medium text-white">{countries.join(", ")}</span>
                 </div>
                 <div className="flex justify-between">
-                  <span className="text-gray-500">Targeting</span>
-                  <span className="font-medium text-green-600">Broad (Andromeda)</span>
+                  <span style={{ color: "#9ca3af" }}>Targeting</span>
+                  <span className="font-medium text-green-400">Broad (Andromeda)</span>
                 </div>
                 <div className="flex justify-between">
-                  <span className="text-gray-500">Destino</span>
-                  <span className="font-medium truncate max-w-[200px]">{destinationUrl}</span>
+                  <span style={{ color: "#9ca3af" }}>Destino</span>
+                  <span className="font-medium text-white truncate max-w-[200px]">{destinationUrl}</span>
                 </div>
                 {approvedConcepts.length >= 6 && (
                   <div className="flex justify-between">
-                    <span className="text-gray-500">Creativos</span>
-                    <span className="font-medium text-purple-700">{approvedConcepts.length} conceptos Andromeda</span>
+                    <span style={{ color: "#9ca3af" }}>Creativos</span>
+                    <span className="font-medium" style={{ color: "#a78bfa" }}>{approvedConcepts.length} conceptos Andromeda</span>
                   </div>
                 )}
               </div>
 
               {/* Andromeda checklist */}
-              <div className="border border-gray-200 rounded-xl p-4 space-y-2">
-                <h4 className="text-sm font-semibold text-gray-800 mb-3">Checklist Andromeda</h4>
+              <div className="rounded-xl p-4 space-y-2" style={{ border: "1px solid #222222" }}>
+                <h4 className="text-sm font-semibold text-white mb-3">Checklist Andromeda</h4>
                 {checklist.map((item, i) => (
                   <div key={i} className="flex items-start gap-2 text-sm">
                     <div
                       className={`flex-shrink-0 w-5 h-5 rounded-full flex items-center justify-center mt-0.5 ${
-                        item.ok ? "bg-green-100 text-green-700" : "bg-red-100 text-red-700"
+                        item.ok ? "bg-green-900/50 text-green-400" : "bg-red-900/50 text-red-400"
                       }`}
                     >
                       {item.ok ? (
@@ -665,32 +703,38 @@ export function CreateCampaignModal({ projectSlug, projectId, onClose, onSuccess
                         <span className="text-xs font-bold">✗</span>
                       )}
                     </div>
-                    <span className={item.ok ? "text-gray-700" : "text-red-700"}>{item.label}</span>
+                    <span className={item.ok ? "text-white" : "text-red-400"}>{item.label}</span>
                   </div>
                 ))}
               </div>
 
               {!allChecklistOk && (
-                <div className="p-3 bg-red-50 border border-red-200 rounded-lg text-sm text-red-700">
+                <div className="p-3 rounded-lg text-sm text-red-400" style={{ backgroundColor: "#450a0a", border: "1px solid #7f1d1d" }}>
                   Corrige los items marcados con ✗ para lanzar
                 </div>
               )}
 
-              <div className="bg-yellow-50 border border-yellow-200 rounded-lg p-3 text-xs text-yellow-700">
+              <div className="rounded-lg p-3 text-xs text-yellow-400" style={{ backgroundColor: "#422006", border: "1px solid #78350f" }}>
                 La campaña se creará en estado <strong>PAUSADO</strong>. Revisa en Meta Ads Manager y activa cuando estés listo.
               </div>
 
               <div className="flex gap-3 justify-between pt-2">
                 <button
                   onClick={() => setStep(3)}
-                  className="flex items-center gap-1 px-4 py-2 border border-gray-200 text-sm rounded-lg hover:bg-gray-50"
+                  className="flex items-center gap-1 px-4 py-2 text-sm rounded-lg transition-colors"
+                  style={{ border: "1px solid #333333", color: "#9ca3af" }}
+                  onMouseEnter={e => { (e.currentTarget as HTMLButtonElement).style.color = "#ffffff"; (e.currentTarget as HTMLButtonElement).style.borderColor = "#555555"; }}
+                  onMouseLeave={e => { (e.currentTarget as HTMLButtonElement).style.color = "#9ca3af"; (e.currentTarget as HTMLButtonElement).style.borderColor = "#333333"; }}
                 >
                   <ChevronLeft className="h-4 w-4" /> Atrás
                 </button>
                 <button
                   onClick={handleCreate}
                   disabled={loading || !allChecklistOk}
-                  className="flex items-center justify-center gap-2 px-6 py-2 bg-gray-900 text-white text-sm font-medium rounded-lg hover:bg-gray-700 disabled:opacity-50"
+                  className="flex items-center justify-center gap-2 px-6 py-2 text-white text-sm font-medium rounded-lg transition-colors disabled:opacity-50"
+                  style={{ backgroundColor: "#7c3aed" }}
+                  onMouseEnter={e => { if (!(e.currentTarget as HTMLButtonElement).disabled) (e.currentTarget as HTMLButtonElement).style.backgroundColor = "#6d28d9"; }}
+                  onMouseLeave={e => { (e.currentTarget as HTMLButtonElement).style.backgroundColor = "#7c3aed"; }}
                 >
                   {loading ? (
                     <>

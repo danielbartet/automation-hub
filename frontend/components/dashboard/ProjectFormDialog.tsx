@@ -70,13 +70,14 @@ function ColorPicker({
 }) {
   return (
     <div className="flex flex-col gap-1">
-      <label className="text-xs font-medium text-gray-600">{label}</label>
+      <label className="text-xs font-medium" style={{ color: "#9ca3af" }}>{label}</label>
       <div className="flex items-center gap-2">
         <input
           type="color"
           value={value}
           onChange={(e) => onChange(e.target.value)}
-          className="w-9 h-9 rounded cursor-pointer border border-gray-200 p-0.5"
+          className="w-9 h-9 rounded cursor-pointer p-0.5"
+          style={{ border: "1px solid #333333", backgroundColor: "#1a1a1a" }}
         />
         <input
           type="text"
@@ -85,7 +86,8 @@ function ColorPicker({
             const v = e.target.value;
             if (/^#[0-9a-fA-F]{0,6}$/.test(v)) onChange(v);
           }}
-          className="w-24 border border-gray-200 rounded-lg px-2 py-1.5 text-xs font-mono focus:outline-none focus:ring-2 focus:ring-gray-400"
+          className="w-24 rounded-lg px-2 py-1.5 text-xs font-mono focus:outline-none focus:ring-2 focus:ring-[#7c3aed]"
+          style={{ backgroundColor: "#1a1a1a", border: "1px solid #333333", color: "#ffffff" }}
           placeholder="#000000"
           maxLength={7}
         />
@@ -198,31 +200,46 @@ export function ProjectFormDialog({ project, onClose, onSuccess }: ProjectFormDi
     }
   };
 
+  const inputStyle = {
+    backgroundColor: "#1a1a1a",
+    border: "1px solid #333333",
+    color: "#ffffff",
+  };
+
   return (
-    <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50 p-4">
-      <div className="bg-white rounded-xl shadow-xl w-full max-w-2xl max-h-[90vh] flex flex-col">
+    <div className="fixed inset-0 bg-black/70 flex items-center justify-center z-50 p-4">
+      <div className="rounded-xl shadow-xl w-full max-w-2xl max-h-[90vh] flex flex-col" style={{ backgroundColor: "#111111", border: "1px solid #222222" }}>
         {/* Header */}
-        <div className="flex items-center justify-between p-6 border-b flex-shrink-0">
+        <div className="flex items-center justify-between p-6 flex-shrink-0" style={{ borderBottom: "1px solid #222222" }}>
           <div>
-            <h2 className="text-lg font-semibold">Configurar proyecto</h2>
-            <p className="text-sm text-gray-500">{project.name}</p>
+            <h2 className="text-lg font-semibold text-white">Configurar proyecto</h2>
+            <p className="text-sm" style={{ color: "#9ca3af" }}>{project.name}</p>
           </div>
-          <button onClick={onClose} className="p-1 hover:bg-gray-100 rounded-md">
+          <button
+            onClick={onClose}
+            className="p-1 rounded-md transition-colors"
+            style={{ color: "#9ca3af" }}
+            onMouseEnter={e => { (e.currentTarget as HTMLButtonElement).style.backgroundColor = "#1a1a1a"; (e.currentTarget as HTMLButtonElement).style.color = "#ffffff"; }}
+            onMouseLeave={e => { (e.currentTarget as HTMLButtonElement).style.backgroundColor = "transparent"; (e.currentTarget as HTMLButtonElement).style.color = "#9ca3af"; }}
+          >
             <X className="h-5 w-5" />
           </button>
         </div>
 
         {/* Tabs */}
-        <div className="flex border-b flex-shrink-0">
+        <div className="flex flex-shrink-0" style={{ borderBottom: "1px solid #222222" }}>
           {TABS.map((label, i) => (
             <button
               key={i}
               onClick={() => setTab(i)}
-              className={`flex-1 py-2.5 text-xs font-medium transition-colors ${
+              className="flex-1 py-2.5 text-xs font-medium transition-colors"
+              style={
                 tab === i
-                  ? "bg-gray-900 text-white"
-                  : "text-gray-500 hover:text-gray-700 hover:bg-gray-50"
-              }`}
+                  ? { backgroundColor: "#7c3aed", color: "#ffffff" }
+                  : { backgroundColor: "transparent", color: "#9ca3af" }
+              }
+              onMouseEnter={e => { if (tab !== i) { (e.currentTarget as HTMLButtonElement).style.backgroundColor = "#1a1a1a"; (e.currentTarget as HTMLButtonElement).style.color = "#ffffff"; } }}
+              onMouseLeave={e => { if (tab !== i) { (e.currentTarget as HTMLButtonElement).style.backgroundColor = "transparent"; (e.currentTarget as HTMLButtonElement).style.color = "#9ca3af"; } }}
             >
               {label}
             </button>
@@ -232,7 +249,7 @@ export function ProjectFormDialog({ project, onClose, onSuccess }: ProjectFormDi
         {/* Body */}
         <div className="flex-1 overflow-y-auto p-6">
           {error && (
-            <div className="mb-4 p-3 bg-red-50 border border-red-200 rounded-md text-sm text-red-700">
+            <div className="mb-4 p-3 rounded-md text-sm text-red-400" style={{ backgroundColor: "#450a0a", border: "1px solid #7f1d1d" }}>
               {error}
             </div>
           )}
@@ -241,34 +258,37 @@ export function ProjectFormDialog({ project, onClose, onSuccess }: ProjectFormDi
           {tab === 0 && (
             <div className="space-y-5">
               <div>
-                <label className="block text-sm font-medium text-gray-700 mb-1">Tono de voz</label>
+                <label className="block text-sm font-medium text-white mb-1">Tono de voz</label>
                 <textarea
                   value={tone}
                   onChange={(e) => setTone(e.target.value)}
                   rows={3}
-                  className="w-full border border-gray-200 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-gray-400"
+                  className="w-full rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-[#7c3aed]"
+                  style={inputStyle}
                   placeholder="Ej: Técnico, directo, elegante. Confrontacional pero inteligente."
                 />
               </div>
               <div>
-                <label className="block text-sm font-medium text-gray-700 mb-1">Mensaje central de marca</label>
+                <label className="block text-sm font-medium text-white mb-1">Mensaje central de marca</label>
                 <textarea
                   value={coreMessage}
                   onChange={(e) => setCoreMessage(e.target.value)}
                   rows={2}
-                  className="w-full border border-gray-200 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-gray-400"
+                  className="w-full rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-[#7c3aed]"
+                  style={inputStyle}
                   placeholder="Ej: AI no reemplaza developers. Reemplaza developers promedio."
                 />
               </div>
               <div>
-                <label className="block text-sm font-medium text-gray-700 mb-1">
-                  Reglas adicionales <span className="text-gray-400 font-normal">(una por línea)</span>
+                <label className="block text-sm font-medium text-white mb-1">
+                  Reglas adicionales <span className="font-normal" style={{ color: "#9ca3af" }}>(una por línea)</span>
                 </label>
                 <textarea
                   value={additionalRules}
                   onChange={(e) => setAdditionalRules(e.target.value)}
                   rows={4}
-                  className="w-full border border-gray-200 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-gray-400"
+                  className="w-full rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-[#7c3aed]"
+                  style={inputStyle}
                   placeholder={"El slide 1 debe hacer que alguien pare de scrollear\nCada slide debe tener UNA sola idea clara"}
                 />
               </div>
@@ -279,24 +299,26 @@ export function ProjectFormDialog({ project, onClose, onSuccess }: ProjectFormDi
           {tab === 1 && (
             <div className="space-y-5">
               <div>
-                <label className="block text-sm font-medium text-gray-700 mb-1">Audiencia objetivo</label>
+                <label className="block text-sm font-medium text-white mb-1">Audiencia objetivo</label>
                 <textarea
                   value={targetAudience}
                   onChange={(e) => setTargetAudience(e.target.value)}
                   rows={3}
-                  className="w-full border border-gray-200 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-gray-400"
+                  className="w-full rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-[#7c3aed]"
+                  style={inputStyle}
                   placeholder="Ej: Developers 22-32 años, 0-5 años experiencia, que sienten que el AI los puede dejar atrás"
                 />
               </div>
               <div>
-                <label className="block text-sm font-medium text-gray-700 mb-1">
-                  Categorías de contenido <span className="text-gray-400 font-normal">(una por línea)</span>
+                <label className="block text-sm font-medium text-white mb-1">
+                  Categorías de contenido <span className="font-normal" style={{ color: "#9ca3af" }}>(una por línea)</span>
                 </label>
                 <textarea
                   value={contentCategories}
                   onChange={(e) => setContentCategories(e.target.value)}
                   rows={5}
-                  className="w-full border border-gray-200 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-gray-400"
+                  className="w-full rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-[#7c3aed]"
+                  style={inputStyle}
                   placeholder={"Confrontación estratégica — desafiar suposiciones cómodas\nErrores comunes de juniors"}
                 />
               </div>
@@ -307,29 +329,32 @@ export function ProjectFormDialog({ project, onClose, onSuccess }: ProjectFormDi
           {tab === 2 && (
             <div className="space-y-5">
               <div>
-                <label className="block text-sm font-medium text-gray-700 mb-1">Facebook Page ID</label>
+                <label className="block text-sm font-medium text-white mb-1">Facebook Page ID</label>
                 <input
                   value={facebookPageId}
                   onChange={(e) => setFacebookPageId(e.target.value)}
-                  className="w-full border border-gray-200 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-gray-400"
+                  className="w-full rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-[#7c3aed]"
+                  style={inputStyle}
                   placeholder="Ej: 1010286398835015"
                 />
               </div>
               <div>
-                <label className="block text-sm font-medium text-gray-700 mb-1">Instagram Account ID</label>
+                <label className="block text-sm font-medium text-white mb-1">Instagram Account ID</label>
                 <input
                   value={instagramAccountId}
                   onChange={(e) => setInstagramAccountId(e.target.value)}
-                  className="w-full border border-gray-200 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-gray-400"
+                  className="w-full rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-[#7c3aed]"
+                  style={inputStyle}
                   placeholder="Ej: 17841449394293930"
                 />
               </div>
               <div>
-                <label className="block text-sm font-medium text-gray-700 mb-1">n8n Webhook Base URL</label>
+                <label className="block text-sm font-medium text-white mb-1">n8n Webhook Base URL</label>
                 <input
                   value={n8nWebhookUrl}
                   onChange={(e) => setN8nWebhookUrl(e.target.value)}
-                  className="w-full border border-gray-200 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-gray-400"
+                  className="w-full rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-[#7c3aed]"
+                  style={inputStyle}
                   placeholder="Ej: https://n8n.example.com/webhook/abc123/webhook"
                 />
               </div>
@@ -341,7 +366,7 @@ export function ProjectFormDialog({ project, onClose, onSuccess }: ProjectFormDi
             <div className="space-y-6">
               {/* Color pickers */}
               <div>
-                <label className="block text-sm font-medium text-gray-700 mb-3">Colores de marca</label>
+                <label className="block text-sm font-medium text-white mb-3">Colores de marca</label>
                 <div className="flex flex-wrap gap-6">
                   <ColorPicker
                     label="Color primario"
@@ -361,7 +386,8 @@ export function ProjectFormDialog({ project, onClose, onSuccess }: ProjectFormDi
                 </div>
                 {/* Live preview strip */}
                 <div
-                  className="mt-3 h-8 rounded-lg border border-gray-200 flex overflow-hidden"
+                  className="mt-3 h-8 rounded-lg flex overflow-hidden"
+                  style={{ border: "1px solid #333333" }}
                   title="Vista previa de colores"
                 >
                   <div className="flex-1" style={{ backgroundColor: brandBgColor }} />
@@ -372,11 +398,12 @@ export function ProjectFormDialog({ project, onClose, onSuccess }: ProjectFormDi
 
               {/* Visual style */}
               <div>
-                <label className="block text-sm font-medium text-gray-700 mb-1">Estilo visual</label>
+                <label className="block text-sm font-medium text-white mb-1">Estilo visual</label>
                 <select
                   value={visualStyle}
                   onChange={(e) => setVisualStyle(e.target.value)}
-                  className="w-full border border-gray-200 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-gray-400"
+                  className="w-full rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-[#7c3aed]"
+                  style={inputStyle}
                 >
                   {VISUAL_STYLE_OPTIONS.map((opt) => (
                     <option key={opt.value} value={opt.value}>
@@ -388,46 +415,50 @@ export function ProjectFormDialog({ project, onClose, onSuccess }: ProjectFormDi
 
               {/* Image mood */}
               <div>
-                <label className="block text-sm font-medium text-gray-700 mb-1">Mood de imagen</label>
+                <label className="block text-sm font-medium text-white mb-1">Mood de imagen</label>
                 <textarea
                   value={imageMood}
                   onChange={(e) => setImageMood(e.target.value)}
                   rows={3}
-                  className="w-full border border-gray-200 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-gray-400"
+                  className="w-full rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-[#7c3aed]"
+                  style={inputStyle}
                   placeholder="Ej: oscuro, premium, tecnológico, sin caras, tipografía bold"
                 />
               </div>
 
               {/* Typography */}
               <div>
-                <label className="block text-sm font-medium text-gray-700 mb-1">Tipografías</label>
+                <label className="block text-sm font-medium text-white mb-1">Tipografías</label>
                 <input
                   value={brandFonts}
                   onChange={(e) => setBrandFonts(e.target.value)}
-                  className="w-full border border-gray-200 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-gray-400"
+                  className="w-full rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-[#7c3aed]"
+                  style={inputStyle}
                   placeholder="Ej: Inter Bold, Space Grotesk, Bebas Neue"
                 />
               </div>
 
               {/* Competitors */}
               <div>
-                <label className="block text-sm font-medium text-gray-700 mb-1">Competidores</label>
+                <label className="block text-sm font-medium text-white mb-1">Competidores</label>
                 <textarea
                   value={competitors}
                   onChange={(e) => setCompetitors(e.target.value)}
                   rows={3}
-                  className="w-full border border-gray-200 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-gray-400"
+                  className="w-full rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-[#7c3aed]"
+                  style={inputStyle}
                   placeholder={"@midudev\n@hola.devs\n@codewithchris"}
                 />
               </div>
 
               {/* Business objective */}
               <div>
-                <label className="block text-sm font-medium text-gray-700 mb-1">Objetivo de negocio</label>
+                <label className="block text-sm font-medium text-white mb-1">Objetivo de negocio</label>
                 <select
                   value={businessObjective}
                   onChange={(e) => setBusinessObjective(e.target.value)}
-                  className="w-full border border-gray-200 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-gray-400"
+                  className="w-full rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-[#7c3aed]"
+                  style={inputStyle}
                 >
                   {BUSINESS_OBJECTIVE_OPTIONS.map((opt) => (
                     <option key={opt.value} value={opt.value}>
@@ -439,18 +470,21 @@ export function ProjectFormDialog({ project, onClose, onSuccess }: ProjectFormDi
 
               {/* Target platforms */}
               <div>
-                <label className="block text-sm font-medium text-gray-700 mb-2">Plataformas objetivo</label>
+                <label className="block text-sm font-medium text-white mb-2">Plataformas objetivo</label>
                 <div className="flex flex-wrap gap-2">
                   {PLATFORM_OPTIONS.map(({ value, label }) => (
                     <button
                       key={value}
                       type="button"
                       onClick={() => togglePlatform(value)}
-                      className={`px-3 py-1.5 text-xs font-medium rounded-lg border transition-colors ${
+                      className="px-3 py-1.5 text-xs font-medium rounded-lg transition-colors"
+                      style={
                         targetPlatforms.includes(value)
-                          ? "bg-gray-900 text-white border-gray-900"
-                          : "border-gray-200 text-gray-600 hover:bg-gray-50"
-                      }`}
+                          ? { backgroundColor: "#7c3aed", color: "#ffffff", border: "1px solid #7c3aed" }
+                          : { backgroundColor: "transparent", color: "#9ca3af", border: "1px solid #333333" }
+                      }
+                      onMouseEnter={e => { if (!targetPlatforms.includes(value)) { (e.currentTarget as HTMLButtonElement).style.borderColor = "#555555"; (e.currentTarget as HTMLButtonElement).style.color = "#ffffff"; } }}
+                      onMouseLeave={e => { if (!targetPlatforms.includes(value)) { (e.currentTarget as HTMLButtonElement).style.borderColor = "#333333"; (e.currentTarget as HTMLButtonElement).style.color = "#9ca3af"; } }}
                     >
                       {label}
                     </button>
@@ -460,11 +494,12 @@ export function ProjectFormDialog({ project, onClose, onSuccess }: ProjectFormDi
 
               {/* Posting frequency */}
               <div>
-                <label className="block text-sm font-medium text-gray-700 mb-1">Frecuencia de publicación</label>
+                <label className="block text-sm font-medium text-white mb-1">Frecuencia de publicación</label>
                 <select
                   value={postingFrequency}
                   onChange={(e) => setPostingFrequency(e.target.value)}
-                  className="w-full border border-gray-200 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-gray-400"
+                  className="w-full rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-[#7c3aed]"
+                  style={inputStyle}
                 >
                   {POSTING_FREQUENCY_OPTIONS.map((opt) => (
                     <option key={opt.value} value={opt.value}>
@@ -478,17 +513,23 @@ export function ProjectFormDialog({ project, onClose, onSuccess }: ProjectFormDi
         </div>
 
         {/* Footer */}
-        <div className="flex items-center justify-end gap-3 p-6 border-t flex-shrink-0">
+        <div className="flex items-center justify-end gap-3 p-6 flex-shrink-0" style={{ borderTop: "1px solid #222222" }}>
           <button
             onClick={onClose}
-            className="px-4 py-2 border border-gray-200 text-sm rounded-lg hover:bg-gray-50"
+            className="px-4 py-2 text-sm rounded-lg transition-colors"
+            style={{ border: "1px solid #333333", color: "#9ca3af" }}
+            onMouseEnter={e => { (e.currentTarget as HTMLButtonElement).style.color = "#ffffff"; (e.currentTarget as HTMLButtonElement).style.borderColor = "#555555"; }}
+            onMouseLeave={e => { (e.currentTarget as HTMLButtonElement).style.color = "#9ca3af"; (e.currentTarget as HTMLButtonElement).style.borderColor = "#333333"; }}
           >
             Cancelar
           </button>
           <button
             onClick={handleSave}
             disabled={loading}
-            className="flex items-center gap-2 px-5 py-2 bg-gray-900 text-white text-sm font-medium rounded-lg hover:bg-gray-700 disabled:opacity-50"
+            className="flex items-center gap-2 px-5 py-2 text-white text-sm font-medium rounded-lg transition-colors disabled:opacity-50"
+            style={{ backgroundColor: "#7c3aed" }}
+            onMouseEnter={e => { if (!(e.currentTarget as HTMLButtonElement).disabled) (e.currentTarget as HTMLButtonElement).style.backgroundColor = "#6d28d9"; }}
+            onMouseLeave={e => { (e.currentTarget as HTMLButtonElement).style.backgroundColor = "#7c3aed"; }}
           >
             {loading ? (
               <>

@@ -145,17 +145,17 @@ export function GenerateContentModal({ projectSlug, project, onClose, onSuccess 
   };
 
   return (
-    <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50 p-4">
-      <div className="bg-white rounded-xl shadow-xl w-full max-w-lg max-h-[90vh] overflow-y-auto">
-        <div className="flex items-center justify-between p-6 border-b">
-          <h2 className="text-lg font-semibold">Generar nuevo contenido</h2>
-          <button onClick={onClose} className="p-1 hover:bg-gray-100 rounded-md">
+    <div className="fixed inset-0 bg-black/70 flex items-center justify-center z-50 p-4">
+      <div className="rounded-xl shadow-xl w-full max-w-lg max-h-[90vh] overflow-y-auto" style={{ backgroundColor: "#111111", border: "1px solid #222222" }}>
+        <div className="flex items-center justify-between p-6" style={{ borderBottom: "1px solid #222222" }}>
+          <h2 className="text-lg font-semibold text-white">Generar nuevo contenido</h2>
+          <button onClick={onClose} className="p-1 rounded-md transition-colors" style={{ color: "#9ca3af" }} onMouseEnter={e => (e.currentTarget.style.backgroundColor = "#1f1f1f")} onMouseLeave={e => (e.currentTarget.style.backgroundColor = "transparent")}>
             <X className="h-5 w-5" />
           </button>
         </div>
 
         {/* Tabs */}
-        <div className="flex border-b">
+        <div className="flex" style={{ borderBottom: "1px solid #222222" }}>
           {(
             [
               { key: "auto", label: "Automático", icon: Sparkles },
@@ -171,9 +171,10 @@ export function GenerateContentModal({ projectSlug, project, onClose, onSuccess 
               }}
               className={`flex items-center gap-2 px-6 py-3 text-sm font-medium border-b-2 -mb-px transition-colors ${
                 tab === key
-                  ? "border-gray-900 text-gray-900"
-                  : "border-transparent text-gray-500 hover:text-gray-700"
+                  ? "border-[#7c3aed] text-white"
+                  : "border-transparent hover:text-gray-300"
               }`}
+              style={{ color: tab === key ? "#ffffff" : "#9ca3af" }}
             >
               <Icon className="h-4 w-4" />
               {label}
@@ -183,7 +184,7 @@ export function GenerateContentModal({ projectSlug, project, onClose, onSuccess 
 
         <div className="p-6">
           {error && (
-            <div className="mb-4 p-3 bg-red-50 border border-red-200 rounded-md text-sm text-red-700">
+            <div className="mb-4 p-3 rounded-md text-sm text-red-400" style={{ backgroundColor: "#450a0a", border: "1px solid #7f1d1d" }}>
               {error}
             </div>
           )}
@@ -193,15 +194,15 @@ export function GenerateContentModal({ projectSlug, project, onClose, onSuccess 
               {result ? (
                 <div className="space-y-4">
                   {/* Success banner */}
-                  <div className="p-4 bg-green-50 border border-green-200 rounded-md">
-                    <p className="text-sm font-medium text-green-700 mb-1">Contenido generado exitosamente</p>
-                    <p className="text-sm text-green-600 italic line-clamp-2">&ldquo;{result}&rdquo;</p>
+                  <div className="p-4 rounded-md" style={{ backgroundColor: "#052e16", border: "1px solid #166534" }}>
+                    <p className="text-sm font-medium text-green-400 mb-1">Contenido generado exitosamente</p>
+                    <p className="text-sm text-green-500 italic line-clamp-2">&ldquo;{result}&rdquo;</p>
                     <button
                       onClick={() => {
                         onSuccess();
                         onClose();
                       }}
-                      className="mt-3 text-sm font-medium text-green-700 underline"
+                      className="mt-3 text-sm font-medium text-green-400 underline"
                     >
                       Listo
                     </button>
@@ -228,7 +229,7 @@ export function GenerateContentModal({ projectSlug, project, onClose, onSuccess 
                 <>
                   {/* Tipo de contenido */}
                   <div>
-                    <label className="block text-sm font-medium text-gray-700 mb-2">
+                    <label className="block text-sm font-medium mb-2" style={{ color: "#d1d5db" }}>
                       Tipo de contenido
                     </label>
                     <div className="flex flex-wrap gap-2">
@@ -239,9 +240,10 @@ export function GenerateContentModal({ projectSlug, project, onClose, onSuccess 
                           onClick={() => setAutoContentType(value)}
                           className={`inline-flex items-center gap-1.5 px-3 py-1.5 rounded-full text-sm font-medium border transition-colors ${
                             autoContentType === value
-                              ? "bg-gray-900 text-white border-gray-900"
-                              : "bg-white text-gray-600 border-gray-300 hover:border-gray-500"
+                              ? "bg-[#7c3aed] text-white border-[#7c3aed]"
+                              : "text-gray-400 hover:text-white"
                           }`}
+                          style={autoContentType !== value ? { border: "1px solid #333333", backgroundColor: "transparent" } : {}}
                         >
                           <span>{emoji}</span>
                           {label}
@@ -253,8 +255,8 @@ export function GenerateContentModal({ projectSlug, project, onClose, onSuccess 
                   {/* Categoría */}
                   {categories.length > 0 && (
                     <div>
-                      <label className="block text-sm font-medium text-gray-700 mb-2">
-                        Categoría <span className="text-gray-400 font-normal">(opcional)</span>
+                      <label className="block text-sm font-medium mb-2" style={{ color: "#d1d5db" }}>
+                        Categoría <span className="font-normal" style={{ color: "#9ca3af" }}>(opcional)</span>
                       </label>
                       <div className="flex flex-wrap gap-2">
                         <button
@@ -262,9 +264,10 @@ export function GenerateContentModal({ projectSlug, project, onClose, onSuccess 
                           onClick={() => setAutoCategory(null)}
                           className={`inline-flex items-center px-3 py-1.5 rounded-full text-sm font-medium border transition-colors ${
                             autoCategory === null
-                              ? "bg-gray-900 text-white border-gray-900"
-                              : "bg-white text-gray-600 border-gray-300 hover:border-gray-500"
+                              ? "bg-[#7c3aed] text-white border-[#7c3aed]"
+                              : "text-gray-400 hover:text-white"
                           }`}
+                          style={autoCategory !== null ? { border: "1px solid #333333", backgroundColor: "transparent" } : {}}
                         >
                           Cualquier categoría
                         </button>
@@ -275,9 +278,10 @@ export function GenerateContentModal({ projectSlug, project, onClose, onSuccess 
                             onClick={() => setAutoCategory(autoCategory === cat ? null : cat)}
                             className={`inline-flex items-center px-3 py-1.5 rounded-full text-sm font-medium border transition-colors ${
                               autoCategory === cat
-                                ? "bg-gray-900 text-white border-gray-900"
-                                : "bg-white text-gray-600 border-gray-300 hover:border-gray-500"
+                                ? "bg-[#7c3aed] text-white border-[#7c3aed]"
+                                : "text-gray-400 hover:text-white"
                             }`}
+                            style={autoCategory !== cat ? { border: "1px solid #333333", backgroundColor: "transparent" } : {}}
                           >
                             {cat}
                           </button>
@@ -288,15 +292,16 @@ export function GenerateContentModal({ projectSlug, project, onClose, onSuccess 
 
                   {/* Pista de tema */}
                   <div>
-                    <label className="block text-sm font-medium text-gray-700 mb-1">
-                      Pista de tema <span className="text-gray-400 font-normal">(opcional)</span>
+                    <label className="block text-sm font-medium mb-1" style={{ color: "#d1d5db" }}>
+                      Pista de tema <span className="font-normal" style={{ color: "#9ca3af" }}>(opcional)</span>
                     </label>
                     <textarea
                       value={autoHint}
                       onChange={(e) => setAutoHint(e.target.value)}
                       rows={3}
                       maxLength={500}
-                      className="w-full border border-gray-200 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-gray-400 resize-none"
+                      className="w-full rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-[#7c3aed] resize-none text-white placeholder-gray-500"
+                      style={{ border: "1px solid #333333", backgroundColor: "#1a1a1a" }}
                       placeholder="Ej: hablar de recursión, burnout del dev, primer trabajo..."
                     />
                   </div>
@@ -304,7 +309,7 @@ export function GenerateContentModal({ projectSlug, project, onClose, onSuccess 
                   {/* Imagen (sólo si no es text_post) */}
                   {autoContentType !== "text_post" && (
                     <div>
-                      <label className="block text-sm font-medium text-gray-700 mb-2">
+                      <label className="block text-sm font-medium mb-2" style={{ color: "#d1d5db" }}>
                         Imagen
                       </label>
                       <div className="flex flex-wrap gap-2">
@@ -315,9 +320,10 @@ export function GenerateContentModal({ projectSlug, project, onClose, onSuccess 
                             onClick={() => setAutoImageMode(value)}
                             className={`inline-flex items-center gap-1.5 px-3 py-1.5 rounded-full text-sm font-medium border transition-colors ${
                               autoImageMode === value
-                                ? "bg-gray-900 text-white border-gray-900"
-                                : "bg-white text-gray-600 border-gray-300 hover:border-gray-500"
+                                ? "bg-[#7c3aed] text-white border-[#7c3aed]"
+                                : "text-gray-400 hover:text-white"
                             }`}
+                            style={autoImageMode !== value ? { border: "1px solid #333333", backgroundColor: "transparent" } : {}}
                           >
                             <span>{emoji}</span>
                             {label}
@@ -350,31 +356,34 @@ export function GenerateContentModal({ projectSlug, project, onClose, onSuccess 
           ) : (
             <form onSubmit={handleManual} className="space-y-4">
               <div>
-                <label className="block text-sm font-medium text-gray-700 mb-1">Topic *</label>
+                <label className="block text-sm font-medium mb-1" style={{ color: "#d1d5db" }}>Topic *</label>
                 <input
                   value={topic}
                   onChange={(e) => setTopic(e.target.value)}
                   required
-                  className="w-full border border-gray-200 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-gray-400"
+                  className="w-full rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-[#7c3aed] text-white placeholder-gray-500"
+                  style={{ border: "1px solid #333333", backgroundColor: "#1a1a1a" }}
                   placeholder="What should this post be about?"
                 />
               </div>
               <div className="grid grid-cols-2 gap-3">
                 <div>
-                  <label className="block text-sm font-medium text-gray-700 mb-1">Tone</label>
+                  <label className="block text-sm font-medium mb-1" style={{ color: "#d1d5db" }}>Tone</label>
                   <input
                     value={tone}
                     onChange={(e) => setTone(e.target.value)}
-                    className="w-full border border-gray-200 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-gray-400"
+                    className="w-full rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-[#7c3aed] text-white placeholder-gray-500"
+                    style={{ border: "1px solid #333333", backgroundColor: "#1a1a1a" }}
                     placeholder="Use project default"
                   />
                 </div>
                 <div>
-                  <label className="block text-sm font-medium text-gray-700 mb-1">Content Type</label>
+                  <label className="block text-sm font-medium mb-1" style={{ color: "#d1d5db" }}>Content Type</label>
                   <select
                     value={contentType}
                     onChange={handleContentTypeChange}
-                    className="w-full border border-gray-200 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-gray-400"
+                    className="w-full rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-[#7c3aed] text-white"
+                    style={{ border: "1px solid #333333", backgroundColor: "#1a1a1a" }}
                   >
                     <option value="carousel_6_slides">Carousel (6 slides)</option>
                     <option value="single_image">Single Image</option>
@@ -385,13 +394,13 @@ export function GenerateContentModal({ projectSlug, project, onClose, onSuccess 
               <div>
                 {slideCount > 1 ? (
                   <>
-                    <label className="block text-sm font-medium text-gray-700 mb-2">
-                      Slide Images <span className="text-gray-400 font-normal">(one per slide, optional)</span>
+                    <label className="block text-sm font-medium mb-2" style={{ color: "#d1d5db" }}>
+                      Slide Images <span className="font-normal" style={{ color: "#9ca3af" }}>(one per slide, optional)</span>
                     </label>
                     <div className="grid grid-cols-2 gap-3">
                       {Array.from({ length: slideCount }).map((_, i) => (
                         <div key={i}>
-                          <p className="text-xs text-gray-500 mb-1">Slide {i + 1}</p>
+                          <p className="text-xs mb-1" style={{ color: "#9ca3af" }}>Slide {i + 1}</p>
                           <ImageUploadZone
                             projectSlug={projectSlug}
                             onUpload={(url) => handleSlideImageUpload(i, url)}
@@ -403,43 +412,49 @@ export function GenerateContentModal({ projectSlug, project, onClose, onSuccess 
                   </>
                 ) : (
                   <>
-                    <label className="block text-sm font-medium text-gray-700 mb-2">Image</label>
+                    <label className="block text-sm font-medium mb-2" style={{ color: "#d1d5db" }}>Image</label>
                     <ImageUploadZone projectSlug={projectSlug} onUpload={setImageUrl} currentUrl={imageUrl} />
                   </>
                 )}
               </div>
               <div>
-                <label className="block text-sm font-medium text-gray-700 mb-1">Caption</label>
+                <label className="block text-sm font-medium mb-1" style={{ color: "#d1d5db" }}>Caption</label>
                 <textarea
                   value={caption}
                   onChange={(e) => setCaption(e.target.value)}
                   rows={3}
-                  className="w-full border border-gray-200 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-gray-400"
+                  className="w-full rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-[#7c3aed] text-white placeholder-gray-500"
+                  style={{ border: "1px solid #333333", backgroundColor: "#1a1a1a" }}
                   placeholder="Leave blank to auto-generate with Claude"
                 />
               </div>
               <div>
-                <label className="block text-sm font-medium text-gray-700 mb-1">Hashtags</label>
+                <label className="block text-sm font-medium mb-1" style={{ color: "#d1d5db" }}>Hashtags</label>
                 <input
                   value={hashtags}
                   onChange={(e) => setHashtags(e.target.value)}
-                  className="w-full border border-gray-200 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-gray-400"
+                  className="w-full rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-[#7c3aed] text-white placeholder-gray-500"
+                  style={{ border: "1px solid #333333", backgroundColor: "#1a1a1a" }}
                   placeholder="marketing, growth, tech (comma separated)"
                 />
               </div>
               <div>
-                <label className="block text-sm font-medium text-gray-700 mb-1">Schedule for</label>
+                <label className="block text-sm font-medium mb-1" style={{ color: "#d1d5db" }}>Schedule for</label>
                 <input
                   type="datetime-local"
                   value={scheduledAt}
                   onChange={(e) => setScheduledAt(e.target.value)}
-                  className="w-full border border-gray-200 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-gray-400"
+                  className="w-full rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-[#7c3aed] text-white"
+                  style={{ border: "1px solid #333333", backgroundColor: "#1a1a1a" }}
                 />
               </div>
               <button
                 type="submit"
                 disabled={loading}
-                className="w-full flex items-center justify-center gap-2 px-4 py-3 bg-gray-900 text-white text-sm font-medium rounded-lg hover:bg-gray-700 disabled:opacity-50 transition-colors"
+                className="w-full flex items-center justify-center gap-2 px-4 py-3 text-white text-sm font-medium rounded-lg disabled:opacity-50 transition-colors"
+                style={{ backgroundColor: "#7c3aed" }}
+                onMouseEnter={e => (e.currentTarget.style.backgroundColor = "#6d28d9")}
+                onMouseLeave={e => (e.currentTarget.style.backgroundColor = "#7c3aed")}
               >
                 {loading ? (
                   <>

@@ -178,7 +178,8 @@ export default function CalendarPage() {
               onChange={(e) =>
                 setSelectedProject(projects.find((p) => p.slug === e.target.value) || null)
               }
-              className="text-sm border border-gray-200 rounded-md px-3 py-2 bg-white"
+              className="text-sm rounded-md px-3 py-2 text-white focus:outline-none focus:ring-2 focus:ring-[#7c3aed]"
+              style={{ border: "1px solid #333333", backgroundColor: "#1a1a1a" }}
             >
               {projects.map((p) => (
                 <option key={p.id} value={p.slug}>
@@ -187,16 +188,17 @@ export default function CalendarPage() {
               ))}
             </select>
             {/* View toggle */}
-            <div className="flex border border-gray-200 rounded-lg overflow-hidden">
+            <div className="flex rounded-lg overflow-hidden" style={{ border: "1px solid #333333" }}>
               {(["week", "month"] as const).map((v) => (
                 <button
                   key={v}
                   onClick={() => setView(v)}
                   className={`px-3 py-1.5 text-sm font-medium transition-colors ${
                     view === v
-                      ? "bg-gray-900 text-white"
-                      : "bg-white text-gray-600 hover:bg-gray-50"
+                      ? "bg-[#7c3aed] text-white"
+                      : "text-gray-400 hover:text-white"
                   }`}
+                  style={{ backgroundColor: view === v ? "#7c3aed" : "#1a1a1a" }}
                 >
                   {v.charAt(0).toUpperCase() + v.slice(1)}
                 </button>
@@ -207,30 +209,40 @@ export default function CalendarPage() {
             <div className="flex items-center gap-2">
               <button
                 onClick={() => navigate(-1)}
-                className="p-1.5 hover:bg-gray-100 rounded-md"
+                className="p-1.5 rounded-md transition-colors text-white"
+                onMouseEnter={e => (e.currentTarget.style.backgroundColor = "#1f1f1f")}
+                onMouseLeave={e => (e.currentTarget.style.backgroundColor = "transparent")}
               >
                 <ChevronLeft className="h-4 w-4" />
               </button>
-              <span className="text-sm font-medium min-w-[180px] text-center">
+              <span className="text-sm font-medium min-w-[180px] text-center text-white">
                 {view === "week" ? weekLabel : monthLabel}
               </span>
               <button
                 onClick={() => navigate(1)}
-                className="p-1.5 hover:bg-gray-100 rounded-md"
+                className="p-1.5 rounded-md transition-colors text-white"
+                onMouseEnter={e => (e.currentTarget.style.backgroundColor = "#1f1f1f")}
+                onMouseLeave={e => (e.currentTarget.style.backgroundColor = "transparent")}
               >
                 <ChevronRight className="h-4 w-4" />
               </button>
             </div>
             <button
               onClick={() => setCurrentDate(new Date())}
-              className="px-3 py-1.5 text-sm border border-gray-200 rounded-lg hover:bg-gray-50"
+              className="px-3 py-1.5 text-sm rounded-lg transition-colors"
+              style={{ border: "1px solid #333333", color: "#9ca3af" }}
+              onMouseEnter={e => { (e.currentTarget as HTMLButtonElement).style.color = "#ffffff"; (e.currentTarget as HTMLButtonElement).style.backgroundColor = "#1a1a1a"; }}
+              onMouseLeave={e => { (e.currentTarget as HTMLButtonElement).style.color = "#9ca3af"; (e.currentTarget as HTMLButtonElement).style.backgroundColor = "transparent"; }}
             >
               Today
             </button>
             {!isClient && (
               <button
                 onClick={() => setShowPlanModal(true)}
-                className="flex items-center gap-2 px-4 py-2 bg-gray-900 text-white text-sm font-medium rounded-lg hover:bg-gray-700"
+                className="flex items-center gap-2 px-4 py-2 text-white text-sm font-medium rounded-lg transition-colors"
+                style={{ backgroundColor: "#7c3aed" }}
+                onMouseEnter={e => (e.currentTarget.style.backgroundColor = "#6d28d9")}
+                onMouseLeave={e => (e.currentTarget.style.backgroundColor = "#7c3aed")}
               >
                 <CalendarDays className="h-4 w-4" />
                 Plan Content
@@ -240,30 +252,25 @@ export default function CalendarPage() {
         </div>
 
         {loading && (
-          <p className="text-sm text-gray-400 text-center py-2">Loading posts...</p>
+          <p className="text-sm text-center py-2" style={{ color: "#9ca3af" }}>Loading posts...</p>
         )}
 
         {/* WEEK VIEW */}
         {view === "week" && (
-          <div className="bg-white border border-gray-200 rounded-xl overflow-hidden">
-            <div className="grid grid-cols-7 border-b border-gray-200">
+          <div className="rounded-xl overflow-hidden" style={{ border: "1px solid #222222", backgroundColor: "#111111" }}>
+            <div className="grid grid-cols-7" style={{ borderBottom: "1px solid #222222" }}>
               {weekDays.map((day, idx) => {
                 const isToday = isSameDay(day, today);
                 return (
                   <div
                     key={idx}
-                    className={`p-3 text-center border-r last:border-r-0 border-gray-100 ${
-                      isToday ? "bg-gray-900" : ""
-                    }`}
+                    className="p-3 text-center border-r last:border-r-0"
+                    style={{ borderColor: "#1a1a1a", backgroundColor: isToday ? "#1a1a2e" : "transparent" }}
                   >
-                    <p className={`text-xs font-medium ${isToday ? "text-gray-300" : "text-gray-500"}`}>
+                    <p className="text-xs font-medium" style={{ color: isToday ? "#a5b4fc" : "#9ca3af" }}>
                       {DAY_NAMES[idx]}
                     </p>
-                    <p
-                      className={`text-lg font-bold mt-0.5 ${
-                        isToday ? "text-white" : "text-gray-900"
-                      }`}
-                    >
+                    <p className="text-lg font-bold mt-0.5" style={{ color: isToday ? "#818cf8" : "#ffffff" }}>
                       {day.getDate()}
                     </p>
                   </div>
@@ -277,15 +284,17 @@ export default function CalendarPage() {
                 return (
                   <div
                     key={idx}
-                    className={`border-r last:border-r-0 border-gray-100 p-2 space-y-1.5 ${
-                      isToday ? "bg-gray-50" : ""
-                    }`}
+                    className="border-r last:border-r-0 p-2 space-y-1.5"
+                    style={{ borderColor: "#1a1a1a", backgroundColor: isToday ? "#0d0d1a" : "transparent" }}
                   >
                     {dayPosts.map((post) => (
                       <div
                         key={post.id}
                         onClick={() => { if (!isClient) setEditPost(post); }}
-                        className={`p-2 rounded-lg border border-gray-200 hover:border-gray-300 hover:shadow-sm transition-all bg-white ${!isClient ? "cursor-pointer" : ""}`}
+                        className={`p-2 rounded-lg transition-all ${!isClient ? "cursor-pointer" : ""}`}
+                        style={{ border: "1px solid #222222", backgroundColor: "#0d0d0d" }}
+                        onMouseEnter={e => (e.currentTarget.style.borderColor = "#333333")}
+                        onMouseLeave={e => (e.currentTarget.style.borderColor = "#222222")}
                       >
                         {post.image_url && (
                           // eslint-disable-next-line @next/next/no-img-element
@@ -298,12 +307,12 @@ export default function CalendarPage() {
                         <div className="flex items-center gap-1.5 mb-1">
                           <div
                             className={`w-1.5 h-1.5 rounded-full flex-shrink-0 ${
-                              STATUS_COLORS[post.status] || "bg-gray-400"
+                              STATUS_COLORS[post.status] || "bg-gray-600"
                             }`}
                           />
-                          <span className="text-xs text-gray-500 truncate">{post.status}</span>
+                          <span className="text-xs truncate" style={{ color: "#9ca3af" }}>{post.status}</span>
                         </div>
-                        <p className="text-xs text-gray-700 line-clamp-2">{post.caption}</p>
+                        <p className="text-xs line-clamp-2" style={{ color: "#d1d5db" }}>{post.caption}</p>
                       </div>
                     ))}
                     {!isClient && (
@@ -312,7 +321,10 @@ export default function CalendarPage() {
                           setSelectedDay(day);
                           setShowPlanModal(true);
                         }}
-                        className="w-full flex items-center justify-center gap-1 py-1.5 text-xs text-gray-400 hover:text-gray-600 hover:bg-gray-50 rounded-lg border border-dashed border-gray-200 transition-colors"
+                        className="w-full flex items-center justify-center gap-1 py-1.5 text-xs rounded-lg transition-colors"
+                        style={{ color: "#6b7280", border: "1px dashed #333333" }}
+                        onMouseEnter={e => { (e.currentTarget as HTMLButtonElement).style.color = "#9ca3af"; (e.currentTarget as HTMLButtonElement).style.backgroundColor = "#161616"; }}
+                        onMouseLeave={e => { (e.currentTarget as HTMLButtonElement).style.color = "#6b7280"; (e.currentTarget as HTMLButtonElement).style.backgroundColor = "transparent"; }}
                       >
                         <Plus className="h-3 w-3" />
                         Add
@@ -327,12 +339,13 @@ export default function CalendarPage() {
 
         {/* MONTH VIEW */}
         {view === "month" && (
-          <div className="bg-white border border-gray-200 rounded-xl overflow-hidden">
-            <div className="grid grid-cols-7 border-b border-gray-200">
+          <div className="rounded-xl overflow-hidden" style={{ border: "1px solid #222222", backgroundColor: "#111111" }}>
+            <div className="grid grid-cols-7" style={{ borderBottom: "1px solid #222222" }}>
               {DAY_NAMES.map((d) => (
                 <div
                   key={d}
-                  className="p-3 text-center text-xs font-medium text-gray-500 border-r last:border-r-0 border-gray-100"
+                  className="p-3 text-center text-xs font-medium border-r last:border-r-0"
+                  style={{ color: "#9ca3af", borderColor: "#1a1a1a" }}
                 >
                   {d}
                 </div>
@@ -344,7 +357,8 @@ export default function CalendarPage() {
                   return (
                     <div
                       key={`empty-${idx}`}
-                      className="border-r last:border-r-0 border-b border-gray-100 min-h-[80px] bg-gray-50/50"
+                      className="border-r last:border-r-0 border-b min-h-[80px]"
+                      style={{ borderColor: "#1a1a1a", backgroundColor: "#0a0a0a" }}
                     />
                   );
                 const dayPosts = postsForDay(day);
@@ -354,14 +368,21 @@ export default function CalendarPage() {
                   <div
                     key={idx}
                     onClick={() => setSelectedDay(isSelected ? null : day)}
-                    className={`border-r last:border-r-0 border-b border-gray-100 min-h-[80px] p-2 cursor-pointer hover:bg-gray-50 transition-colors ${
-                      isToday ? "bg-blue-50/50" : ""
-                    } ${isSelected ? "ring-2 ring-inset ring-gray-900" : ""}`}
+                    className="border-r last:border-r-0 border-b min-h-[80px] p-2 cursor-pointer transition-colors"
+                    style={{
+                      borderColor: "#1a1a1a",
+                      backgroundColor: isToday ? "#0d0d1a" : "transparent",
+                      boxShadow: isSelected ? "inset 0 0 0 2px #7c3aed" : "none",
+                    }}
+                    onMouseEnter={e => { if (!isToday) (e.currentTarget as HTMLDivElement).style.backgroundColor = "#161616"; }}
+                    onMouseLeave={e => { if (!isToday) (e.currentTarget as HTMLDivElement).style.backgroundColor = "transparent"; }}
                   >
                     <span
-                      className={`inline-flex w-6 h-6 items-center justify-center rounded-full text-sm font-medium ${
-                        isToday ? "bg-gray-900 text-white" : "text-gray-700"
-                      }`}
+                      className="inline-flex w-6 h-6 items-center justify-center rounded-full text-sm font-medium"
+                      style={{
+                        backgroundColor: isToday ? "#7c3aed" : "transparent",
+                        color: isToday ? "#ffffff" : "#d1d5db",
+                      }}
                     >
                       {day.getDate()}
                     </span>
@@ -370,13 +391,13 @@ export default function CalendarPage() {
                         <div
                           key={post.id}
                           className={`w-2 h-2 rounded-full ${
-                            STATUS_COLORS[post.status] || "bg-gray-400"
+                            STATUS_COLORS[post.status] || "bg-gray-600"
                           }`}
                           title={post.caption?.slice(0, 50)}
                         />
                       ))}
                       {dayPosts.length > 3 && (
-                        <span className="text-xs text-gray-400">+{dayPosts.length - 3}</span>
+                        <span className="text-xs" style={{ color: "#9ca3af" }}>+{dayPosts.length - 3}</span>
                       )}
                     </div>
                   </div>
@@ -388,9 +409,9 @@ export default function CalendarPage() {
 
         {/* Selected day panel (month view) */}
         {selectedDay && view === "month" && (
-          <div className="bg-white border border-gray-200 rounded-xl p-4">
+          <div className="rounded-xl p-4" style={{ backgroundColor: "#111111", border: "1px solid #222222" }}>
             <div className="flex items-center justify-between mb-3">
-              <h3 className="text-sm font-semibold">
+              <h3 className="text-sm font-semibold text-white">
                 {selectedDay.toLocaleDateString("en-US", {
                   weekday: "long",
                   month: "long",
@@ -400,7 +421,10 @@ export default function CalendarPage() {
               {!isClient && (
                 <button
                   onClick={() => setShowPlanModal(true)}
-                  className="flex items-center gap-1 text-xs text-gray-500 hover:text-gray-700"
+                  className="flex items-center gap-1 text-xs transition-colors"
+                  style={{ color: "#9ca3af" }}
+                  onMouseEnter={e => (e.currentTarget.style.color = "#ffffff")}
+                  onMouseLeave={e => (e.currentTarget.style.color = "#9ca3af")}
                 >
                   <Plus className="h-3 w-3" />
                   Add post
@@ -408,14 +432,17 @@ export default function CalendarPage() {
               )}
             </div>
             {postsForDay(selectedDay).length === 0 ? (
-              <p className="text-sm text-gray-400">No posts scheduled</p>
+              <p className="text-sm" style={{ color: "#9ca3af" }}>No posts scheduled</p>
             ) : (
               <div className="space-y-2">
                 {postsForDay(selectedDay).map((post) => (
                   <div
                     key={post.id}
                     onClick={() => { if (!isClient) setEditPost(post); }}
-                    className={`flex items-center gap-3 p-3 border border-gray-200 rounded-lg hover:border-gray-300 ${!isClient ? "cursor-pointer" : ""}`}
+                    className={`flex items-center gap-3 p-3 rounded-lg transition-colors ${!isClient ? "cursor-pointer" : ""}`}
+                    style={{ border: "1px solid #222222" }}
+                    onMouseEnter={e => (e.currentTarget.style.borderColor = "#333333")}
+                    onMouseLeave={e => (e.currentTarget.style.borderColor = "#222222")}
                   >
                     {post.image_url && (
                       // eslint-disable-next-line @next/next/no-img-element
@@ -426,14 +453,14 @@ export default function CalendarPage() {
                       />
                     )}
                     <div className="flex-1 min-w-0">
-                      <p className="text-sm text-gray-700 truncate">{post.caption}</p>
+                      <p className="text-sm truncate" style={{ color: "#d1d5db" }}>{post.caption}</p>
                       <span
                         className={`inline-block mt-0.5 px-1.5 py-0.5 rounded text-xs font-medium ${
                           post.status === "published"
-                            ? "bg-green-100 text-green-700"
+                            ? "bg-green-900/50 text-green-400"
                             : post.status === "pending_approval"
-                            ? "bg-yellow-100 text-yellow-700"
-                            : "bg-gray-100 text-gray-600"
+                            ? "bg-yellow-900/50 text-yellow-400"
+                            : "bg-gray-800 text-gray-400"
                         }`}
                       >
                         {post.status}

@@ -40,7 +40,8 @@ export function InstagramPostPreview({
 
   return (
     <div
-      className={`flex flex-col bg-white border border-gray-200 rounded-md overflow-hidden ${className}`}
+      className={`flex flex-col bg-white rounded-md overflow-hidden ${className}`}
+      style={{ border: "1px solid #333333" }}
       style={{ width: 380 }}
     >
       {/* Header */}
