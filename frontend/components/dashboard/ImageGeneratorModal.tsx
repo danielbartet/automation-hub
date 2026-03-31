@@ -6,7 +6,7 @@ import { generateImage, buildAutoPrompt, updateContent } from "@/lib/api";
 interface ImageGeneratorModalProps {
   open: boolean;
   onClose: () => void;
-  post: { id: number; content?: any; image_url?: string; image_urls?: string[] };
+  post: { id: number; content?: any; image_url?: string; image_urls?: string | string[] };
   project: { slug: string; name?: string; media_config?: any; content_config?: any; credits_balance?: number };
   /** When set, saving the generated image updates this specific slide (0-based index) in image_urls. */
   slideIndex?: number;
