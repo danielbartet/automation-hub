@@ -41,8 +41,7 @@ export function InstagramPostPreview({
   return (
     <div
       className={`flex flex-col bg-white rounded-md overflow-hidden ${className}`}
-      style={{ border: "1px solid #333333" }}
-      style={{ width: 380 }}
+      style={{ border: "1px solid #333333", width: 380 }}
     >
       {/* Header */}
       <div className="flex items-center justify-between px-3 py-2">
