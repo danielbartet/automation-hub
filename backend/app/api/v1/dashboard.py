@@ -7,6 +7,7 @@ from app.models.project import Project
 from app.models.content import ContentPost
 from app.core.config import settings
 import httpx
+import json
 from datetime import datetime, timedelta
 
 router = APIRouter()
@@ -63,6 +64,26 @@ def build_kpis(objective: str, insights: dict) -> dict:
         return base
 
 
+async def fetch_account_insights(client: httpx.AsyncClient, ad_account_id: str, token: str, date_preset: str) -> dict:
+    try:
+        resp = await client.get(
+            f"{META_BASE}/act_{ad_account_id}/insights",
+            params={
+                "fields": "spend",
+                "date_preset": date_preset,
+                "access_token": token,
+            },
+            timeout=15.0,
+        )
+        data = resp.json()
+        if "error" in data:
+            return {}
+        rows = data.get("data", [])
+        return rows[0] if rows else {}
+    except Exception:
+        return {}
+
+
 async def fetch_campaign_insights(client: httpx.AsyncClient, campaign_id: str, token: str, date_preset: str) -> dict:
     try:
         resp = await client.get(
@@ -75,6 +96,8 @@ async def fetch_campaign_insights(client: httpx.AsyncClient, campaign_id: str, t
             timeout=10.0,
         )
         data = resp.json()
+        if "error" in data:
+            return {}
         rows = data.get("data", [])
         return rows[0] if rows else {}
     except Exception:
@@ -89,25 +112,31 @@ async def fetch_meta_ads_data(project: Project) -> dict:
         return {"campaigns": [], "totals": {"spend_today": 0.0, "spend_this_month": 0.0, "active_campaigns": 0}}
 
     campaigns_out = []
-    total_spend_today = 0.0
-    total_spend_month = 0.0
     active_count = 0
 
     try:
         async with httpx.AsyncClient() as client:
-            # Fetch campaigns
+            # Fetch account-level spend totals (2 calls instead of 2N per-campaign calls)
+            account_today = await fetch_account_insights(client, ad_account_id, token, "today")
+            account_month = await fetch_account_insights(client, ad_account_id, token, "this_month")
+            total_spend_today = float(account_today.get("spend", 0))
+            total_spend_month = float(account_month.get("spend", 0))
+
+            # Fetch only ACTIVE and PAUSED campaigns
             resp = await client.get(
                 f"{META_BASE}/act_{ad_account_id}/campaigns",
                 params={
                     "fields": "id,name,objective,status,daily_budget,lifetime_budget",
+                    "filtering": json.dumps([{"field": "effective_status", "operator": "IN", "value": ["ACTIVE", "PAUSED"]}]),
+                    "limit": 50,
                     "access_token": token,
                 },
-                timeout=10.0,
+                timeout=15.0,
             )
             resp_data = resp.json()
 
             if "error" in resp_data:
-                return {"campaigns": [], "totals": {"spend_today": 0.0, "spend_this_month": 0.0, "active_campaigns": 0}}
+                return {"campaigns": [], "totals": {"spend_today": total_spend_today, "spend_this_month": total_spend_month, "active_campaigns": 0}}
 
             campaigns = resp_data.get("data", [])
 
@@ -127,8 +156,6 @@ async def fetch_meta_ads_data(project: Project) -> dict:
 
                 spend_today = float(insights_today.get("spend", 0))
                 spend_month = float(insights_month.get("spend", 0))
-                total_spend_today += spend_today
-                total_spend_month += spend_month
 
                 kpis = build_kpis(objective, insights_month)
                 andromeda_status, andromeda_reason = get_andromeda_status(insights_month)
