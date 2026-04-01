@@ -20,6 +20,10 @@ RUN uv sync --frozen --no-dev || uv sync --no-dev
 RUN uv pip install playwright
 RUN uv run playwright install chromium
 
+# Download Space Grotesk fonts for offline rendering (EC2 has no outbound font CDN access)
+RUN mkdir -p /app/fonts && \
+    python3 -c "import urllib.request; fonts = {'SpaceGrotesk-Regular.ttf': 'https://fonts.gstatic.com/s/spacegrotesk/v22/V8mQoQDjQSkFtoMM3T6r8E7mF71Q-gOoraIAEj7oUUsj.ttf', 'SpaceGrotesk-SemiBold.ttf': 'https://fonts.gstatic.com/s/spacegrotesk/v22/V8mQoQDjQSkFtoMM3T6r8E7mF71Q-gOoraIAEj42Vksj.ttf', 'SpaceGrotesk-Bold.ttf': 'https://fonts.gstatic.com/s/spacegrotesk/v22/V8mQoQDjQSkFtoMM3T6r8E7mF71Q-gOoraIAEj4PVksj.ttf'}; [urllib.request.urlretrieve(url, f'/app/fonts/{name}') or print(f'Downloaded {name}') for name, url in fonts.items()]"
+
 # Copy application code
 COPY app ./app
 COPY alembic ./alembic

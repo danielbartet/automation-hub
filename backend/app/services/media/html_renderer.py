@@ -30,9 +30,29 @@ class HTMLSlideRenderer(BaseImageProvider):
         primary = mc.get("image_primary_color", mc.get("primary_color", "#00FF41"))
         secondary = mc.get("image_secondary_color", mc.get("secondary_color", "#ffffff"))
         accent = mc.get("accent_color", primary)
-        font_family = mc.get("image_fonts", mc.get("fonts", "Inter, sans-serif"))
+        font_family = mc.get("image_fonts", mc.get("fonts", "'Space Grotesk', sans-serif"))
+
+        logger.debug(
+            "_base_css colors — bg=%s primary=%s secondary=%s accent=%s",
+            bg, primary, secondary, accent,
+        )
 
         return f"""
+        @font-face {{
+            font-family: 'Space Grotesk';
+            font-weight: 400;
+            src: url('file:///app/fonts/SpaceGrotesk-Regular.ttf') format('truetype');
+        }}
+        @font-face {{
+            font-family: 'Space Grotesk';
+            font-weight: 700;
+            src: url('file:///app/fonts/SpaceGrotesk-Bold.ttf') format('truetype');
+        }}
+        @font-face {{
+            font-family: 'Space Grotesk';
+            font-weight: 600;
+            src: url('file:///app/fonts/SpaceGrotesk-SemiBold.ttf') format('truetype');
+        }}
         *, *::before, *::after {{ box-sizing: border-box; margin: 0; padding: 0; }}
         :root {{
             --bg: {bg};
@@ -47,6 +67,7 @@ class HTMLSlideRenderer(BaseImageProvider):
             background: var(--bg);
             color: var(--secondary);
             font-family: var(--font);
+            -webkit-font-smoothing: antialiased;
             overflow: hidden;
         }}
         .slide {{
@@ -245,6 +266,11 @@ class HTMLSlideRenderer(BaseImageProvider):
         slide_num = slide_data.get("slide_number", 1)
         total = slide_data.get("total_slides", 1)
 
+        logger.debug(
+            "_build_html slide=%s/%s media_config keys=%s",
+            slide_num, total, list(mc.keys()),
+        )
+
         # Pick layout by position
         if slide_num == 1:
             inner = self._hook_layout(slide_data, mc)
@@ -254,16 +280,12 @@ class HTMLSlideRenderer(BaseImageProvider):
             inner = self._content_layout(slide_data, mc)
 
         base_css = self._base_css(mc)
-        google_fonts_url = mc.get("google_fonts_url", "https://fonts.googleapis.com/css2?family=Inter:wght@400;600;700;800;900&family=Space+Grotesk:wght@400;600;700&display=swap")
 
         return f"""<!DOCTYPE html>
 <html lang="es">
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=1080, height=1080">
-<link rel="preconnect" href="https://fonts.googleapis.com">
-<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
-<link href="{google_fonts_url}" rel="stylesheet">
 <style>
 {base_css}
 </style>
@@ -275,19 +297,42 @@ class HTMLSlideRenderer(BaseImageProvider):
 </body>
 </html>"""
 
-    async def _html_to_png(self, html_content: str) -> bytes:
-        """Render HTML to a 1080x1080 PNG using Playwright headless Chromium."""
+    async def _html_to_png(self, html: str) -> bytes:
+        """Render HTML to a 1080x1080 PNG using Playwright headless Chromium.
+
+        Writes the HTML to a temp file and loads it via file:// URL so that:
+        - UTF-8 / Spanish characters (é, ñ, ú, ó) are preserved correctly
+        - Local @font-face file:// references are resolved by Chromium
+        """
+        import tempfile
+        import os
         from playwright.async_api import async_playwright
 
-        async with async_playwright() as pw:
-            browser = await pw.chromium.launch(
-                args=["--no-sandbox", "--disable-setuid-sandbox", "--disable-dev-shm-usage"],
-            )
-            page = await browser.new_page(viewport={"width": 1080, "height": 1080})
-            await page.set_content(html_content, wait_until="networkidle")
-            png_bytes = await page.screenshot(full_page=False, type="png")
-            await browser.close()
-        return png_bytes
+        with tempfile.NamedTemporaryFile(
+            mode='w',
+            suffix='.html',
+            delete=False,
+            encoding='utf-8',
+        ) as f:
+            f.write(html)
+            tmp_path = f.name
+
+        try:
+            async with async_playwright() as p:
+                browser = await p.chromium.launch(
+                    args=["--no-sandbox", "--disable-setuid-sandbox", "--disable-dev-shm-usage"],
+                )
+                page = await browser.new_page(viewport={"width": 1080, "height": 1080})
+                await page.goto(f"file://{tmp_path}", wait_until="domcontentloaded")
+                await page.wait_for_timeout(800)
+                png_bytes = await page.screenshot(
+                    type="png",
+                    clip={"x": 0, "y": 0, "width": 1080, "height": 1080},
+                )
+                await browser.close()
+                return png_bytes
+        finally:
+            os.unlink(tmp_path)
 
     async def render_slide(self, slide_data: dict, media_config: dict) -> str:
         """Render a single slide to a 1080x1080 PNG and upload to S3.
