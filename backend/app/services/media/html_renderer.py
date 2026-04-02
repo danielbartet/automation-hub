@@ -2,10 +2,12 @@
 
 Each slide is rendered from an HTML template built entirely from media_config values.
 Zero hardcoded colors — all visual tokens come from the project's media_config.
+Claude API is used to generate creative HTML for each slide; fixed templates are the fallback.
 """
 import html
 import logging
 import asyncio
+import re
 from datetime import datetime
 
 from app.services.media.base import BaseImageProvider
@@ -261,8 +263,90 @@ class HTMLSlideRenderer(BaseImageProvider):
         </div>
         """
 
+    async def _build_html_with_claude(self, slide_data: dict, mc: dict) -> str:
+        """Generate complete slide HTML using Claude API.
+
+        Builds a detailed prompt from slide_data and media_config, calls Claude,
+        and returns the raw HTML string. Raises on any error so the caller can
+        fall back to the fixed template.
+        """
+        from anthropic import Anthropic
+        from app.core.config import settings
+
+        bg = mc.get("image_bg_color", mc.get("bg_color", "#0a0a0a"))
+        primary = mc.get("image_primary_color", mc.get("primary_color", "#00FF41"))
+        secondary = mc.get("image_secondary_color", mc.get("secondary_color", "#ffffff"))
+        brand_handle = mc.get("brand_handle", mc.get("brand_name", ""))
+        slide_num = slide_data.get("slide_number", 1)
+        total = slide_data.get("total_slides", 1)
+        headline = slide_data.get("headline", "")
+        subtext = slide_data.get("subtext", "")
+
+        prompt = f"""You are an expert social media slide designer.
+Generate a complete, self-contained HTML file that renders a 1080x1080px slide.
+
+BRAND:
+- Background color: {bg}
+- Primary/accent color: {primary}
+- Secondary/text color: {secondary}
+- Font family: Space Grotesk (available at file:///app/fonts/)
+- Brand handle: @{brand_handle}
+
+SLIDE CONTENT:
+- Position: slide {slide_num} of {total}
+- Headline: {headline}
+- Body text: {subtext}
+
+TECHNICAL REQUIREMENTS:
+- Exactly 1080x1080px canvas, no scrolling (overflow: hidden)
+- @font-face pointing to file:///app/fonts/SpaceGrotesk-Bold.ttf (weight 700), SpaceGrotesk-Regular.ttf (weight 400), SpaceGrotesk-SemiBold.ttf (weight 600)
+- No external resources (no CDN fonts, no external images)
+- Pure HTML + CSS only (inline <style> tag)
+- <meta charset="UTF-8"> must be first tag in <head>
+
+DESIGN FREEDOM:
+- Be creative with the layout — use the primary color for accents, dividers, highlights, overlays
+- Slide 1: bold hook layout, large headline, grab attention
+- Middle slides: clear hierarchy, readable body text
+- Last slide: CTA focused, brand prominent
+- Spanish text must render correctly (é, ñ, ú, ó, á, ¿, ¡)
+
+Return ONLY the HTML. No explanations, no markdown, no code blocks."""
+
+        logger.info("Generating slide HTML with Claude (slide %s/%s)", slide_num, total)
+
+        client = Anthropic(api_key=settings.ANTHROPIC_API_KEY)
+        response = client.messages.create(
+            model="claude-sonnet-4-6",
+            max_tokens=4096,
+            messages=[{"role": "user", "content": prompt}],
+        )
+
+        raw = response.content[0].text.strip()
+
+        # Strip accidental markdown code fences if present
+        if raw.startswith("```"):
+            raw = re.sub(r"^```[a-zA-Z]*\n?", "", raw)
+            raw = re.sub(r"\n?```$", "", raw)
+            raw = raw.strip()
+
+        return raw
+
+    async def _build_html_async(self, slide_data: dict, mc: dict) -> str:
+        """Assemble the complete HTML document for a slide.
+
+        Tries Claude-generated HTML first; falls back to fixed templates on any error.
+        """
+        try:
+            return await self._build_html_with_claude(slide_data, mc)
+        except Exception as exc:
+            logger.warning(
+                "Claude HTML generation failed, using fallback template: %s", exc
+            )
+            return self._build_html(slide_data, mc)
+
     def _build_html(self, slide_data: dict, mc: dict) -> str:
-        """Assemble the complete HTML document for a slide."""
+        """Assemble the complete HTML document for a slide using fixed templates (fallback)."""
         slide_num = slide_data.get("slide_number", 1)
         total = slide_data.get("total_slides", 1)
 
@@ -349,7 +433,7 @@ class HTMLSlideRenderer(BaseImageProvider):
         """
         from app.services.storage.s3 import S3Service
 
-        html_content = self._build_html(slide_data, media_config)
+        html_content = await self._build_html_async(slide_data, media_config)
 
         try:
             png_bytes = await self._html_to_png(html_content)
