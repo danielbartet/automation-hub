@@ -18,7 +18,6 @@ COPY uv.lock* .
 RUN uv sync --frozen --no-dev || uv sync --no-dev
 
 RUN uv pip install playwright
-RUN uv run playwright install chromium
 
 # Download Space Grotesk fonts for offline rendering (EC2 has no outbound font CDN access)
 RUN mkdir -p /app/fonts && \
@@ -35,6 +34,9 @@ RUN useradd -m -u 1000 appuser && \
     chown -R appuser:appuser /app
 
 USER appuser
+
+# Install Playwright Chromium browser as appuser so it lands in /home/appuser/.cache/ms-playwright/
+RUN uv run playwright install chromium --with-deps
 
 EXPOSE 8000
 

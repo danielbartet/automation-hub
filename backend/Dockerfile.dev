@@ -17,7 +17,7 @@ COPY uv.lock* .
 RUN uv sync --frozen || uv sync
 
 RUN uv pip install playwright
-RUN uv run playwright install chromium
+RUN uv run playwright install chromium --with-deps
 
 RUN mkdir -p /app/fonts && \
     python3 -c "import urllib.request; fonts = {'SpaceGrotesk-Regular.ttf': 'https://fonts.gstatic.com/s/spacegrotesk/v22/V8mQoQDjQSkFtoMM3T6r8E7mF71Q-gOoraIAEj7oUUsj.ttf', 'SpaceGrotesk-SemiBold.ttf': 'https://fonts.gstatic.com/s/spacegrotesk/v22/V8mQoQDjQSkFtoMM3T6r8E7mF71Q-gOoraIAEj42Vksj.ttf', 'SpaceGrotesk-Bold.ttf': 'https://fonts.gstatic.com/s/spacegrotesk/v22/V8mQoQDjQSkFtoMM3T6r8E7mF71Q-gOoraIAEj4PVksj.ttf'}; [urllib.request.urlretrieve(url, f'/app/fonts/{name}') or print(f'Downloaded {name}') for name, url in fonts.items()]"
