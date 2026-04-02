@@ -499,8 +499,17 @@ async def update_content(
 
     previous_status = post.status
 
-    if body.caption is not None:
-        post.caption = body.caption
+    if body.caption is not None or body.hashtags is not None:
+        # Recompute the stored caption whenever either caption text or hashtags change.
+        # Use the incoming value when provided, otherwise fall back to what is already stored.
+        base_caption = body.caption if body.caption is not None else (post.caption or "")
+        # Strip any previously appended hashtag block so we don't double-append.
+        # Hashtags are always appended after "\n\n#", so trim from the first occurrence.
+        if "\n\n#" in base_caption:
+            base_caption = base_caption[:base_caption.index("\n\n#")].rstrip()
+        new_hashtags = body.hashtags if body.hashtags is not None else []
+        hashtags_str = " ".join(f"#{tag.lstrip('#')}" for tag in new_hashtags) if new_hashtags else ""
+        post.caption = f"{base_caption}\n\n{hashtags_str}".strip() if hashtags_str else base_caption
     if body.image_url is not None:
         post.image_url = body.image_url
     if body.image_urls is not None:
@@ -559,6 +568,7 @@ async def update_content(
                     )
                     creation_id = container.get("id")
                     if creation_id:
+                        await ig_service.wait_for_container(creation_id)
                         published = await ig_service.publish_media(project.instagram_account_id, creation_id)
                         instagram_media_id = published.get("id")
 
