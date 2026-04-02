@@ -251,7 +251,7 @@ export function ImageGeneratorModal({
                 {generating ? (
                   <>
                     <Loader2 className="h-4 w-4 animate-spin" />
-                    Generando con Ideogram...
+                    Generando imagen...
                   </>
                 ) : (
                   "Generar imagen"

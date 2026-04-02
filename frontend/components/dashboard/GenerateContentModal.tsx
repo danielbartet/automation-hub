@@ -22,7 +22,7 @@ interface GenerateContentModalProps {
 }
 
 type ContentType = "carousel_6_slides" | "single_image" | "text_post";
-type ImageMode = "ideogram" | "placeholder";
+type ImageMode = "auto" | "placeholder";
 
 const CONTENT_TYPES: { value: ContentType; label: string; emoji: string }[] = [
   { value: "carousel_6_slides", label: "Carousel 6 slides", emoji: "📊" },
@@ -31,7 +31,7 @@ const CONTENT_TYPES: { value: ContentType; label: string; emoji: string }[] = [
 ];
 
 const IMAGE_MODES: { value: ImageMode; label: string; emoji: string }[] = [
-  { value: "ideogram", label: "Ideogram AI", emoji: "🤖" },
+  { value: "auto", label: "Auto (HTML)", emoji: "🤖" },
   { value: "placeholder", label: "Placeholder", emoji: "🔲" },
 ];
 
@@ -56,7 +56,7 @@ export function GenerateContentModal({ projectSlug, project, onClose, onSuccess 
   const [autoContentType, setAutoContentType] = useState<ContentType>("carousel_6_slides");
   const [autoCategory, setAutoCategory] = useState<string | null>(null);
   const [autoHint, setAutoHint] = useState("");
-  const [autoImageMode, setAutoImageMode] = useState<ImageMode>("ideogram");
+  const [autoImageMode, setAutoImageMode] = useState<ImageMode>("auto");
 
   // Manual form state
   const [topic, setTopic] = useState("");
@@ -100,7 +100,9 @@ export function GenerateContentModal({ projectSlug, project, onClose, onSuccess 
         content_type: autoContentType,
         category: autoCategory ?? undefined,
         hint: autoHint.trim() || undefined,
-        image_mode: autoImageMode,
+        // Only send image_mode when forcing placeholder; otherwise let the backend
+        // use the project's media_config.image_provider (HTML renderer by default).
+        image_mode: autoImageMode === "placeholder" ? "placeholder" : undefined,
       });
       setGeneratedData(data);
       setResult(data.content?.caption || data.content?.title || "Contenido generado con éxito");

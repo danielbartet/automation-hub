@@ -239,13 +239,11 @@ async def generate_content(
     image_urls: list[str] = []
 
     if body.content_type == "carousel_6_slides":
-        # Determine image provider — override from request if provided
+        # Determine image provider — always use project media_config as source of truth.
+        # image_mode="placeholder" is the only allowed override (for testing/fallback).
         carousel_image_provider = media_config.get("image_provider", "html")
-        if body.image_mode and body.image_mode not in ("ideogram", "placeholder"):
-            # image_mode "html" or unrecognised → use html
-            carousel_image_provider = "html"
-        elif body.image_mode in ("ideogram", "placeholder"):
-            carousel_image_provider = body.image_mode
+        if body.image_mode == "placeholder":
+            carousel_image_provider = "placeholder"
 
         if carousel_image_provider in ("html", None, "") or carousel_image_provider not in ("ideogram", "placeholder"):
             # HTML renderer — render one slide per carousel entry
@@ -318,11 +316,12 @@ async def generate_content(
                         await db.commit()
 
     elif body.content_type == "single_image":
-        # image_mode == "placeholder" forces placeholder; otherwise use project provider (default: ideogram)
+        # Always use project media_config as source of truth.
+        # image_mode="placeholder" is the only allowed override (for testing/fallback).
         if body.image_mode == "placeholder":
             effective_provider = "placeholder"
         else:
-            effective_provider = media_config.get("image_provider", "ideogram")
+            effective_provider = media_config.get("image_provider", "html")
 
         try:
             headline = content.get("headline", "")
