@@ -5,7 +5,7 @@ WORKDIR /app
 # Install uv
 RUN pip install uv
 
-# Install Playwright system dependencies (as root, before switching to appuser)
+# Install Playwright OS-level browser dependencies (must run as root)
 RUN apt-get update && apt-get install -y --no-install-recommends \
     libglib2.0-0 libnss3 libnspr4 libdbus-1-3 libatk1.0-0 libatk-bridge2.0-0 \
     libcups2 libxcomposite1 libxdamage1 libxfixes3 libxrandr2 libgbm1 \
@@ -18,6 +18,9 @@ COPY uv.lock* .
 RUN uv sync --frozen --no-dev || uv sync --no-dev
 
 RUN uv pip install playwright
+
+# Install Playwright OS-level dependencies as root (needs apt/sudo access)
+RUN uv run playwright install-deps chromium
 
 # Download Space Grotesk fonts for offline rendering (EC2 has no outbound font CDN access)
 RUN mkdir -p /app/fonts && \
@@ -35,8 +38,8 @@ RUN useradd -m -u 1000 appuser && \
 
 USER appuser
 
-# Install Playwright Chromium browser as appuser so it lands in /home/appuser/.cache/ms-playwright/
-RUN uv run playwright install chromium --with-deps
+# Install Playwright Chromium browser binary as appuser (deps already installed as root above)
+RUN uv run playwright install chromium
 
 EXPOSE 8000
 
