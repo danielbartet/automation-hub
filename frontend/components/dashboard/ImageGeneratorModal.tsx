@@ -1,7 +1,8 @@
 "use client";
 import { useState } from "react";
-import { X, Loader2, ImageIcon, RefreshCw } from "lucide-react";
+import { X, Loader2, ImageIcon, RefreshCw, Wand2, Upload } from "lucide-react";
 import { generateImage, buildAutoPrompt, updateContent } from "@/lib/api";
+import { ImageUploadZone } from "@/components/dashboard/ImageUploadZone";
 
 interface ImageGeneratorModalProps {
   open: boolean;
@@ -40,6 +41,9 @@ export function ImageGeneratorModal({
 }: ImageGeneratorModalProps) {
   const defaultPalette =
     (project.media_config?.image_color_palette as string) || "dark_purple";
+
+  // "select" = mode selector, "auto" = existing AI flow, "manual" = upload flow
+  const [mode, setMode] = useState<"select" | "auto" | "manual">("select");
 
   const [prompt, setPrompt] = useState("");
   const [style, setStyle] = useState<string>("typographic");
@@ -109,16 +113,62 @@ export function ImageGeneratorModal({
 
   const noCredits = credits <= 0;
 
+  const handleManualUpload = async (uploadedUrl: string) => {
+    if (!uploadedUrl) return;
+    setSaving(true);
+    setError(null);
+    try {
+      if (slideIndex !== undefined) {
+        const currentUrls: string[] = Array.isArray(post.image_urls)
+          ? [...post.image_urls]
+          : post.image_url
+          ? [post.image_url]
+          : [];
+        while (currentUrls.length <= slideIndex) {
+          currentUrls.push("");
+        }
+        currentUrls[slideIndex] = uploadedUrl;
+        await updateContent(post.id, { image_urls: currentUrls });
+        onImageSaved(uploadedUrl, slideIndex);
+      } else {
+        await updateContent(post.id, { image_url: uploadedUrl });
+        onImageSaved(uploadedUrl);
+      }
+      onClose();
+    } catch (e) {
+      setError(e instanceof Error ? e.message : "Error al guardar imagen");
+    } finally {
+      setSaving(false);
+    }
+  };
+
   return (
     <div className="fixed inset-0 bg-black/70 flex items-center justify-center z-[100] p-4">
       <div className="rounded-xl shadow-xl w-full max-w-3xl max-h-[90vh] overflow-y-auto" style={{ backgroundColor: "#111111", border: "1px solid #222222" }}>
         {/* Header */}
         <div className="flex items-center justify-between p-6" style={{ borderBottom: "1px solid #222222" }}>
-          <h2 className="text-lg font-semibold text-white">Generar imagen con IA</h2>
           <div className="flex items-center gap-3">
-            <span className="text-sm font-medium px-3 py-1 rounded-full" style={{ color: "#9ca3af", backgroundColor: "#1a1a1a" }}>
-              💳 {credits} créditos restantes
-            </span>
+            {mode !== "select" && (
+              <button
+                onClick={() => setMode("select")}
+                className="p-1 rounded-md transition-colors text-xs"
+                style={{ color: "#9ca3af" }}
+                onMouseEnter={e => { (e.currentTarget as HTMLButtonElement).style.color = "#ffffff"; }}
+                onMouseLeave={e => { (e.currentTarget as HTMLButtonElement).style.color = "#9ca3af"; }}
+              >
+                ← Volver
+              </button>
+            )}
+            <h2 className="text-lg font-semibold text-white">
+              {mode === "select" ? "Agregar imagen" : mode === "auto" ? "Generar imagen con IA" : "Subir imagen"}
+            </h2>
+          </div>
+          <div className="flex items-center gap-3">
+            {mode === "auto" && (
+              <span className="text-sm font-medium px-3 py-1 rounded-full" style={{ color: "#9ca3af", backgroundColor: "#1a1a1a" }}>
+                💳 {credits} créditos restantes
+              </span>
+            )}
             <button
               onClick={onClose}
               className="p-1 rounded-md transition-colors"
@@ -138,13 +188,64 @@ export function ImageGeneratorModal({
             </div>
           )}
 
-          {noCredits && (
+          {/* Mode selector */}
+          {mode === "select" && (
+            <div className="flex flex-col sm:flex-row gap-4 py-4">
+              <button
+                type="button"
+                onClick={() => setMode("auto")}
+                className="flex-1 flex flex-col items-center gap-4 p-8 rounded-xl transition-colors"
+                style={{ border: "1px solid #333333", backgroundColor: "#1a1a1a" }}
+                onMouseEnter={e => { (e.currentTarget as HTMLButtonElement).style.borderColor = "#7c3aed"; (e.currentTarget as HTMLButtonElement).style.backgroundColor = "#1e1a2e"; }}
+                onMouseLeave={e => { (e.currentTarget as HTMLButtonElement).style.borderColor = "#333333"; (e.currentTarget as HTMLButtonElement).style.backgroundColor = "#1a1a1a"; }}
+              >
+                <Wand2 className="h-10 w-10 text-violet-400" />
+                <div className="text-center">
+                  <p className="text-white font-semibold text-base">Automático</p>
+                  <p className="text-sm mt-1" style={{ color: "#9ca3af" }}>Genera una imagen con IA a partir de un prompt</p>
+                </div>
+              </button>
+              <button
+                type="button"
+                onClick={() => setMode("manual")}
+                className="flex-1 flex flex-col items-center gap-4 p-8 rounded-xl transition-colors"
+                style={{ border: "1px solid #333333", backgroundColor: "#1a1a1a" }}
+                onMouseEnter={e => { (e.currentTarget as HTMLButtonElement).style.borderColor = "#7c3aed"; (e.currentTarget as HTMLButtonElement).style.backgroundColor = "#1e1a2e"; }}
+                onMouseLeave={e => { (e.currentTarget as HTMLButtonElement).style.borderColor = "#333333"; (e.currentTarget as HTMLButtonElement).style.backgroundColor = "#1a1a1a"; }}
+              >
+                <Upload className="h-10 w-10 text-violet-400" />
+                <div className="text-center">
+                  <p className="text-white font-semibold text-base">Manual</p>
+                  <p className="text-sm mt-1" style={{ color: "#9ca3af" }}>Subí tu propia imagen desde el dispositivo</p>
+                </div>
+              </button>
+            </div>
+          )}
+
+          {/* Manual upload */}
+          {mode === "manual" && (
+            <div className="space-y-4">
+              <ImageUploadZone
+                projectSlug={project.slug}
+                onUpload={handleManualUpload}
+              />
+              {saving && (
+                <div className="flex items-center gap-2 text-sm" style={{ color: "#9ca3af" }}>
+                  <Loader2 className="h-4 w-4 animate-spin" />
+                  Guardando imagen...
+                </div>
+              )}
+            </div>
+          )}
+
+          {/* Auto (existing) flow */}
+          {mode === "auto" && noCredits && (
             <div className="mb-4 p-3 rounded-md text-sm text-yellow-400" style={{ backgroundColor: "#422006", border: "1px solid #78350f" }}>
               Sin créditos disponibles. Contactar para recargar.
             </div>
           )}
 
-          <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+          {mode === "auto" && <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
             {/* Left panel — controls */}
             <div className="space-y-5">
               {/* Prompt */}
@@ -313,7 +414,7 @@ export function ImageGeneratorModal({
                 </div>
               )}
             </div>
-          </div>
+          </div>}
         </div>
       </div>
     </div>
