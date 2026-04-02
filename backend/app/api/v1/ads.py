@@ -522,8 +522,15 @@ async def get_campaign_detail(
             return "approved" if log.action_taken else "pending"
         return "auto_executed"
 
-    optimization_logs = [
-        {
+    optimization_logs = []
+    for log in opt_logs:
+        metrics_parsed = None
+        if log.metrics_snapshot:
+            try:
+                metrics_parsed = json.loads(log.metrics_snapshot)
+            except (json.JSONDecodeError, TypeError):
+                metrics_parsed = log.metrics_snapshot
+        optimization_logs.append({
             "id": log.id,
             "created_at": str(log.checked_at),
             "decision": log.decision,
@@ -531,9 +538,8 @@ async def get_campaign_detail(
             "budget_before": log.old_budget,
             "budget_after": log.new_budget,
             "approval_status": get_approval_status(log),
-        }
-        for log in opt_logs
-    ]
+            "metrics_snapshot": metrics_parsed,
+        })
 
     # Build insights summary
     actions = {a["action_type"]: float(a["value"]) for a in insights_summary_raw.get("actions", [])}
@@ -880,6 +886,118 @@ async def import_campaigns(
         "total": len(imported_campaigns) + len(updated_campaigns),
         "optimizer_ran": len(optimizer_results),
         "campaigns": all_campaigns,
+    }
+
+
+@router.get("/{campaign_id}/recommendations")
+async def get_campaign_recommendations(
+    campaign_id: int,
+    db: AsyncSession = Depends(get_session),
+    current_user=Depends(get_current_user),
+) -> dict:
+    """Return active recommendations (pending notifications + last opt log) for a campaign."""
+    from app.models.optimization_log import CampaignOptimizationLog
+
+    # 1. Load campaign
+    camp_result = await db.execute(select(AdCampaign).where(AdCampaign.id == campaign_id))
+    campaign = camp_result.scalar_one_or_none()
+    if not campaign:
+        raise HTTPException(404, "Campaign not found")
+
+    # 2. Fetch all unread notifications for this user and filter by campaign_id in action_data
+    RELEVANT_TYPES = {"optimizer_scale", "optimizer_pause", "campaign_fatigued"}
+    notif_result = await db.execute(
+        select(Notification).where(
+            Notification.user_id == current_user.id,
+            Notification.is_read == False,
+        ).order_by(Notification.created_at.desc())
+    )
+    all_notifs = notif_result.scalars().all()
+
+    recommendations = []
+    for n in all_notifs:
+        if n.type not in RELEVANT_TYPES:
+            continue
+        action_data = n.action_data or {}
+        # action_data.campaign_id may be int or str
+        notif_campaign_id = action_data.get("campaign_id")
+        if notif_campaign_id is None:
+            continue
+        try:
+            if int(notif_campaign_id) != campaign_id:
+                continue
+        except (TypeError, ValueError):
+            continue
+
+        # Determine decision from type
+        decision_map = {
+            "optimizer_scale": "SCALE",
+            "optimizer_pause": "PAUSE",
+            "campaign_fatigued": "MODIFY",
+        }
+        decision = decision_map.get(n.type, "MODIFY")
+
+        # Parse metrics from action_data
+        metrics = None
+        if "metrics" in action_data:
+            raw = action_data["metrics"]
+            metrics = raw if isinstance(raw, dict) else None
+        elif n.type == "campaign_fatigued":
+            # Build from available keys
+            metrics = {k: action_data[k] for k in ("ctr_current", "ctr_7d_ago", "ctr_drop_pct", "frequency", "cost_per_result") if k in action_data}
+
+        creative_brief = action_data.get("creative_brief") if n.type == "campaign_fatigued" else None
+
+        # approved: None = pending, True/False from action_data
+        approved_val = action_data.get("approved")  # None, True, or False
+        approved: bool | None = None
+        if isinstance(approved_val, bool):
+            approved = approved_val
+
+        recommendations.append({
+            "id": n.id,
+            "source": "notification",
+            "type": n.type,
+            "created_at": n.created_at.isoformat() if n.created_at else None,
+            "decision": decision,
+            "rationale": n.message,
+            "approval_token": action_data.get("approval_token"),
+            "approved": approved,
+            "budget_current": action_data.get("current_budget"),
+            "budget_proposed": action_data.get("new_budget"),
+            "metrics": metrics,
+            "creative_brief": creative_brief,
+        })
+
+    # 3. Last optimization log
+    log_result = await db.execute(
+        select(CampaignOptimizationLog)
+        .where(CampaignOptimizationLog.campaign_id == campaign_id)
+        .order_by(CampaignOptimizationLog.checked_at.desc())
+        .limit(1)
+    )
+    last_log = log_result.scalar_one_or_none()
+    last_optimization = None
+    if last_log:
+        metrics_snapshot = None
+        if last_log.metrics_snapshot:
+            try:
+                metrics_snapshot = json.loads(last_log.metrics_snapshot)
+            except (json.JSONDecodeError, TypeError):
+                metrics_snapshot = last_log.metrics_snapshot
+        last_optimization = {
+            "checked_at": last_log.checked_at.isoformat() if last_log.checked_at else None,
+            "decision": last_log.decision,
+            "rationale": last_log.rationale,
+            "metrics_snapshot": metrics_snapshot,
+        }
+
+    return {
+        "campaign_id": campaign_id,
+        "campaign_name": campaign.name,
+        "has_pending": len(recommendations) > 0,
+        "recommendations": recommendations,
+        "last_optimization": last_optimization,
     }
 
 

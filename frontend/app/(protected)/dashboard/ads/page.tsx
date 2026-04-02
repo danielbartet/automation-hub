@@ -6,7 +6,16 @@ import { Header } from "@/components/layout/Header";
 import { KPICard } from "@/components/dashboard/KPICard";
 import { CreateCampaignModal } from "@/components/dashboard/CreateCampaignModal";
 import { CampaignOptimizationPanel } from "@/components/dashboard/CampaignOptimizationPanel";
-import { fetchProjects, fetchDashboard, importCampaigns } from "@/lib/api";
+import {
+  fetchProjects,
+  fetchDashboard,
+  importCampaigns,
+  fetchCampaignRecommendations,
+  approveOptimizerAction,
+  rejectOptimizerAction,
+  type CampaignRecommendations,
+  type CampaignRecommendation,
+} from "@/lib/api";
 import { Loader2, Plus, Download } from "lucide-react";
 import Link from "next/link";
 import {
@@ -89,6 +98,7 @@ const ANDROMEDA_STATUS_CLASSES: Record<string, string> = {
 export default function AdsPage() {
   const { data: session } = useSession();
   const isClient = session?.user?.role === "client";
+  const token = (session as { accessToken?: string } | null)?.accessToken ?? "";
   const [projects, setProjects] = useState<Project[]>([]);
   const [selectedSlug, setSelectedSlug] = useState<string>("");
   const [data, setData] = useState<DashboardData | null>(null);
@@ -100,6 +110,8 @@ export default function AdsPage() {
   const [importing, setImporting] = useState(false);
   const [importResult, setImportResult] = useState<{ imported: number; updated: number } | null>(null);
   const [importError, setImportError] = useState<string | null>(null);
+  const [allRecommendations, setAllRecommendations] = useState<CampaignRecommendations[]>([]);
+  const [recsToast, setRecsToast] = useState<string | null>(null);
 
   useEffect(() => {
     fetchProjects()
@@ -117,10 +129,82 @@ export default function AdsPage() {
     setLoadingData(true);
     setError(null);
     fetchDashboard(selectedSlug)
-      .then((d) => setData(d))
+      .then((d) => {
+        setData(d);
+        // Fetch recommendations in parallel for all active campaigns
+        if (token) {
+          const activeCampaigns: Campaign[] = (d?.meta_ads?.campaigns ?? []).filter(
+            (c: Campaign) => c.id != null
+          );
+          Promise.allSettled(
+            activeCampaigns.map((c: Campaign) =>
+              fetchCampaignRecommendations(token, c.id).catch(() => null)
+            )
+          ).then((results) => {
+            const recs = results
+              .filter(
+                (r): r is PromiseFulfilledResult<CampaignRecommendations> =>
+                  r.status === "fulfilled" && r.value !== null && r.value.has_pending
+              )
+              .map((r) => r.value);
+            setAllRecommendations(recs);
+          });
+        }
+      })
       .catch((err) => setError(err.message))
       .finally(() => setLoadingData(false));
-  }, [selectedSlug]);
+  }, [selectedSlug, token]);
+
+  const showRecsToast = (msg: string) => {
+    setRecsToast(msg);
+    setTimeout(() => setRecsToast(null), 4000);
+  };
+
+  const handleRecApprove = async (rec: CampaignRecommendation, campaignId: number) => {
+    if (!rec.approval_token) return;
+    // Optimistic remove
+    setAllRecommendations((prev) =>
+      prev
+        .map((r) =>
+          r.campaign_id === campaignId
+            ? { ...r, recommendations: r.recommendations.filter((x) => x.id !== rec.id) }
+            : r
+        )
+        .filter((r) => r.recommendations.length > 0)
+        .map((r) => ({ ...r, has_pending: r.recommendations.length > 0 }))
+    );
+    try {
+      await approveOptimizerAction(token, rec.approval_token);
+      showRecsToast("Acción aprobada");
+      loadData();
+    } catch {
+      showRecsToast("Error al aprobar");
+      loadData();
+    }
+  };
+
+  const handleRecReject = async (rec: CampaignRecommendation, campaignId: number) => {
+    if (!rec.approval_token) return;
+    // Optimistic remove
+    setAllRecommendations((prev) =>
+      prev
+        .map((r) =>
+          r.campaign_id === campaignId
+            ? { ...r, recommendations: r.recommendations.filter((x) => x.id !== rec.id) }
+            : r
+        )
+        .filter((r) => r.recommendations.length > 0)
+        .map((r) => ({ ...r, has_pending: r.recommendations.length > 0 }))
+    );
+    try {
+      await rejectOptimizerAction(token, rec.approval_token);
+      showRecsToast("Acción rechazada");
+      loadData();
+    } catch {
+      showRecsToast("Error al rechazar");
+      loadData();
+    }
+  };
 
   const handleImport = useCallback(async () => {
     if (!selectedSlug) return;
@@ -246,6 +330,94 @@ export default function AdsPage() {
             >
               &times;
             </button>
+          </div>
+        )}
+
+        {/* Recommendations toast */}
+        {recsToast && (
+          <div className="fixed bottom-6 right-6 z-50 px-4 py-3 rounded-lg text-sm font-medium text-white shadow-lg"
+            style={{ backgroundColor: "#1a1a1a", border: "1px solid #333333" }}>
+            {recsToast}
+          </div>
+        )}
+
+        {/* ── RECOMENDACIONES PENDIENTES ───────────────────────────────────── */}
+        {allRecommendations.length > 0 && (
+          <div className="rounded-lg overflow-hidden" style={{ backgroundColor: "#111111", border: "1px solid #2d2d00" }}>
+            <div className="px-6 py-4 flex items-center gap-2" style={{ borderBottom: "1px solid #2d2d00" }}>
+              <span className="text-yellow-400 font-semibold text-sm">
+                Recomendaciones pendientes
+              </span>
+              <span className="px-2 py-0.5 rounded-full text-xs font-bold text-yellow-400" style={{ backgroundColor: "#2d2d00" }}>
+                {allRecommendations.reduce((sum, r) => sum + r.recommendations.length, 0)}
+              </span>
+            </div>
+            <div className="divide-y" style={{ borderColor: "#1a1a1a" }}>
+              {allRecommendations.map((campRec) =>
+                campRec.recommendations.map((rec) => {
+                  const isScale = rec.type === "optimizer_scale";
+                  const isPause = rec.type === "optimizer_pause";
+                  const isFatigued = rec.type === "campaign_fatigued";
+
+                  const emoji = isScale ? "🟢" : isPause ? "🔴" : "🟡";
+                  const decisionLabel = isScale ? "SCALE" : isPause ? "PAUSE" : "FATIGADO";
+
+                  let summary = rec.rationale.slice(0, 100);
+                  if (rec.rationale.length > 100) summary += "…";
+
+                  // For scale/pause, add budget info if available
+                  if (isScale && rec.budget_current != null && rec.budget_proposed != null) {
+                    summary = `Presupuesto $${rec.budget_current.toFixed(0)} → $${rec.budget_proposed.toFixed(0)}/día. ${summary}`;
+                  }
+
+                  return (
+                    <div key={rec.id} className="px-6 py-4">
+                      <div className="flex items-start justify-between flex-wrap gap-3">
+                        <div className="flex-1 min-w-0">
+                          <p className="text-white text-sm font-medium mb-0.5">{campRec.campaign_name}</p>
+                          <p className="text-gray-400 text-xs leading-relaxed">
+                            <span className="mr-1">{emoji}</span>
+                            <span className="font-medium text-gray-300">{decisionLabel}</span>
+                            {" — "}
+                            {summary}
+                          </p>
+                        </div>
+                        <div className="flex items-center gap-2 flex-shrink-0">
+                          {(isScale || isPause) && rec.approval_token && (
+                            <>
+                              <button
+                                onClick={() => handleRecApprove(rec, campRec.campaign_id)}
+                                className="px-3 py-1.5 text-xs font-medium text-white rounded-lg transition-colors"
+                                style={{ backgroundColor: isScale ? "#166534" : "#7f1d1d" }}
+                                onMouseEnter={e => (e.currentTarget.style.opacity = "0.85")}
+                                onMouseLeave={e => (e.currentTarget.style.opacity = "1")}
+                              >
+                                Confirmar
+                              </button>
+                              <button
+                                onClick={() => handleRecReject(rec, campRec.campaign_id)}
+                                className="px-3 py-1.5 text-xs font-medium text-gray-300 rounded-lg transition-colors"
+                                style={{ backgroundColor: "#1a1a1a" }}
+                                onMouseEnter={e => (e.currentTarget.style.backgroundColor = "#333333")}
+                                onMouseLeave={e => (e.currentTarget.style.backgroundColor = "#1a1a1a")}
+                              >
+                                Rechazar
+                              </button>
+                            </>
+                          )}
+                          <Link
+                            href={`/dashboard/ads/${campRec.campaign_id}?project_slug=${selectedSlug}`}
+                            className="px-3 py-1.5 text-xs font-medium text-blue-400 hover:text-blue-300 transition-colors"
+                          >
+                            {isFatigued ? "Ver brief →" : "Ver campaña →"}
+                          </Link>
+                        </div>
+                      </div>
+                    </div>
+                  );
+                })
+              )}
+            </div>
           </div>
         )}
 

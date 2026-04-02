@@ -566,6 +566,48 @@ export async function getHealthSummary(token: string): Promise<ProjectHealth[]> 
   return res.json();
 }
 
+// ── Campaign Recommendations ──────────────────────────────────────────────────
+
+export interface CampaignRecommendation {
+  id: string
+  source: string
+  type: string
+  created_at: string
+  decision: string
+  rationale: string
+  approval_token: string | null
+  approved: boolean | null
+  budget_current: number | null
+  budget_proposed: number | null
+  metrics: Record<string, number> | null
+  creative_brief: Record<string, string> | null
+}
+
+export interface CampaignRecommendations {
+  campaign_id: number
+  campaign_name: string
+  has_pending: boolean
+  recommendations: CampaignRecommendation[]
+  last_optimization: {
+    checked_at: string
+    decision: string
+    rationale: string
+    metrics_snapshot: Record<string, unknown> | null
+  } | null
+}
+
+export async function fetchCampaignRecommendations(
+  token: string,
+  campaignId: number
+): Promise<CampaignRecommendations> {
+  const res = await fetch(`${API_BASE}/api/v1/ads/${campaignId}/recommendations`, {
+    headers: { Authorization: `Bearer ${token}` },
+    cache: "no-store",
+  })
+  if (!res.ok) throw new Error("Failed to fetch campaign recommendations")
+  return res.json()
+}
+
 export function buildAutoPrompt(post: any, project: any): string {
   const content = typeof post.content === "string" ? JSON.parse(post.content) : post.content;
   const slide1 = content?.slides?.[0] ?? {};

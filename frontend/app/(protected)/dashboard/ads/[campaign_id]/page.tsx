@@ -18,13 +18,16 @@ import {
 } from "recharts"
 import {
   fetchCampaignDetail,
+  fetchCampaignRecommendations,
   updateCampaignStatus,
   updateCampaignBudget,
   optimizeCampaign,
   approveOptimizerAction,
   rejectOptimizerAction,
+  type CampaignRecommendation,
+  type CampaignRecommendations,
 } from "@/lib/api"
-import { Loader2 } from "lucide-react"
+import { Loader2, Copy } from "lucide-react"
 
 // ─── Types ───────────────────────────────────────────────────────────────────
 
@@ -178,6 +181,7 @@ export default function CampaignDetailPage() {
   const projectSlug = searchParams?.get("project_slug") ?? ""
 
   const [detail, setDetail] = useState<CampaignDetail | null>(null)
+  const [recommendations, setRecommendations] = useState<CampaignRecommendations | null>(null)
   const [loading, setLoading] = useState(true)
   const [optimizing, setOptimizing] = useState(false)
   const [optimizeModalOpen, setOptimizeModalOpen] = useState(false)
@@ -196,8 +200,12 @@ export default function CampaignDetailPage() {
   const loadDetail = useCallback(async () => {
     if (!token || !campaignId) return
     try {
-      const data = await fetchCampaignDetail(token, campaignId, projectSlug)
+      const [data, recs] = await Promise.all([
+        fetchCampaignDetail(token, campaignId, projectSlug),
+        fetchCampaignRecommendations(token, Number(campaignId)).catch(() => null),
+      ])
       setDetail(data)
+      setRecommendations(recs)
       setNewBudget(data?.campaign?.daily_budget ?? 0)
     } catch (e) {
       showToast("Error al cargar campaña")
@@ -273,6 +281,46 @@ export default function CampaignDetailPage() {
     } catch {
       showToast("Error al rechazar")
     }
+  }
+
+  const handleRecommendationApprove = async (rec: CampaignRecommendation) => {
+    if (!rec.approval_token) return
+    // Optimistic: remove card immediately
+    setRecommendations((prev) =>
+      prev
+        ? { ...prev, recommendations: prev.recommendations.filter((r) => r.id !== rec.id), has_pending: prev.recommendations.length > 1 }
+        : prev
+    )
+    try {
+      await approveOptimizerAction(token, rec.approval_token)
+      showToast("Acción aprobada")
+      loadDetail()
+    } catch {
+      showToast("Error al aprobar")
+      loadDetail()
+    }
+  }
+
+  const handleRecommendationReject = async (rec: CampaignRecommendation) => {
+    if (!rec.approval_token) return
+    // Optimistic: remove card immediately
+    setRecommendations((prev) =>
+      prev
+        ? { ...prev, recommendations: prev.recommendations.filter((r) => r.id !== rec.id), has_pending: prev.recommendations.length > 1 }
+        : prev
+    )
+    try {
+      await rejectOptimizerAction(token, rec.approval_token)
+      showToast("Acción rechazada")
+      loadDetail()
+    } catch {
+      showToast("Error al rechazar")
+      loadDetail()
+    }
+  }
+
+  const copyToClipboard = (text: string) => {
+    navigator.clipboard.writeText(text).then(() => showToast("Copiado al portapapeles"))
   }
 
   // ── Loading ────────────────────────────────────────────────────────────────
@@ -352,73 +400,210 @@ export default function CampaignDetailPage() {
   const metricLabel =
     chartMetric === "ctr" ? "CTR %" : chartMetric === "cpc" ? "CPC $" : "Frecuencia"
 
-  // Pending optimization logs
-  const pendingLogs = detail.optimization_logs.filter(
-    (log) => log.approval_status === "pending" && log.approval_token
-  )
-
   return (
     <div className="min-h-screen text-white">
       <Header title="Detalle de campaña" />
       <div className="p-6 space-y-6 max-w-[1400px] mx-auto">
 
-        {/* ── OPTIMIZACIONES PROPUESTAS ───────────────────────────────────── */}
-        {pendingLogs.length > 0 && (
+        {/* ── RECOMENDACIONES ACTIVAS ─────────────────────────────────────── */}
+        {recommendations?.has_pending && recommendations.recommendations.length > 0 && (
           <div className="space-y-3">
-            <h2 className="text-white font-semibold text-base">Optimizaciones propuestas</h2>
-            {pendingLogs.map((log) => (
-              <div
-                key={log.id}
-                className="rounded-xl p-4"
-                style={{ backgroundColor: "#111111", border: "1px solid #222222" }}
-              >
-                <div className="flex items-start justify-between gap-4 flex-wrap">
-                  <div className="flex-1 min-w-0">
-                    <div className="flex items-center gap-2 mb-2">
-                      <span
-                        className={`px-2 py-0.5 rounded text-xs font-semibold ${
-                          log.decision === "SCALE"
-                            ? "bg-green-900 text-green-300"
-                            : log.decision === "PAUSE"
-                            ? "bg-red-900 text-red-300"
-                            : log.decision === "MODIFY"
-                            ? "bg-yellow-900 text-yellow-300"
-                            : "bg-[#1a1a1a] text-gray-300"
-                        }`}
-                      >
-                        {log.decision}
-                      </span>
-                      <span className="text-gray-500 text-xs">{relativeTime(log.created_at)}</span>
-                    </div>
-                    <p className="text-gray-300 text-sm leading-relaxed">{log.rationale}</p>
-                    {log.decision === "SCALE" && log.budget_before != null && log.budget_after != null && (
-                      <p className="text-gray-400 text-xs mt-2">
-                        Presupuesto actual: <span className="text-white">${log.budget_before}/día</span> → Propuesto: <span className="text-green-400">${log.budget_after}/día</span>
-                      </p>
-                    )}
-                    {log.decision === "PAUSE" && (
-                      <p className="text-orange-300 text-xs mt-2">Esta acción pausará la campaña en Meta.</p>
-                    )}
+            <h2 className="text-white font-semibold text-base">Recomendaciones activas</h2>
+            {recommendations.recommendations.map((rec) => {
+              const isScale = rec.type === "optimizer_scale"
+              const isPause = rec.type === "optimizer_pause"
+              const isFatigued = rec.type === "campaign_fatigued"
+
+              const headerColor = isScale
+                ? "text-green-400"
+                : isPause
+                ? "text-red-400"
+                : "text-yellow-400"
+
+              const headerLabel = isScale
+                ? "SCALE RECOMENDADO"
+                : isPause
+                ? "PAUSE RECOMENDADO"
+                : "CREATIVO FATIGADO"
+
+              const borderColor = isScale
+                ? "#166534"
+                : isPause
+                ? "#7f1d1d"
+                : "#713f12"
+
+              const bgColor = isScale
+                ? "#052e16"
+                : isPause
+                ? "#450a0a"
+                : "#1c1200"
+
+              const brief = rec.creative_brief
+              const m = rec.metrics
+
+              return (
+                <div
+                  key={rec.id}
+                  className="rounded-xl p-4 space-y-3"
+                  style={{ backgroundColor: bgColor, border: `1px solid ${borderColor}` }}
+                >
+                  {/* Header row */}
+                  <div className="flex items-center justify-between flex-wrap gap-2">
+                    <span className={`font-semibold text-sm ${headerColor}`}>{headerLabel}</span>
+                    <span className="text-gray-500 text-xs">{relativeTime(rec.created_at)}</span>
                   </div>
-                  {(log.decision === "SCALE" || log.decision === "PAUSE") && (
-                    <div className="flex gap-2 flex-shrink-0">
+
+                  {/* Rationale */}
+                  <p className="text-gray-200 text-sm leading-relaxed">{rec.rationale}</p>
+
+                  {/* Budget info (SCALE) */}
+                  {isScale && rec.budget_current != null && rec.budget_proposed != null && (
+                    <div className="text-sm">
+                      <span className="text-gray-400">Presupuesto actual: </span>
+                      <span className="text-white font-medium">${rec.budget_current.toFixed(2)}/día</span>
+                      <span className="text-gray-400"> → Propuesto: </span>
+                      <span className="text-green-400 font-medium">${rec.budget_proposed.toFixed(2)}/día</span>
+                      {rec.budget_current > 0 && (
+                        <span className="text-green-500 text-xs ml-1">
+                          (+{(((rec.budget_proposed - rec.budget_current) / rec.budget_current) * 100).toFixed(0)}%)
+                        </span>
+                      )}
+                    </div>
+                  )}
+
+                  {/* Warning (PAUSE) */}
+                  {isPause && (
+                    <p className="text-orange-300 text-xs">Esta acción pausará la campaña en Meta Ads.</p>
+                  )}
+
+                  {/* Metrics */}
+                  {m && Object.keys(m).length > 0 && (
+                    <div className="rounded-lg p-3 space-y-1" style={{ backgroundColor: "#0a0a0a" }}>
+                      <p className="text-gray-400 text-xs font-medium mb-2">
+                        {isFatigued ? "Métricas de fatiga:" : "Métricas (últimos 7d):"}
+                      </p>
+                      {isFatigued ? (
+                        <div className="flex flex-wrap gap-x-4 gap-y-1 text-xs text-gray-300">
+                          {m.ctr_current != null && (
+                            <span>
+                              CTR actual: <span className="text-white">{m.ctr_current.toFixed(2)}%</span>
+                              {m.ctr_7d_ago != null && (
+                                <span className="text-gray-500"> (era {m.ctr_7d_ago.toFixed(2)}%</span>
+                              )}
+                              {m.ctr_drop_pct != null && (
+                                <span className="text-red-400">, cayó {m.ctr_drop_pct.toFixed(1)}%)</span>
+                              )}
+                            </span>
+                          )}
+                          {m.frequency != null && (
+                            <span>Frecuencia: <span className="text-white">{m.frequency.toFixed(1)}</span></span>
+                          )}
+                          {m.cost_per_result != null && (
+                            <span>Costo/resultado: <span className="text-white">${m.cost_per_result.toFixed(2)}</span></span>
+                          )}
+                        </div>
+                      ) : (
+                        <div className="flex flex-wrap gap-x-4 gap-y-1 text-xs text-gray-300">
+                          {m.ctr != null && <span>CTR: <span className="text-white">{m.ctr.toFixed(2)}%</span></span>}
+                          {m.cpl != null && <span>CPL: <span className="text-white">${m.cpl.toFixed(2)}</span></span>}
+                          {m.frequency != null && <span>Frecuencia: <span className="text-white">{m.frequency.toFixed(1)}</span></span>}
+                          {m.spend != null && <span>Gasto: <span className="text-white">${m.spend.toFixed(2)}</span></span>}
+                          {m.days_running != null && <span>Días activa: <span className="text-white">{m.days_running}</span></span>}
+                          {m.impressions != null && <span>Impresiones: <span className="text-white">{m.impressions.toLocaleString()}</span></span>}
+                        </div>
+                      )}
+                    </div>
+                  )}
+
+                  {/* Creative brief (FATIGUED) */}
+                  {isFatigued && brief && (
+                    <div className="rounded-lg p-3 space-y-2" style={{ backgroundColor: "#0a0a0a", border: "1px solid #1a1a1a" }}>
+                      <p className="text-yellow-400 text-xs font-medium">Brief de reemplazo:</p>
+                      {brief.angle && (
+                        <p className="text-xs text-gray-300">
+                          <span className="text-gray-500">Ángulo: </span>{brief.angle}
+                        </p>
+                      )}
+                      {brief.replacement_persona && (
+                        <p className="text-xs text-gray-300">
+                          <span className="text-gray-500">Persona: </span>{brief.replacement_persona}
+                        </p>
+                      )}
+                      {brief.suggested_hook && (
+                        <div className="flex items-start gap-2">
+                          <p className="text-xs text-gray-300 flex-1">
+                            <span className="text-gray-500">Hook: </span>
+                            <span className="italic">"{brief.suggested_hook}"</span>
+                          </p>
+                          <button
+                            onClick={() => copyToClipboard(brief.suggested_hook!)}
+                            className="flex-shrink-0 p-1 rounded hover:bg-gray-700 text-gray-400 hover:text-white"
+                            title="Copiar hook"
+                          >
+                            <Copy className="h-3 w-3" />
+                          </button>
+                        </div>
+                      )}
+                      {brief.suggested_body && (
+                        <div className="flex items-start gap-2">
+                          <p className="text-xs text-gray-300 flex-1">
+                            <span className="text-gray-500">Copy: </span>
+                            <span className="italic">"{brief.suggested_body}"</span>
+                          </p>
+                          <button
+                            onClick={() => copyToClipboard(brief.suggested_body!)}
+                            className="flex-shrink-0 p-1 rounded hover:bg-gray-700 text-gray-400 hover:text-white"
+                            title="Copiar copy"
+                          >
+                            <Copy className="h-3 w-3" />
+                          </button>
+                        </div>
+                      )}
+                      {brief.visual_direction && (
+                        <p className="text-xs text-gray-300">
+                          <span className="text-gray-500">Visual: </span>{brief.visual_direction}
+                        </p>
+                      )}
+                      {brief.what_to_avoid && (
+                        <p className="text-xs text-gray-300">
+                          <span className="text-gray-500">Evitar: </span>{brief.what_to_avoid}
+                        </p>
+                      )}
+                      {(brief.urgency_level || brief.urgency_reason) && (
+                        <p className="text-xs text-yellow-300">
+                          Urgencia: <span className="font-semibold">{brief.urgency_level ?? ""}</span>
+                          {brief.urgency_reason && <span className="text-gray-400"> — {brief.urgency_reason}</span>}
+                        </p>
+                      )}
+                    </div>
+                  )}
+
+                  {/* Action buttons (SCALE / PAUSE only) */}
+                  {(isScale || isPause) && rec.approval_token && (
+                    <div className="flex gap-2">
                       <button
-                        onClick={() => handleApprove(log)}
-                        className="px-3 py-1.5 text-xs bg-green-700 hover:bg-green-600 text-white rounded-lg font-medium transition-colors"
+                        onClick={() => handleRecommendationApprove(rec)}
+                        className="px-3 py-1.5 text-xs font-medium rounded-lg transition-colors text-white"
+                        style={{ backgroundColor: isScale ? "#166534" : "#7f1d1d" }}
+                        onMouseEnter={e => (e.currentTarget.style.opacity = "0.85")}
+                        onMouseLeave={e => (e.currentTarget.style.opacity = "1")}
                       >
-                        Confirmar
+                        Confirmar {isScale ? "SCALE" : "PAUSE"}
                       </button>
                       <button
-                        onClick={() => handleReject(log)}
-                        className="px-3 py-1.5 text-xs text-gray-300 rounded-lg font-medium transition-colors" style={{ backgroundColor: "#1a1a1a" }}
+                        onClick={() => handleRecommendationReject(rec)}
+                        className="px-3 py-1.5 text-xs font-medium text-gray-300 rounded-lg transition-colors"
+                        style={{ backgroundColor: "#1a1a1a" }}
+                        onMouseEnter={e => (e.currentTarget.style.backgroundColor = "#333333")}
+                        onMouseLeave={e => (e.currentTarget.style.backgroundColor = "#1a1a1a")}
                       >
-                        Cancelar
+                        Rechazar
                       </button>
                     </div>
                   )}
                 </div>
-              </div>
-            ))}
+              )
+            })}
           </div>
         )}
 
