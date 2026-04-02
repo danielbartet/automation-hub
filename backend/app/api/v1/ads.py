@@ -1254,6 +1254,22 @@ async def optimizer_approve(
 
     notif.is_read = True
     notif.action_data = {**action_data, "approved": True, "result": result_msg}
+
+    # Save optimization log so the action appears in campaign history
+    from app.models.optimization_log import CampaignOptimizationLog
+    from datetime import datetime
+    log_decision = "SCALE" if action == "scale" else "PAUSE"
+    log = CampaignOptimizationLog(
+        campaign_id=campaign.id,
+        project_id=campaign.project_id,
+        checked_at=datetime.utcnow(),
+        decision=log_decision,
+        rationale=action_data.get("rationale", f"Approved by user: {result_msg}"),
+        action_taken="BUDGET_UPDATED" if action == "scale" else "CAMPAIGN_PAUSED",
+        old_budget=action_data.get("current_budget"),
+        new_budget=action_data.get("new_budget") if action == "scale" else None,
+    )
+    db.add(log)
     await db.commit()
 
     return {"ok": True, "action": action, "result": result_msg}
