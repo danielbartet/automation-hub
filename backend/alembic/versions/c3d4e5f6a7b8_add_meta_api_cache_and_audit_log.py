@@ -19,32 +19,38 @@ depends_on: Union[str, Sequence[str], None] = None
 
 
 def upgrade() -> None:
-    op.create_table(
-        'meta_api_cache',
-        sa.Column('id', sa.Integer(), autoincrement=True, nullable=False),
-        sa.Column('project_id', sa.Integer(), nullable=False),
-        sa.Column('cache_key', sa.String(length=100), nullable=False),
-        sa.Column('data', sa.JSON(), nullable=True),
-        sa.Column('fetched_at', sa.DateTime(), nullable=False),
-        sa.Column('ttl_seconds', sa.Integer(), nullable=False, server_default='900'),
-        sa.ForeignKeyConstraint(['project_id'], ['projects.id'], ),
-        sa.PrimaryKeyConstraint('id'),
-    )
-    op.create_index(op.f('ix_meta_api_cache_project_id'), 'meta_api_cache', ['project_id'], unique=False)
+    bind = op.get_bind()
+    inspector = sa.inspect(bind)
+    existing_tables = inspector.get_table_names()
 
-    op.create_table(
-        'audit_log',
-        sa.Column('id', sa.Integer(), autoincrement=True, nullable=False),
-        sa.Column('project_id', sa.Integer(), nullable=True),
-        sa.Column('action', sa.String(length=200), nullable=False),
-        sa.Column('endpoint', sa.String(length=500), nullable=False),
-        sa.Column('response_status', sa.Integer(), nullable=True),
-        sa.Column('error_message', sa.Text(), nullable=True),
-        sa.Column('timestamp', sa.DateTime(), server_default=sa.text('(CURRENT_TIMESTAMP)'), nullable=False),
-        sa.ForeignKeyConstraint(['project_id'], ['projects.id'], ),
-        sa.PrimaryKeyConstraint('id'),
-    )
-    op.create_index(op.f('ix_audit_log_project_id'), 'audit_log', ['project_id'], unique=False)
+    if 'meta_api_cache' not in existing_tables:
+        op.create_table(
+            'meta_api_cache',
+            sa.Column('id', sa.Integer(), autoincrement=True, nullable=False),
+            sa.Column('project_id', sa.Integer(), nullable=False),
+            sa.Column('cache_key', sa.String(length=100), nullable=False),
+            sa.Column('data', sa.JSON(), nullable=True),
+            sa.Column('fetched_at', sa.DateTime(), nullable=False),
+            sa.Column('ttl_seconds', sa.Integer(), nullable=False, server_default='900'),
+            sa.ForeignKeyConstraint(['project_id'], ['projects.id'], ),
+            sa.PrimaryKeyConstraint('id'),
+        )
+        op.create_index(op.f('ix_meta_api_cache_project_id'), 'meta_api_cache', ['project_id'], unique=False)
+
+    if 'audit_log' not in existing_tables:
+        op.create_table(
+            'audit_log',
+            sa.Column('id', sa.Integer(), autoincrement=True, nullable=False),
+            sa.Column('project_id', sa.Integer(), nullable=True),
+            sa.Column('action', sa.String(length=200), nullable=False),
+            sa.Column('endpoint', sa.String(length=500), nullable=False),
+            sa.Column('response_status', sa.Integer(), nullable=True),
+            sa.Column('error_message', sa.Text(), nullable=True),
+            sa.Column('timestamp', sa.DateTime(), server_default=sa.text('(CURRENT_TIMESTAMP)'), nullable=False),
+            sa.ForeignKeyConstraint(['project_id'], ['projects.id'], ),
+            sa.PrimaryKeyConstraint('id'),
+        )
+        op.create_index(op.f('ix_audit_log_project_id'), 'audit_log', ['project_id'], unique=False)
 
 
 def downgrade() -> None:
