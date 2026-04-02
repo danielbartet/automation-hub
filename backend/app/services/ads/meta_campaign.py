@@ -322,6 +322,16 @@ class MetaCampaignService:
             )
             return "success" in resp.json()
 
+    async def update_campaign_budget(self, token: str, campaign_id: str, new_daily_budget_dollars: float) -> bool:
+        """Update campaign-level daily budget (used when no adset_id is available)."""
+        async with httpx.AsyncClient(timeout=10.0) as client:
+            resp = await client.post(
+                f"{META_BASE}/{campaign_id}",
+                params={"access_token": token},
+                json={"daily_budget": int(new_daily_budget_dollars * 100)}
+            )
+            return "success" in resp.json()
+
     async def fetch_campaign_insights(self, token: str, campaign_id: str, date_preset: str = "last_7d") -> dict:
         """Fetch campaign metrics for optimization analysis."""
         async with httpx.AsyncClient(timeout=10.0) as client:

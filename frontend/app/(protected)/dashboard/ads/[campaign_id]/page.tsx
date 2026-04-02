@@ -629,6 +629,11 @@ export default function CampaignDetailPage() {
             <span className="px-2 py-1 rounded text-xs font-semibold bg-blue-900 text-blue-300">
               {detail.campaign.objective.replace("OUTCOME_", "")}
             </span>
+            {detail.campaign.daily_budget > 0 && (
+              <span className="px-2 py-1 rounded text-xs font-semibold bg-[#1a1a1a] text-gray-300">
+                ${detail.campaign.daily_budget.toFixed(2)}/día
+              </span>
+            )}
             <span
               title={detail.andromeda_reason}
               className={`px-2 py-1 rounded text-xs font-semibold cursor-help ${

@@ -1218,6 +1218,14 @@ async def optimizer_approve(
         new_budget = action_data.get("new_budget", campaign.daily_budget)
         if token and campaign.meta_adset_id:
             await meta_svc.update_adset_budget(token, campaign.meta_adset_id, new_budget)
+        elif token and campaign.meta_campaign_id:
+            await meta_svc.update_campaign_budget(token, campaign.meta_campaign_id, new_budget)
+        else:
+            import logging
+            logging.getLogger(__name__).warning(
+                "optimizer_approve: no meta_adset_id or meta_campaign_id for campaign %s — DB updated but Meta skipped",
+                campaign.id,
+            )
         campaign.daily_budget = new_budget
         result_msg = f"Budget increased to ${new_budget}/day"
 
