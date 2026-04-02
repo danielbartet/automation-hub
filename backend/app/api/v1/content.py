@@ -23,7 +23,6 @@ from app.services.media.factory import get_image_provider, get_video_provider
 from app.services.meta.client import MetaClient
 from app.services.meta.pages import PagesService
 from app.services.meta.instagram import InstagramService
-from app.services.n8n.client import N8nClient
 from app.services.storage.s3 import S3Service
 
 router = APIRouter()
@@ -36,7 +35,6 @@ def get_s3_service() -> S3Service:
     if _s3_service is None:
         _s3_service = S3Service()
     return _s3_service
-n8n_client = N8nClient()
 
 
 class ContentPostResponse(BaseModel):
@@ -216,9 +214,6 @@ async def generate_content(
                 detail=f"Category '{body.category}' not in project content_categories",
             )
 
-    # 4. Build webhook URL
-    webhook_url = f"{project.n8n_webhook_base_url}/publish-meta"
-
     # 5. Generate content with Claude
     try:
         content = await claude_client.generate_content_by_type(
@@ -351,12 +346,8 @@ async def generate_content(
 
     # text_post: no image needed
 
-    # 8. Trigger n8n webhook
-    try:
-        await n8n_client.trigger_publish(webhook_url, caption, image_urls, project_slug)
-        webhook_triggered = True
-    except HTTPException:
-        webhook_triggered = False
+    # 8. (n8n publish webhook removed — approval now publishes directly to Meta)
+    webhook_triggered = False
 
     # 9. Determine DB format field
     if body.content_type == "carousel_6_slides":
@@ -479,16 +470,7 @@ async def create_content_manual(
     except Exception as e:
         print(f"[Notifications] Failed to create content_pending notification: {e}")
 
-    # Trigger n8n if project has webhook
-    webhook_url = f"{project.n8n_webhook_base_url}/publish-meta" if project.n8n_webhook_base_url else None
-    webhook_triggered = False
-    if webhook_url:
-        try:
-            media_list = body.image_urls if body.image_urls else ([body.image_url] if body.image_url else [])
-            await n8n_client.trigger_publish(webhook_url, full_caption, media_list, project_slug)
-            webhook_triggered = True
-        except Exception:
-            pass
+    # (n8n publish webhook removed — approval now publishes directly to Meta)
 
     return {
         "id": post.id,
@@ -498,7 +480,7 @@ async def create_content_manual(
         "image_url": post.image_url,
         "image_urls": body.image_urls or [],
         "scheduled_at": str(post.scheduled_at) if post.scheduled_at else None,
-        "webhook_triggered": webhook_triggered,
+        "webhook_triggered": False,
     }
 
 
@@ -510,8 +492,8 @@ async def update_content(
 ) -> dict:
     """Update a content post.
 
-    When the status transitions to "approved", a webhook is fired to n8n so
-    the publish flow can be triggered without Telegram involvement.
+    When the status transitions to "approved", the post is published directly
+    to Meta (Instagram + Facebook) without going through n8n or Telegram.
     """
     result = await db.execute(select(ContentPost).where(ContentPost.id == content_id))
     post = result.scalar_one_or_none()
@@ -544,26 +526,83 @@ async def update_content(
     await db.commit()
     await db.refresh(post)
 
-    # Fire n8n approval webhook when a post is approved in the app
+    # Publish directly to Meta when a post is approved in the app
     if body.status == "approved" and previous_status != "approved":
         proj_result = await db.execute(select(Project).where(Project.id == post.project_id))
         project = proj_result.scalar_one_or_none()
-        if project and project.n8n_webhook_base_url:
-            webhook_url = f"{project.n8n_webhook_base_url}/post-approved"
-            # Derive platform from content metadata; fall back to "instagram"
-            content_meta = post.content or {}
-            platform = content_meta.get("platform", "instagram") if isinstance(content_meta, dict) else "instagram"
+        if project:
             try:
-                await n8n_client.trigger_approval(
-                    webhook_url=webhook_url,
-                    post_id=post.id,
-                    project_slug=project.slug,
-                    platform=platform,
-                    caption=post.caption or "",
-                    media_url=post.image_url,
+                access_token = decrypt_token(project.meta_access_token) if project.meta_access_token else None
+                if not access_token:
+                    raise ValueError("No Meta access token configured for this project")
+
+                meta_client = MetaClient(access_token)
+                caption = post.caption or ""
+
+                # Resolve image URLs for publishing
+                publish_image_urls: list[str] = []
+                if post.image_urls:
+                    try:
+                        publish_image_urls = json.loads(post.image_urls)
+                    except (json.JSONDecodeError, TypeError):
+                        pass
+                if not publish_image_urls and post.image_url:
+                    publish_image_urls = [post.image_url]
+
+                first_image_url = publish_image_urls[0] if publish_image_urls else None
+
+                instagram_media_id: str | None = None
+                facebook_post_id: str | None = None
+
+                # Publish to Instagram
+                if project.instagram_account_id and first_image_url:
+                    ig_service = InstagramService(meta_client)
+                    container = await ig_service.create_media_container(
+                        project.instagram_account_id, first_image_url, caption
+                    )
+                    creation_id = container.get("id")
+                    if creation_id:
+                        published = await ig_service.publish_media(project.instagram_account_id, creation_id)
+                        instagram_media_id = published.get("id")
+
+                # Publish to Facebook Page
+                if project.facebook_page_id:
+                    pages_service = PagesService(meta_client)
+                    fb_result = await pages_service.publish_post(project.facebook_page_id, caption)
+                    facebook_post_id = fb_result.get("id")
+
+                # Mark as published
+                post.status = "published"
+                post.published_at = datetime.utcnow()
+                if instagram_media_id:
+                    post.instagram_media_id = instagram_media_id
+                if facebook_post_id:
+                    post.facebook_post_id = facebook_post_id
+                await db.commit()
+                await db.refresh(post)
+                logger.info(
+                    "Post %s published to Meta — instagram=%s facebook=%s",
+                    post.id, instagram_media_id, facebook_post_id,
                 )
-            except Exception:
-                pass  # Never block the approval response if n8n is unreachable
+
+            except Exception as exc:
+                logger.error("Failed to publish post %s to Meta: %s", post.id, exc, exc_info=True)
+                # Keep status as "approved" so the operator can retry; create a notification
+                try:
+                    from app.services.notifications import NotificationService
+                    from app.core.database import AsyncSessionLocal
+                    async with AsyncSessionLocal() as notif_db:
+                        notif_svc = NotificationService(notif_db)
+                        await notif_svc.create(
+                            type="post_failed",
+                            title="Error al publicar en Meta",
+                            message=f"Post #{post.id}: {exc}",
+                            project_id=post.project_id,
+                            action_url=f"/dashboard/content?id={post.id}",
+                            action_label="Revisar",
+                        )
+                except Exception as notif_exc:
+                    logger.error("Failed to create publish-failure notification: %s", notif_exc)
 
     # Parse image_urls JSON string back to a list for the response
     parsed_image_urls: list[str] = []
