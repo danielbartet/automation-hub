@@ -470,7 +470,7 @@ export default function HealthPage() {
 
   return (
     <div className="flex flex-col min-h-screen" style={{ backgroundColor: "#0a0a0a" }}>
-      <Header />
+      <Header title="Health Monitor" />
       <div className="flex-1 p-6 md:p-8 max-w-7xl mx-auto w-full">
         {/* Page header */}
         <div className="mb-8">
