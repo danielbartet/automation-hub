@@ -559,38 +559,120 @@ async def update_content(
 
                 instagram_media_id: str | None = None
                 facebook_post_id: str | None = None
+                ig_error: Exception | None = None
+                fb_error: Exception | None = None
 
-                # Publish to Instagram
+                # Publish to Instagram (independent — errors are captured, not raised)
                 if project.instagram_account_id and first_image_url:
-                    ig_service = InstagramService(meta_client)
-                    container = await ig_service.create_media_container(
-                        project.instagram_account_id, first_image_url, caption
+                    logger.info(
+                        "Post %s: attempting Instagram publish to account %s",
+                        post.id, project.instagram_account_id,
                     )
-                    creation_id = container.get("id")
-                    if creation_id:
-                        await ig_service.wait_for_container(creation_id)
-                        published = await ig_service.publish_media(project.instagram_account_id, creation_id)
-                        instagram_media_id = published.get("id")
+                    try:
+                        ig_service = InstagramService(meta_client)
+                        container = await ig_service.create_media_container(
+                            project.instagram_account_id, first_image_url, caption
+                        )
+                        creation_id = container.get("id")
+                        if creation_id:
+                            await ig_service.wait_for_container(creation_id)
+                            published = await ig_service.publish_media(project.instagram_account_id, creation_id)
+                            instagram_media_id = published.get("id")
+                            logger.info("Post %s: Instagram published — media_id=%s", post.id, instagram_media_id)
+                        else:
+                            logger.warning("Post %s: Instagram container returned no id", post.id)
+                    except Exception as exc:
+                        ig_error = exc
+                        logger.warning(
+                            "Post %s: Instagram publish failed (non-blocking): %s",
+                            post.id, exc, exc_info=True,
+                        )
+                else:
+                    logger.info(
+                        "Post %s: skipping Instagram (account_id=%s, first_image_url=%s)",
+                        post.id, project.instagram_account_id, first_image_url,
+                    )
 
-                # Publish to Facebook Page
+                # Publish to Facebook Page (independent — 403 is non-blocking)
                 if project.facebook_page_id:
-                    pages_service = PagesService(meta_client)
-                    fb_result = await pages_service.publish_post(project.facebook_page_id, caption)
-                    facebook_post_id = fb_result.get("id")
+                    logger.info(
+                        "Post %s: attempting Facebook publish to page %s",
+                        post.id, project.facebook_page_id,
+                    )
+                    try:
+                        pages_service = PagesService(meta_client)
+                        fb_result = await pages_service.publish_post(project.facebook_page_id, caption)
+                        facebook_post_id = fb_result.get("id")
+                        logger.info("Post %s: Facebook published — post_id=%s", post.id, facebook_post_id)
+                    except Exception as exc:
+                        fb_error = exc
+                        logger.warning(
+                            "Post %s: Facebook publish failed (non-blocking): %s",
+                            post.id, exc, exc_info=True,
+                        )
+                else:
+                    logger.info("Post %s: skipping Facebook (no facebook_page_id configured)", post.id)
 
-                # Mark as published
-                post.status = "published"
-                post.published_at = datetime.utcnow()
-                if instagram_media_id:
-                    post.instagram_media_id = instagram_media_id
-                if facebook_post_id:
-                    post.facebook_post_id = facebook_post_id
-                await db.commit()
-                await db.refresh(post)
-                logger.info(
-                    "Post %s published to Meta — instagram=%s facebook=%s",
-                    post.id, instagram_media_id, facebook_post_id,
-                )
+                # Determine outcome: published if at least one platform succeeded
+                at_least_one_success = instagram_media_id is not None or facebook_post_id is not None
+                both_failed = ig_error is not None and fb_error is not None
+
+                if at_least_one_success:
+                    post.status = "published"
+                    post.published_at = datetime.utcnow()
+                    if instagram_media_id:
+                        post.instagram_media_id = instagram_media_id
+                    if facebook_post_id:
+                        post.facebook_post_id = facebook_post_id
+                    await db.commit()
+                    await db.refresh(post)
+                    logger.info(
+                        "Post %s published to Meta — instagram=%s facebook=%s",
+                        post.id, instagram_media_id, facebook_post_id,
+                    )
+                    # If one platform succeeded but the other failed, log a softer warning
+                    if ig_error or fb_error:
+                        failed_platforms = []
+                        if ig_error:
+                            failed_platforms.append(f"Instagram: {ig_error}")
+                        if fb_error:
+                            failed_platforms.append(f"Facebook: {fb_error}")
+                        logger.warning(
+                            "Post %s: partial publish — some platforms failed: %s",
+                            post.id, "; ".join(failed_platforms),
+                        )
+                elif both_failed:
+                    logger.error(
+                        "Post %s: all platforms failed — instagram_error=%s, facebook_error=%s",
+                        post.id, ig_error, fb_error,
+                    )
+                    # Keep status as "approved" so the operator can retry
+                    combined_error = f"Instagram: {ig_error} | Facebook: {fb_error}"
+                    try:
+                        from app.services.notifications import NotificationService
+                        from app.core.database import AsyncSessionLocal
+                        async with AsyncSessionLocal() as notif_db:
+                            notif_svc = NotificationService(notif_db)
+                            await notif_svc.create(
+                                type="post_failed",
+                                title="Error al publicar en Meta",
+                                message=f"Post #{post.id}: {combined_error}",
+                                project_id=post.project_id,
+                                action_url=f"/dashboard/content?id={post.id}",
+                                action_label="Revisar",
+                            )
+                    except Exception as notif_exc:
+                        logger.error("Failed to create publish-failure notification: %s", notif_exc)
+                else:
+                    # No platforms configured or no images — mark published anyway
+                    logger.info(
+                        "Post %s: no platforms attempted (no account IDs or no image), marking published",
+                        post.id,
+                    )
+                    post.status = "published"
+                    post.published_at = datetime.utcnow()
+                    await db.commit()
+                    await db.refresh(post)
 
             except Exception as exc:
                 logger.error("Failed to publish post %s to Meta: %s", post.id, exc, exc_info=True)
