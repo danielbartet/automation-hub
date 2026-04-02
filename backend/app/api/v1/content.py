@@ -227,6 +227,10 @@ async def generate_content(
 
     # 6. Caption extraction
     caption = content.get("caption", "")
+    hashtags = content.get("hashtags", [])
+    if hashtags:
+        hashtag_str = " ".join(f"#{t.lstrip('#')}" for t in hashtags)
+        caption = f"{caption}\n\n{hashtag_str}".strip()
 
     # 7. Image handling — branch by content_type
     media_config = project.media_config or {}
