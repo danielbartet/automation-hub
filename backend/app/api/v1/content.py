@@ -605,7 +605,7 @@ async def update_content(
                     )
                     try:
                         pages_service = PagesService(meta_client)
-                        fb_result = await pages_service.publish_post(project.facebook_page_id, caption)
+                        fb_result = await pages_service.publish_post(project.facebook_page_id, caption, first_image_url)
                         facebook_post_id = fb_result.get("id")
                         logger.info("Post %s: Facebook published — post_id=%s", post.id, facebook_post_id)
                     except Exception as exc:
