@@ -248,7 +248,7 @@ export function NotificationPanel({ onClose }: NotificationPanelProps) {
   const [filter, setFilter] = useState<"all" | "unread" | "pending">("all");
   const [loading, setLoading] = useState(true);
   const [actionLoading, setActionLoading] = useState<string | null>(null);
-  const [actionResults, setActionResults] = useState<Record<string, string>>({});
+  const [actionResults, setActionResults] = useState<Record<string, { text: string; ok: boolean }>>({});
   const [expandedBriefs, setExpandedBriefs] = useState<Record<string, boolean>>({});
   const [uploadModalNotif, setUploadModalNotif] = useState<NotifItem | null>(null);
   const panelRef = useRef<HTMLDivElement>(null);
@@ -280,16 +280,24 @@ export function NotificationPanel({ onClose }: NotificationPanelProps) {
     setItems(prev => prev.map(n => ({ ...n, is_read: true })));
   };
 
+  const dismissAfterDelay = (id: string) => {
+    setTimeout(() => {
+      setItems(prev => prev.filter(n => n.id !== id));
+      setActionResults(prev => { const next = { ...prev }; delete next[id]; return next; });
+    }, 3500);
+  };
+
   const handleApprove = async (notif: NotifItem) => {
     const approvalToken = notif.action_data?.approval_token;
     if (!approvalToken || !token) return;
     setActionLoading(notif.id);
     try {
       const result = await approveOptimizerAction(token, approvalToken);
-      setActionResults(prev => ({ ...prev, [notif.id]: result.result || "Action executed" }));
+      setActionResults(prev => ({ ...prev, [notif.id]: { text: result.result || "Acción ejecutada", ok: true } }));
       setItems(prev => prev.map(n => n.id === notif.id ? { ...n, is_read: true } : n));
+      dismissAfterDelay(notif.id);
     } catch (e) {
-      setActionResults(prev => ({ ...prev, [notif.id]: `Error: ${e instanceof Error ? e.message : "Failed"}` }));
+      setActionResults(prev => ({ ...prev, [notif.id]: { text: `Error: ${e instanceof Error ? e.message : "Falló la acción"}`, ok: false } }));
     } finally { setActionLoading(null); }
   };
 
@@ -299,8 +307,9 @@ export function NotificationPanel({ onClose }: NotificationPanelProps) {
     setActionLoading(notif.id);
     try {
       await rejectOptimizerAction(token, approvalToken);
-      setActionResults(prev => ({ ...prev, [notif.id]: "Action cancelled" }));
+      setActionResults(prev => ({ ...prev, [notif.id]: { text: "Acción cancelada", ok: false } }));
       setItems(prev => prev.map(n => n.id === notif.id ? { ...n, is_read: true } : n));
+      dismissAfterDelay(notif.id);
     } catch { /* ignore */ }
     finally { setActionLoading(null); }
   };
@@ -320,6 +329,16 @@ export function NotificationPanel({ onClose }: NotificationPanelProps) {
     !notif.action_data?.approved &&
     !actionResults[notif.id];
 
+  const [toastMsg, setToastMsg] = useState<string | null>(null);
+  useEffect(() => {
+    const lastResult = Object.values(actionResults).at(-1);
+    if (lastResult) {
+      setToastMsg(lastResult.text);
+      const t = setTimeout(() => setToastMsg(null), 3500);
+      return () => clearTimeout(t);
+    }
+  }, [actionResults]);
+
   const isFatigueWithBrief = (notif: NotifItem) =>
     notif.type === "campaign_fatigued" && !!notif.action_data?.creative_brief;
 
@@ -333,6 +352,7 @@ export function NotificationPanel({ onClose }: NotificationPanelProps) {
     return true;
   });
 
+
   return (
     <>
       <div
@@ -340,6 +360,14 @@ export function NotificationPanel({ onClose }: NotificationPanelProps) {
         className="fixed right-0 top-0 h-full w-full sm:w-[400px] shadow-2xl z-50 flex flex-col"
         style={{ backgroundColor: "#111111", borderLeft: "1px solid #222222" }}
       >
+        {/* Toast banner */}
+        {toastMsg && (
+          <div className="flex items-center gap-2 px-4 py-3 bg-green-900/80 border-b border-green-700/60 text-green-300 text-sm font-medium animate-in slide-in-from-top-2 duration-200">
+            <CheckCircle className="h-4 w-4 flex-shrink-0 text-green-400" />
+            {toastMsg}
+          </div>
+        )}
+
         {/* Header */}
         <div className="flex items-center justify-between p-4" style={{ borderBottom: "1px solid #222222" }}>
           <h3 className="text-white font-semibold">Notificaciones</h3>
@@ -393,14 +421,14 @@ export function NotificationPanel({ onClose }: NotificationPanelProps) {
                 const style = TYPE_STYLES[notif.type] || { border: "border-l-gray-500", icon: <Bell className="h-4 w-4 text-gray-400" /> };
                 const isAction = isOptimizerAction(notif);
                 const isFatigue = isFatigueWithBrief(notif);
-                const resultText = actionResults[notif.id];
+                const result = actionResults[notif.id];
                 const isLoading = actionLoading === notif.id;
                 const briefExpanded = expandedBriefs[notif.id] ?? false;
 
                 return (
                   <div
                     key={notif.id}
-                    className={`border-l-4 ${style.border} ${notif.is_read ? "opacity-60" : ""} p-4 transition-colors`}
+                    className={`border-l-4 ${result ? (result.ok ? "border-l-green-500" : style.border) : style.border} ${notif.is_read && !result ? "opacity-60" : ""} p-4 transition-colors`}
                     onMouseEnter={e => (e.currentTarget.style.backgroundColor = "#161616")}
                     onMouseLeave={e => (e.currentTarget.style.backgroundColor = "transparent")}
                   >
@@ -419,7 +447,7 @@ export function NotificationPanel({ onClose }: NotificationPanelProps) {
                         <p className="text-xs text-gray-500 mt-0.5 line-clamp-2">{notif.message}</p>
 
                         {/* Optimizer approve/reject buttons */}
-                        {isAction && !resultText && (
+                        {isAction && !result && (
                           <div className="flex gap-2 mt-2">
                             <button
                               onClick={() => handleApprove(notif)}
@@ -455,7 +483,7 @@ export function NotificationPanel({ onClose }: NotificationPanelProps) {
                         )}
 
                         {/* Fatigue brief toggle */}
-                        {isFatigue && !resultText && (
+                        {isFatigue && !result && (
                           <>
                             <button
                               onClick={() => toggleBrief(notif.id)}
@@ -475,12 +503,18 @@ export function NotificationPanel({ onClose }: NotificationPanelProps) {
                         )}
 
                         {/* Result after action */}
-                        {resultText && (
-                          <p className="mt-1.5 text-xs text-gray-400 italic">{resultText}</p>
+                        {result && (
+                          <div className={`mt-2 flex items-center gap-2 px-3 py-2 rounded-md text-xs font-medium ${result.ok ? "bg-green-900/50 border border-green-700/60 text-green-300" : "bg-gray-800 border border-gray-700 text-gray-400"}`}>
+                            {result.ok
+                              ? <CheckCircle className="h-3.5 w-3.5 flex-shrink-0 text-green-400" />
+                              : <XCircle className="h-3.5 w-3.5 flex-shrink-0 text-gray-500" />
+                            }
+                            {result.text}
+                          </div>
                         )}
 
                         {/* Regular action button (non-fatigue, non-optimizer-action) */}
-                        {notif.action_label && !isAction && !isFatigue && !resultText && (
+                        {notif.action_label && !isAction && !isFatigue && !result && (
                           <button
                             onClick={() => handleNotifClick(notif)}
                             className="mt-1.5 text-xs text-blue-400 hover:text-blue-300 transition-colors"
