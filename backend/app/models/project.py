@@ -19,7 +19,6 @@ class Project(Base):
     instagram_account_id: Mapped[str | None] = mapped_column(String(50), nullable=True)
     ad_account_id: Mapped[str | None] = mapped_column(String(50), nullable=True)
     telegram_chat_id: Mapped[str | None] = mapped_column(String(50), nullable=True)
-    n8n_webhook_base_url: Mapped[str | None] = mapped_column(String(255), nullable=True)
     is_active: Mapped[bool] = mapped_column(Boolean, default=True, nullable=False)
     content_config: Mapped[dict | None] = mapped_column(JSON, nullable=True, default={})
     media_config: Mapped[dict | None] = mapped_column(JSON, nullable=True, default={})

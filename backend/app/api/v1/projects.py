@@ -34,7 +34,6 @@ class ProjectCreate(BaseModel):
     ad_account_id: Optional[str] = None
     meta_access_token: Optional[str] = None
     telegram_chat_id: Optional[str] = None
-    n8n_webhook_base_url: Optional[str] = None
     is_active: bool = True
     content_config: Optional[dict] = {}
 
@@ -46,7 +45,6 @@ class ProjectUpdate(BaseModel):
     ad_account_id: Optional[str] = None
     meta_access_token: Optional[str] = None
     telegram_chat_id: Optional[str] = None
-    n8n_webhook_base_url: Optional[str] = None
     is_active: Optional[bool] = None
     content_config: Optional[dict] = None
     media_config: Optional[dict] = None
@@ -91,7 +89,6 @@ async def create_project(data: ProjectCreate, db: AsyncSession = Depends(get_ses
         ad_account_id=data.ad_account_id,
         meta_access_token=data.meta_access_token,
         telegram_chat_id=data.telegram_chat_id,
-        n8n_webhook_base_url=data.n8n_webhook_base_url,
         is_active=data.is_active,
         content_config=data.content_config or {},
     )
@@ -131,8 +128,6 @@ async def update_project(slug: str, data: ProjectUpdate, db: AsyncSession = Depe
         project.meta_access_token = data.meta_access_token
     if data.telegram_chat_id is not None:
         project.telegram_chat_id = data.telegram_chat_id
-    if data.n8n_webhook_base_url is not None:
-        project.n8n_webhook_base_url = data.n8n_webhook_base_url
     if data.is_active is not None:
         project.is_active = data.is_active
     if data.content_config is not None:

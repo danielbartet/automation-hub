@@ -346,10 +346,9 @@ async def generate_content(
 
     # text_post: no image needed
 
-    # 8. (n8n publish webhook removed — approval now publishes directly to Meta)
     webhook_triggered = False
 
-    # 9. Determine DB format field
+    # 8. Determine DB format field
     if body.content_type == "carousel_6_slides":
         db_format = "carousel"
     elif body.content_type == "single_image":
@@ -470,8 +469,6 @@ async def create_content_manual(
     except Exception as e:
         print(f"[Notifications] Failed to create content_pending notification: {e}")
 
-    # (n8n publish webhook removed — approval now publishes directly to Meta)
-
     return {
         "id": post.id,
         "project_slug": project_slug,
@@ -493,7 +490,7 @@ async def update_content(
     """Update a content post.
 
     When the status transitions to "approved", the post is published directly
-    to Meta (Instagram + Facebook) without going through n8n or Telegram.
+    to Meta (Instagram + Facebook).
     """
     result = await db.execute(select(ContentPost).where(ContentPost.id == content_id))
     post = result.scalar_one_or_none()

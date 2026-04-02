@@ -278,10 +278,6 @@ async def get_dashboard_kpis(project_slug: str, db: AsyncSession = Depends(get_s
                 for p in recent_posts
             ],
         },
-        "n8n": {
-            "active_workflows": 1,
-            "failed_last_24h": 0,
-        },
         "costs": {
             "anthropic_spend_this_month": 0.0,
             "meta_ads_spend_this_month": total_spend_month,

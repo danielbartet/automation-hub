@@ -47,7 +47,6 @@ async def seed_db() -> None:
                 instagram_account_id="17841449394293930",
                 ad_account_id="act_1337773745049119",
                 telegram_chat_id="1284119239",
-                n8n_webhook_base_url="https://n8n.quantorialabs.com/webhook/QHcY6NWupxgAsy3m/webhook",
                 is_active=True,
                 content_config={
                     "language": "es",
