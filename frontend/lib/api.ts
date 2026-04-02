@@ -484,6 +484,88 @@ export async function refreshCreative(
   return res.json();
 }
 
+// ── Health Monitor Types ──────────────────────────────────────────────────────
+
+export interface CampaignHealth {
+  name: string;
+  status: string;
+  daily_budget: string;
+  spend_7d: string;
+  impressions_7d: number;
+}
+
+export interface ProjectHealth {
+  project_id: number;
+  project_name: string;
+  last_updated: string;
+  cache_age_seconds?: number;
+  is_stale: boolean;
+  health_color: "green" | "yellow" | "red";
+  error?: string;
+  ad_account: {
+    status: string;
+    status_label: string;
+    status_color: string;
+    disable_reason: string | null;
+    spend_lifetime: string;
+    ads_disapproved_7d: number;
+  };
+  campaigns: CampaignHealth[];
+  token: {
+    is_valid: boolean;
+    expires_at: string | null;
+    days_remaining: number | null;
+    color: string;
+  };
+  organic: {
+    facebook_page: { name: string; is_published: boolean } | null;
+    instagram: { username: string; media_count: number } | null;
+  };
+}
+
+// ── Health Monitor API Functions ──────────────────────────────────────────────
+
+export async function getProjectHealth(
+  token: string,
+  projectId: number
+): Promise<ProjectHealth> {
+  const res = await fetch(`${API_BASE}/api/v1/projects/${projectId}/health`, {
+    headers: { Authorization: `Bearer ${token}` },
+    cache: "no-store",
+  });
+  if (!res.ok) throw new Error("Failed to fetch project health");
+  return res.json();
+}
+
+export async function refreshProjectHealth(
+  token: string,
+  projectId: number
+): Promise<{ refreshed?: boolean; retry_after_seconds?: number } & Partial<ProjectHealth>> {
+  const res = await fetch(
+    `${API_BASE}/api/v1/projects/${projectId}/health/refresh`,
+    {
+      method: "POST",
+      headers: { Authorization: `Bearer ${token}` },
+    }
+  );
+  if (res.status === 429) {
+    const err = await res.json().catch(() => ({}));
+    const detail = (err as { detail?: { retry_after_seconds?: number } }).detail;
+    return { retry_after_seconds: detail?.retry_after_seconds ?? 1800 };
+  }
+  if (!res.ok) throw new Error("Failed to refresh project health");
+  return res.json();
+}
+
+export async function getHealthSummary(token: string): Promise<ProjectHealth[]> {
+  const res = await fetch(`${API_BASE}/api/v1/projects/health/summary`, {
+    headers: { Authorization: `Bearer ${token}` },
+    cache: "no-store",
+  });
+  if (!res.ok) throw new Error("Failed to fetch health summary");
+  return res.json();
+}
+
 export function buildAutoPrompt(post: any, project: any): string {
   const content = typeof post.content === "string" ? JSON.parse(post.content) : post.content;
   const slide1 = content?.slides?.[0] ?? {};

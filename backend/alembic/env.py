@@ -7,7 +7,7 @@ from sqlalchemy.ext.asyncio import async_engine_from_config
 from alembic import context
 from app.core.database import Base
 from app.core.config import settings
-from app.models import project, content, approval, ad_campaign, batch  # noqa: F401
+from app.models import project, content, approval, ad_campaign, batch, meta_api_cache  # noqa: F401
 
 config = context.config
 if config.config_file_name is not None:

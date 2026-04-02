@@ -2,7 +2,9 @@
 import Link from "next/link";
 import { usePathname } from "next/navigation";
 import { useSession } from "next-auth/react";
-import { LayoutDashboard, FileText, Megaphone, FolderKanban, CalendarDays, UsersRound } from "lucide-react";
+import { useEffect, useState } from "react";
+import { LayoutDashboard, FileText, Megaphone, FolderKanban, CalendarDays, UsersRound, Activity } from "lucide-react";
+import { getHealthSummary } from "@/lib/api";
 
 const navItems = [
   { href: "/dashboard", label: "Overview", icon: LayoutDashboard },
@@ -10,6 +12,7 @@ const navItems = [
   { href: "/dashboard/content", label: "Content", icon: FileText },
   { href: "/dashboard/calendar", label: "Calendar", icon: CalendarDays },
   { href: "/dashboard/ads", label: "Ads", icon: Megaphone },
+  { href: "/dashboard/health", label: "Health Monitor", icon: Activity },
 ];
 
 export function Sidebar() {
@@ -17,9 +20,37 @@ export function Sidebar() {
   const { data: session } = useSession();
   const role = session?.user?.role || "";
   const isClient = role === "client";
+  const [criticalTokenCount, setCriticalTokenCount] = useState(0);
+
+  const token = session?.accessToken as string | undefined;
 
   // Items hidden from clients
-  const clientHiddenPaths = ["/dashboard/calendar"];
+  const clientHiddenPaths = ["/dashboard/calendar", "/dashboard/health"];
+
+  // Poll health summary every 5 minutes to show alert badge
+  useEffect(() => {
+    if (!token || isClient) return;
+
+    const fetchBadge = async () => {
+      try {
+        const data = await getHealthSummary(token);
+        const critical = data.filter(
+          (h) =>
+            h.token &&
+            (h.token.days_remaining === null
+              ? false
+              : h.token.days_remaining < 30 || !h.token.is_valid)
+        ).length;
+        setCriticalTokenCount(critical);
+      } catch {
+        // silently ignore badge fetch errors
+      }
+    };
+
+    fetchBadge();
+    const id = setInterval(fetchBadge, 5 * 60 * 1000);
+    return () => clearInterval(id);
+  }, [token, isClient]);
 
   return (
     <aside className="w-64 min-h-screen flex flex-col" style={{ backgroundColor: "#050505" }}>
@@ -30,7 +61,8 @@ export function Sidebar() {
       <nav className="flex-1 p-4 space-y-1">
         {navItems.map(({ href, label, icon: Icon }) => {
           if (isClient && clientHiddenPaths.includes(href)) return null;
-          const isActive = pathname === href;
+          const isActive = pathname === href || (pathname.startsWith(href + "/") && href !== "/dashboard");
+          const showBadge = href === "/dashboard/health" && criticalTokenCount > 0;
           return (
             <Link
               key={href}
@@ -61,7 +93,16 @@ export function Sidebar() {
                 }
               }}
             >
-              <Icon className="h-4 w-4" />{label}
+              <Icon className="h-4 w-4 flex-shrink-0" />
+              <span className="flex-1">{label}</span>
+              {showBadge && (
+                <span
+                  className="ml-auto inline-flex items-center justify-center min-w-[18px] h-[18px] rounded-full text-xs font-bold px-1"
+                  style={{ backgroundColor: "#ef4444", color: "#ffffff" }}
+                >
+                  {criticalTokenCount}
+                </span>
+              )}
             </Link>
           );
         })}
