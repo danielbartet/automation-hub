@@ -370,14 +370,21 @@ async def update_campaign_status(
 
 @router.post("/{campaign_id}/optimize")
 async def manual_optimize(
-    campaign_id: int,
+    campaign_id: str,
     db: AsyncSession = Depends(get_session),
 ) -> dict:
-    """Manually trigger optimization for a specific campaign."""
+    """Manually trigger optimization. campaign_id can be local DB id or Meta campaign id."""
     from app.services.ads.optimizer import analyze_campaign
 
-    result = await db.execute(select(AdCampaign).where(AdCampaign.id == campaign_id))
-    campaign = result.scalar_one_or_none()
+    campaign = None
+    try:
+        result = await db.execute(select(AdCampaign).where(AdCampaign.id == int(campaign_id)))
+        campaign = result.scalar_one_or_none()
+    except (ValueError, OverflowError):
+        pass
+    if not campaign:
+        result = await db.execute(select(AdCampaign).where(AdCampaign.meta_campaign_id == campaign_id))
+        campaign = result.scalar_one_or_none()
     if not campaign:
         raise HTTPException(404, "Campaign not found")
 
@@ -1148,13 +1155,21 @@ class UpdateBudgetRequest(BaseModel):
 
 @router.put("/{campaign_id}/budget")
 async def update_campaign_budget(
-    campaign_id: int,
+    campaign_id: str,
     body: UpdateBudgetRequest,
     db: AsyncSession = Depends(get_session),
 ) -> dict:
-    """Update campaign daily budget."""
-    result = await db.execute(select(AdCampaign).where(AdCampaign.id == campaign_id))
-    campaign = result.scalar_one_or_none()
+    """Update campaign daily budget. campaign_id can be local DB id or Meta campaign id."""
+    # Try local DB id first, then meta_campaign_id (handles large Meta IDs with JS precision loss)
+    campaign = None
+    try:
+        result = await db.execute(select(AdCampaign).where(AdCampaign.id == int(campaign_id)))
+        campaign = result.scalar_one_or_none()
+    except (ValueError, OverflowError):
+        pass
+    if not campaign:
+        result = await db.execute(select(AdCampaign).where(AdCampaign.meta_campaign_id == campaign_id))
+        campaign = result.scalar_one_or_none()
     if not campaign:
         raise HTTPException(404, "Campaign not found")
 
@@ -1164,6 +1179,8 @@ async def update_campaign_budget(
 
     if token and campaign.meta_adset_id:
         await meta_service.update_adset_budget(token, campaign.meta_adset_id, body.daily_budget)
+    elif token and campaign.meta_campaign_id:
+        await meta_service.update_campaign_budget(token, campaign.meta_campaign_id, body.daily_budget)
 
     campaign.daily_budget = body.daily_budget
     await db.commit()

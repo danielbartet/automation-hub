@@ -181,6 +181,9 @@ export default function CampaignDetailPage() {
   const projectSlug = searchParams?.get("project_slug") ?? ""
 
   const [detail, setDetail] = useState<CampaignDetail | null>(null)
+  // Use local DB id for mutations — campaignId from URL may be a Meta ID (large int
+  // that loses JS precision). Once detail loads, localId is always the safe integer.
+  const localId = detail?.campaign?.id ?? Number(campaignId)
   const [recommendations, setRecommendations] = useState<CampaignRecommendations | null>(null)
   const [loading, setLoading] = useState(true)
   const [optimizing, setOptimizing] = useState(false)
@@ -202,7 +205,7 @@ export default function CampaignDetailPage() {
     try {
       const [data, recs] = await Promise.all([
         fetchCampaignDetail(token, campaignId, projectSlug),
-        fetchCampaignRecommendations(token, Number(campaignId)).catch(() => null),
+        fetchCampaignRecommendations(token, detail?.campaign?.id ?? Number(campaignId)).catch(() => null),
       ])
       setDetail(data)
       setRecommendations(recs)
@@ -223,7 +226,7 @@ export default function CampaignDetailPage() {
     if (!token) return
     setOptimizing(true)
     try {
-      const result = await optimizeCampaign(Number(campaignId))
+      const result = await optimizeCampaign(localId)
       showToast(`Análisis: ${result.decision || "Completado"}`)
       const fresh = await fetchCampaignDetail(token, campaignId)
       setDetail(fresh)
@@ -238,7 +241,7 @@ export default function CampaignDetailPage() {
     const label = status === "paused" ? "Pausar" : "Activar"
     if (!confirm(`¿${label} la campaña?`)) return
     try {
-      await updateCampaignStatus(Number(campaignId), status as "active" | "paused")
+      await updateCampaignStatus(localId, status as "active" | "paused")
       const fresh = await fetchCampaignDetail(token, campaignId)
       setDetail(fresh)
       showToast(`Campaña ${status === "paused" ? "pausada" : "activada"}`)
@@ -249,7 +252,7 @@ export default function CampaignDetailPage() {
 
   const handleBudgetUpdate = async () => {
     try {
-      await updateCampaignBudget(token, Number(campaignId), newBudget)
+      await updateCampaignBudget(token, localId, newBudget)
       setBudgetModalOpen(false)
       const fresh = await fetchCampaignDetail(token, campaignId)
       setDetail(fresh)
