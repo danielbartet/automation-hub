@@ -102,7 +102,10 @@ export function EditContentModal({ post, projectSlug, project, onClose, onSaved 
     setLoading(true);
     setError(null);
     try {
-      await updateContent(post.id, { status: newStatus });
+      await updateContent(post.id, {
+        status: newStatus,
+        scheduled_at: scheduledAt || undefined,
+      });
       onSaved();
       onClose();
     } catch (e) {
