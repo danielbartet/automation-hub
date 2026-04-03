@@ -250,6 +250,7 @@ export function NotificationPanel({ onClose }: NotificationPanelProps) {
   const [actionLoading, setActionLoading] = useState<string | null>(null);
   const [actionResults, setActionResults] = useState<Record<string, { text: string; ok: boolean }>>({});
   const [expandedBriefs, setExpandedBriefs] = useState<Record<string, boolean>>({});
+  const [expandedMessages, setExpandedMessages] = useState<Record<string, boolean>>({});
   const [uploadModalNotif, setUploadModalNotif] = useState<NotifItem | null>(null);
   const panelRef = useRef<HTMLDivElement>(null);
 
@@ -346,6 +347,10 @@ export function NotificationPanel({ onClose }: NotificationPanelProps) {
     setExpandedBriefs(prev => ({ ...prev, [id]: !prev[id] }));
   };
 
+  const toggleMessage = (id: string) => {
+    setExpandedMessages(prev => ({ ...prev, [id]: !prev[id] }));
+  };
+
   const filtered = items.filter(n => {
     if (filter === "unread") return !n.is_read;
     if (filter === "pending") return isOptimizerAction(n);
@@ -424,6 +429,8 @@ export function NotificationPanel({ onClose }: NotificationPanelProps) {
                 const result = actionResults[notif.id];
                 const isLoading = actionLoading === notif.id;
                 const briefExpanded = expandedBriefs[notif.id] ?? false;
+                const msgExpanded = expandedMessages[notif.id] ?? false;
+                const msgLong = notif.message && notif.message.length > 120;
 
                 return (
                   <div
@@ -444,7 +451,17 @@ export function NotificationPanel({ onClose }: NotificationPanelProps) {
                             <span className="text-xs text-gray-600">{timeAgo(notif.created_at)}</span>
                           </div>
                         </div>
-                        <p className="text-xs text-gray-500 mt-0.5 line-clamp-2">{notif.message}</p>
+                        <p className="text-xs text-gray-500 mt-0.5 break-words">
+                          {msgLong && !msgExpanded ? notif.message.slice(0, 120) + "…" : notif.message}
+                        </p>
+                        {msgLong && (
+                          <button
+                            onClick={() => toggleMessage(notif.id)}
+                            className="mt-0.5 text-xs text-gray-600 hover:text-gray-400 transition-colors"
+                          >
+                            {msgExpanded ? "Ver menos ↑" : "Ver más ↓"}
+                          </button>
+                        )}
 
                         {/* Optimizer approve/reject buttons */}
                         {isAction && !result && (
@@ -516,10 +533,22 @@ export function NotificationPanel({ onClose }: NotificationPanelProps) {
                         {/* Regular action button (non-fatigue, non-optimizer-action) */}
                         {notif.action_label && !isAction && !isFatigue && !result && (
                           <button
-                            onClick={() => handleNotifClick(notif)}
+                            onClick={() => {
+                              if (notif.type === "post_failed") {
+                                toggleMessage(notif.id);
+                                if (!notif.is_read && token) {
+                                  markNotificationRead(token, notif.id).catch(() => {});
+                                  setItems(prev => prev.map(n => n.id === notif.id ? { ...n, is_read: true } : n));
+                                }
+                              } else {
+                                handleNotifClick(notif);
+                              }
+                            }}
                             className="mt-1.5 text-xs text-blue-400 hover:text-blue-300 transition-colors"
                           >
-                            {notif.action_label} →
+                            {notif.type === "post_failed"
+                              ? (msgExpanded ? "Ocultar detalle ↑" : "Ver detalle →")
+                              : `${notif.action_label} →`}
                           </button>
                         )}
                       </div>
