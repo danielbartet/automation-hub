@@ -321,6 +321,9 @@ export async function generateAdConcepts(
     campaign_objective: string;
     count?: number;
     product_description?: string;
+    destination_url?: string;
+    audience_type?: string;
+    pixel_event?: string;
   }
 ): Promise<{
   project_slug: string;
