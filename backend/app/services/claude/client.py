@@ -273,7 +273,8 @@ RULES:
 
         system_prompt = f"""You are a social media strategist expert for {language} content.
 You specialize in maximizing organic reach on Instagram and Facebook for {brand_name}.
-You always respond with valid JSON only, no markdown, no explanations outside the JSON."""
+You always respond with valid JSON only, no markdown, no explanations outside the JSON.
+CRITICAL JSON RULES: All string values must be on a single line. Never include literal newlines, tabs, or unescaped quotes inside string values. Use spaces instead of newlines within strings."""
 
         user_prompt = f"""Today is {weekday}, {date_str} at {time_str} UTC.
 
@@ -347,7 +348,34 @@ Return ONLY valid JSON (no markdown, no code blocks):
         response_text = re.sub(r'^```(?:json)?\s*', '', response_text.strip())
         response_text = re.sub(r'\s*```$', '', response_text.strip())
 
-        return json.loads(response_text)
+        # Try direct parse; if it fails, sanitize newlines inside strings then retry
+        try:
+            return json.loads(response_text)
+        except json.JSONDecodeError:
+            # Replace literal newlines inside JSON string values (between quotes)
+            # This handles the case where Claude puts \n in string content
+            def fix_newlines_in_strings(s: str) -> str:
+                result = []
+                in_string = False
+                escape_next = False
+                for ch in s:
+                    if escape_next:
+                        result.append(ch)
+                        escape_next = False
+                    elif ch == '\\' and in_string:
+                        result.append(ch)
+                        escape_next = True
+                    elif ch == '"':
+                        in_string = not in_string
+                        result.append(ch)
+                    elif ch in ('\n', '\r', '\t') and in_string:
+                        result.append(' ')
+                    else:
+                        result.append(ch)
+                return ''.join(result)
+
+            cleaned = fix_newlines_in_strings(response_text)
+            return json.loads(cleaned)
 
     async def generate_caption(self, topic: str, tone: str, language: str = "es") -> str:
         """Generate a social media caption for a topic."""
