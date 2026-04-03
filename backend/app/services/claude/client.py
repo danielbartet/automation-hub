@@ -230,6 +230,9 @@ RULES:
         count: int = 12,
         product_description: str | None = None,
         existing_hooks: list[str] | None = None,
+        destination_url: str | None = None,
+        audience_type: str = "broad",
+        pixel_event: str | None = None,
     ) -> dict:
         """Generate Andromeda-compliant ad concepts for a project."""
         config = project.content_config or {}
@@ -248,6 +251,30 @@ conceptually OPPOSITE to these:
 Do NOT reuse the same psychological angle or visual approach as any of the existing hooks.
 """
 
+        # Additional context blocks based on objective and audience
+        objective_block = ""
+        if "SALES" in campaign_objective.upper():
+            dest = destination_url or "the product page"
+            objective_block = f"""
+CAMPAIGN CONTEXT — SALES/CONVERSIONS:
+Destination: {dest}
+Key difference from LEADS campaigns:
+- People already know the brand OR are similar to existing customers
+- Focus on: specific offer, price justification, testimonials, urgency
+- Avoid: purely educational content (they're past that stage)
+- Include at least 2 concepts with Social Proof angle (testimonials, results)
+- Include at least 1 concept with urgency/scarcity angle
+"""
+
+        audience_block = ""
+        if audience_type in ("retargeting_lookalike", "custom"):
+            audience_block = """
+AUDIENCE CONTEXT — RETARGETING:
+Audience: people who already visited the site or are on the leads list.
+They know the brand. Skip the awareness/education angle.
+Focus on: why buy NOW, specific offer details, what they'll get.
+"""
+
         system_prompt = f"""You are an expert Meta Ads creative strategist specializing in the Andromeda algorithm.
 
 Generate {count} advertising concepts for {brand_name}.
@@ -257,7 +284,7 @@ Brand context:
 - Target audience: {target_audience}
 - Campaign objective: {campaign_objective}
 - Language: {language}
-
+{objective_block}{audience_block}
 ANDROMEDA RULES (mandatory):
 1. Each concept must have a unique Entity ID — less than 60% semantic similarity between any two
 2. Vary P.D.A. for every concept:

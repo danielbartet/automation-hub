@@ -3,7 +3,7 @@ import Link from "next/link";
 import { usePathname } from "next/navigation";
 import { useSession } from "next-auth/react";
 import { useEffect, useState } from "react";
-import { LayoutDashboard, FileText, Megaphone, FolderKanban, CalendarDays, UsersRound, Activity } from "lucide-react";
+import { LayoutDashboard, FileText, Megaphone, FolderKanban, CalendarDays, UsersRound, Activity, Users2 } from "lucide-react";
 import { getHealthSummary } from "@/lib/api";
 
 const navItems = [
@@ -12,6 +12,7 @@ const navItems = [
   { href: "/dashboard/content", label: "Content", icon: FileText },
   { href: "/dashboard/calendar", label: "Calendar", icon: CalendarDays },
   { href: "/dashboard/ads", label: "Ads", icon: Megaphone },
+  { href: "/dashboard/ads/audiences", label: "Audiencias", icon: Users2 },
   { href: "/dashboard/health", label: "Health Monitor", icon: Activity },
 ];
 
@@ -61,7 +62,11 @@ export function Sidebar() {
       <nav className="flex-1 p-4 space-y-1">
         {navItems.map(({ href, label, icon: Icon }) => {
           if (isClient && clientHiddenPaths.includes(href)) return null;
-          const isActive = pathname === href || (pathname.startsWith(href + "/") && href !== "/dashboard");
+          const isActive =
+            pathname === href ||
+            (pathname.startsWith(href + "/") &&
+              href !== "/dashboard" &&
+              !(href === "/dashboard/ads" && pathname.startsWith("/dashboard/ads/audiences")));
           const showBadge = href === "/dashboard/health" && criticalTokenCount > 0;
           return (
             <Link

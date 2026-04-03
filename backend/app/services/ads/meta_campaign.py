@@ -203,6 +203,81 @@ class MetaCampaignService:
 
         return {"creative_id": creative_id, "ad_id": ad_data["id"]}
 
+    def _build_placement_targeting(
+        self,
+        placements: list[str],
+        advantage_placements: bool,
+    ) -> dict:
+        """Build publisher_platforms and position targeting from placement list."""
+        if advantage_placements or not placements:
+            return {
+                "publisher_platforms": ["facebook", "instagram", "audience_network"],
+                "facebook_positions": ["feed", "right_hand_column", "marketplace", "video_feeds"],
+                "instagram_positions": ["stream", "reels", "stories", "explore"],
+            }
+
+        placement_map = {
+            "instagram_feed": ("instagram", "stream"),
+            "instagram_reels": ("instagram", "reels"),
+            "instagram_stories": ("instagram", "stories"),
+            "facebook_feed": ("facebook", "feed"),
+            "audience_network": ("audience_network", "classic"),
+        }
+
+        publishers: dict[str, list[str]] = {}
+        for p in placements:
+            if p not in placement_map:
+                continue
+            platform, position = placement_map[p]
+            publishers.setdefault(platform, []).append(position)
+
+        result: dict = {}
+        if publishers:
+            result["publisher_platforms"] = list(publishers.keys())
+            if "facebook" in publishers:
+                result["facebook_positions"] = publishers["facebook"]
+            if "instagram" in publishers:
+                result["instagram_positions"] = publishers["instagram"]
+            if "audience_network" in publishers:
+                result["audience_network_positions"] = publishers["audience_network"]
+        return result
+
+    async def _create_adset(
+        self,
+        client: httpx.AsyncClient,
+        token: str,
+        ad_account_id: str,
+        campaign_id: str,
+        name: str,
+        daily_budget_cents: int,
+        opt_goal: str,
+        targeting: dict,
+        promoted_object: dict | None = None,
+    ) -> str:
+        """Create a single ad set and return its ID."""
+        payload: dict = {
+            "name": name,
+            "campaign_id": campaign_id,
+            "daily_budget": daily_budget_cents,
+            "billing_event": "IMPRESSIONS",
+            "optimization_goal": opt_goal,
+            "bid_strategy": "LOWEST_COST_WITHOUT_CAP",
+            "targeting": targeting,
+            "status": "PAUSED",
+        }
+        if promoted_object:
+            payload["promoted_object"] = promoted_object
+
+        adset_resp = await client.post(
+            f"{META_BASE}/act_{ad_account_id}/adsets",
+            params={"access_token": token},
+            json=payload,
+        )
+        adset_data = adset_resp.json()
+        if "error" in adset_data:
+            raise ValueError(f"Ad set creation failed: {adset_data['error']['message']}")
+        return adset_data["id"]
+
     async def create_campaign_with_concepts(
         self,
         token: str,
@@ -216,8 +291,19 @@ class MetaCampaignService:
         concepts: list[dict],
         placeholder_image_fn,  # async callable(project_slug) -> str
         project_slug: str,
+        audience_type: str = "broad",
+        custom_audience_ids: list[str] | None = None,
+        lookalike_audience_ids: list[str] | None = None,
+        placements: list[str] | None = None,
+        advantage_placements: bool = True,
+        pixel_event: str | None = None,
+        pixel_id: str | None = None,
     ) -> dict:
-        """Create Campaign + Ad Set + multiple Creatives/Ads from concepts. All start PAUSED."""
+        """Create Campaign + Ad Set(s) + multiple Creatives/Ads from concepts. All start PAUSED."""
+        custom_audience_ids = custom_audience_ids or []
+        lookalike_audience_ids = lookalike_audience_ids or []
+        placements = placements or []
+
         async with httpx.AsyncClient(timeout=30.0) as client:
             # 1. Create Campaign
             campaign_resp = await client.post(
@@ -235,68 +321,155 @@ class MetaCampaignService:
                 raise ValueError(f"Campaign creation failed: {campaign_data['error']['message']}")
             campaign_id = campaign_data["id"]
 
-            # 2. Create Ad Set (Broad/Andromeda targeting)
+            # 2. Determine optimization goal
             daily_budget_cents = int(daily_budget_dollars * 100)
-            opt_goal = (
-                "LEAD_GENERATION" if "LEADS" in objective
-                else "OFFSITE_CONVERSIONS" if "SALES" in objective
-                else "LINK_CLICKS"
-            )
-            adset_resp = await client.post(
-                f"{META_BASE}/act_{ad_account_id}/adsets",
-                params={"access_token": token},
-                json={
-                    "name": f"{name} \u2013 Ad Set",
-                    "campaign_id": campaign_id,
-                    "daily_budget": daily_budget_cents,
-                    "billing_event": "IMPRESSIONS",
-                    "optimization_goal": opt_goal,
-                    "bid_strategy": "LOWEST_COST_WITHOUT_CAP",
-                    "targeting": {
-                        "geo_locations": {"countries": countries},
-                    },
-                    "status": "PAUSED",
-                },
-            )
-            adset_data = adset_resp.json()
-            if "error" in adset_data:
-                raise ValueError(f"Ad set creation failed: {adset_data['error']['message']}")
-            adset_id = adset_data["id"]
 
-            # 3. Create Creative + Ad for each concept
+            # Override opt_goal for SALES + pixel_event
+            if "SALES" in objective and pixel_event and pixel_id:
+                opt_goal = "OFFSITE_CONVERSIONS"
+                promoted_object: dict | None = {
+                    "pixel_id": pixel_id,
+                    "custom_event_type": pixel_event,
+                }
+            else:
+                opt_goal = (
+                    "LEAD_GENERATION" if "LEADS" in objective
+                    else "OFFSITE_CONVERSIONS" if "SALES" in objective
+                    else "REACH" if "AWARENESS" in objective
+                    else "LINK_CLICKS"
+                )
+                promoted_object = None
+
+            # 3. Build placement targeting
+            placement_targeting = self._build_placement_targeting(placements, advantage_placements)
+
+            # 4. Create Ad Set(s) based on audience_type
+            adset_id: str
+            extra_adset_id: str | None = None
+
+            if audience_type == "custom":
+                targeting = {
+                    "custom_audiences": [{"id": aid} for aid in custom_audience_ids],
+                    "geo_locations": {"countries": countries},
+                    **placement_targeting,
+                }
+                adset_id = await self._create_adset(
+                    client, token, ad_account_id, campaign_id,
+                    name=f"{name} \u2013 Ad Set",
+                    daily_budget_cents=daily_budget_cents,
+                    opt_goal=opt_goal,
+                    targeting=targeting,
+                    promoted_object=promoted_object,
+                )
+
+            elif audience_type == "lookalike":
+                targeting = {
+                    "custom_audiences": [{"id": aid} for aid in lookalike_audience_ids],
+                    "geo_locations": {"countries": countries},
+                    "age_min": 18,
+                    "age_max": 65,
+                    **placement_targeting,
+                }
+                adset_id = await self._create_adset(
+                    client, token, ad_account_id, campaign_id,
+                    name=f"{name} \u2013 Ad Set",
+                    daily_budget_cents=daily_budget_cents,
+                    opt_goal=opt_goal,
+                    targeting=targeting,
+                    promoted_object=promoted_object,
+                )
+
+            elif audience_type == "retargeting_lookalike":
+                # Split budget evenly between the two ad sets
+                half_budget_cents = daily_budget_cents // 2
+
+                retargeting_targeting = {
+                    "custom_audiences": [{"id": aid} for aid in custom_audience_ids],
+                    "geo_locations": {"countries": countries},
+                    **placement_targeting,
+                }
+                adset_id = await self._create_adset(
+                    client, token, ad_account_id, campaign_id,
+                    name=f"{name} \u2013 Retargeting",
+                    daily_budget_cents=half_budget_cents,
+                    opt_goal=opt_goal,
+                    targeting=retargeting_targeting,
+                    promoted_object=promoted_object,
+                )
+
+                lookalike_targeting = {
+                    "custom_audiences": [{"id": aid} for aid in lookalike_audience_ids],
+                    "geo_locations": {"countries": countries},
+                    "age_min": 18,
+                    "age_max": 65,
+                    **placement_targeting,
+                }
+                extra_adset_id = await self._create_adset(
+                    client, token, ad_account_id, campaign_id,
+                    name=f"{name} \u2013 Lookalike",
+                    daily_budget_cents=half_budget_cents,
+                    opt_goal=opt_goal,
+                    targeting=lookalike_targeting,
+                    promoted_object=promoted_object,
+                )
+
+            else:
+                # broad (default)
+                targeting = {
+                    "geo_locations": {"countries": countries},
+                    "age_min": 18,
+                    "age_max": 65,
+                    **placement_targeting,
+                }
+                adset_id = await self._create_adset(
+                    client, token, ad_account_id, campaign_id,
+                    name=f"{name} \u2013 Ad Set",
+                    daily_budget_cents=daily_budget_cents,
+                    opt_goal=opt_goal,
+                    targeting=targeting,
+                    promoted_object=promoted_object,
+                )
+
+            # 5. Create Creative + Ad for each concept under each ad set
             ads_created = []
             first_creative_id = None
             first_ad_id = None
 
-            for concept in concepts:
-                concept_id = concept.get("id", 0)
-                hook_3s = concept.get("hook_3s", "")
-                body_text = concept.get("body", "")
-                cta = concept.get("cta", "Learn More")
-                image_url = concept.get("image_url") or await placeholder_image_fn(project_slug)
+            adset_ids = [adset_id]
+            if extra_adset_id:
+                adset_ids.append(extra_adset_id)
 
-                result = await self.create_creative_and_ad(
-                    client=client,
-                    token=token,
-                    ad_account_id=ad_account_id,
-                    facebook_page_id=facebook_page_id,
-                    adset_id=adset_id,
-                    campaign_name=name,
-                    concept_id=concept_id,
-                    hook_3s=hook_3s,
-                    body=body_text,
-                    cta=cta,
-                    image_url=image_url,
-                    destination_url=destination_url,
-                )
-                ads_created.append(result)
-                if first_creative_id is None:
-                    first_creative_id = result["creative_id"]
-                    first_ad_id = result["ad_id"]
+            for current_adset_id in adset_ids:
+                for concept in concepts:
+                    concept_id = concept.get("id", 0)
+                    hook_3s = concept.get("hook_3s", "")
+                    body_text = concept.get("body", "")
+                    cta = concept.get("cta", "Learn More")
+                    image_url = concept.get("image_url") or await placeholder_image_fn(project_slug)
+
+                    result = await self.create_creative_and_ad(
+                        client=client,
+                        token=token,
+                        ad_account_id=ad_account_id,
+                        facebook_page_id=facebook_page_id,
+                        adset_id=current_adset_id,
+                        campaign_name=name,
+                        concept_id=concept_id,
+                        hook_3s=hook_3s,
+                        body=body_text,
+                        cta=cta,
+                        image_url=image_url,
+                        destination_url=destination_url,
+                    )
+                    ads_created.append(result)
+                    if first_creative_id is None:
+                        first_creative_id = result["creative_id"]
+                        first_ad_id = result["ad_id"]
 
         return {
             "campaign_id": campaign_id,
             "adset_id": adset_id,
+            "extra_adset_id": extra_adset_id,
             "creative_id": first_creative_id,
             "ad_id": first_ad_id,
             "ads_created": ads_created,

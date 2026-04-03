@@ -43,7 +43,7 @@ class ConceptInput(BaseModel):
 
 class CreateCampaignRequest(BaseModel):
     name: str
-    objective: str  # OUTCOME_LEADS | OUTCOME_SALES | OUTCOME_TRAFFIC
+    objective: str  # OUTCOME_LEADS | OUTCOME_SALES | OUTCOME_TRAFFIC | OUTCOME_AWARENESS
     daily_budget: float  # dollars
     countries: list[str] = ["AR", "MX", "CO", "CL"]
     # Legacy single-creative fields (optional when concepts provided)
@@ -52,12 +52,22 @@ class CreateCampaignRequest(BaseModel):
     destination_url: str | None = None
     # Andromeda multi-creative concepts
     concepts: list[ConceptInput] | None = None
+    # New audience & placement options
+    pixel_event: str | None = None  # Purchase|Lead|AddToCart|ViewContent|CompleteRegistration
+    audience_type: str = "broad"  # broad|custom|lookalike|retargeting_lookalike
+    custom_audience_ids: list[str] = []  # meta_audience_id values
+    lookalike_audience_ids: list[str] = []  # meta_audience_id values
+    placements: list[str] = []  # instagram_feed|instagram_reels|instagram_stories|facebook_feed|audience_network
+    advantage_placements: bool = True
 
 
 class GenerateConceptsRequest(BaseModel):
-    campaign_objective: str  # OUTCOME_LEADS | OUTCOME_SALES | OUTCOME_TRAFFIC
+    campaign_objective: str  # OUTCOME_LEADS | OUTCOME_SALES | OUTCOME_TRAFFIC | OUTCOME_AWARENESS
     count: int = 12
     product_description: str | None = None
+    destination_url: str | None = None
+    audience_type: str = "broad"
+    pixel_event: str | None = None
 
 
 class RefreshCreativesRequest(BaseModel):
@@ -151,6 +161,9 @@ async def generate_concepts(
             campaign_objective=body.campaign_objective,
             count=body.count,
             product_description=body.product_description,
+            destination_url=body.destination_url,
+            audience_type=body.audience_type,
+            pixel_event=body.pixel_event,
         )
     except Exception as e:
         raise HTTPException(500, f"Concept generation failed: {str(e)}")
@@ -241,6 +254,11 @@ async def create_campaign(
         async def upload_placeholder(slug: str) -> str:
             return await s3_service.upload_placeholder_image(slug)
 
+        # Resolve pixel_id from project config for SALES conversion tracking
+        pixel_id: str | None = None
+        if body.objective == "OUTCOME_SALES" and body.pixel_event:
+            pixel_id = (project.content_config or {}).get("meta_pixel_id")
+
         try:
             meta_ids = await meta_service.create_campaign_with_concepts(
                 token=token,
@@ -254,6 +272,13 @@ async def create_campaign(
                 concepts=[c.model_dump() for c in body.concepts],
                 placeholder_image_fn=upload_placeholder,
                 project_slug=project_slug,
+                audience_type=body.audience_type,
+                custom_audience_ids=body.custom_audience_ids,
+                lookalike_audience_ids=body.lookalike_audience_ids,
+                placements=body.placements,
+                advantage_placements=body.advantage_placements,
+                pixel_event=body.pixel_event,
+                pixel_id=pixel_id,
             )
         except ValueError as e:
             raise HTTPException(400, str(e))

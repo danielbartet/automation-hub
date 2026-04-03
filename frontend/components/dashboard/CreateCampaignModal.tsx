@@ -3,6 +3,7 @@ import { useState, useEffect } from "react";
 import { X, Loader2, ChevronRight, ChevronLeft, Check, RefreshCw, Sparkles } from "lucide-react";
 import { ImageUploadZone } from "./ImageUploadZone";
 import { ConceptsGrid } from "./ConceptsGrid";
+import { CreateAudienceModal } from "./CreateAudienceModal";
 import { createCampaign, fetchProjectPosts, generateAdConcepts, createCampaignWithConcepts, AdConcept, DiversityAudit } from "@/lib/api";
 
 interface Post {
@@ -22,6 +23,30 @@ const OBJECTIVES = [
   { value: "OUTCOME_LEADS", label: "Leads", description: "Genera leads y registros" },
   { value: "OUTCOME_SALES", label: "Ventas", description: "Impulsa compras y conversiones" },
   { value: "OUTCOME_TRAFFIC", label: "Tráfico", description: "Envía personas a tu sitio web" },
+  { value: "OUTCOME_AWARENESS", label: "Reconocimiento de marca", description: "Aumenta el conocimiento de tu marca" },
+];
+
+const PIXEL_EVENTS = [
+  { value: "Purchase", label: "Compra" },
+  { value: "Lead", label: "Lead" },
+  { value: "AddToCart", label: "Agregar al carrito" },
+  { value: "ViewContent", label: "Ver producto" },
+  { value: "CompleteRegistration", label: "Registro" },
+];
+
+const AUDIENCE_TYPE_LABELS: Record<string, string> = {
+  broad: "Amplia (Advantage+)",
+  custom: "Audiencia personalizada",
+  lookalike: "Lookalike",
+  retargeting_lookalike: "Retargeting + Lookalike",
+};
+
+const PLACEMENT_OPTIONS = [
+  { value: "instagram_feed", label: "Instagram Feed" },
+  { value: "instagram_reels", label: "Instagram Reels" },
+  { value: "instagram_stories", label: "Instagram Stories" },
+  { value: "facebook_feed", label: "Facebook Feed" },
+  { value: "audience_network", label: "Audience Network" },
 ];
 
 const COUNTRY_OPTIONS = [
@@ -48,6 +73,16 @@ export function CreateCampaignModal({ projectSlug, projectId, onClose, onSuccess
   const [objective, setObjective] = useState("OUTCOME_LEADS");
   const [budget, setBudget] = useState(10);
   const [countries, setCountries] = useState<string[]>(["AR", "MX", "CO", "CL"]);
+  const [destinationUrlStep1, setDestinationUrlStep1] = useState("");
+  const [pixelEvent, setPixelEvent] = useState("Purchase");
+  const [audienceType, setAudienceType] = useState<"broad" | "custom" | "lookalike" | "retargeting_lookalike">("broad");
+  const [customAudienceIds, setCustomAudienceIds] = useState<string[]>([]);
+  const [lookalikeAudienceIds, setLookalikeAudienceIds] = useState<string[]>([]);
+  const [advantagePlacements, setAdvantagePlacements] = useState(true);
+  const [placements, setPlacements] = useState<string[]>([]);
+  const [audiences, setAudiences] = useState<any[]>([]);
+  const [audiencesLoading, setAudiencesLoading] = useState(false);
+  const [showCreateAudienceModal, setShowCreateAudienceModal] = useState(false);
 
   // Step 2 — Concepts
   const [generatingConcepts, setGeneratingConcepts] = useState(false);
@@ -91,6 +126,29 @@ export function CreateCampaignModal({ projectSlug, projectId, onClose, onSuccess
     });
   };
 
+  // Fetch audiences when audience type changes away from "broad"
+  useEffect(() => {
+    if (audienceType === "broad") return;
+    setAudiencesLoading(true);
+    fetch(`${process.env.NEXT_PUBLIC_API_URL}/api/v1/ads/audiences/${projectSlug}`)
+      .then(r => r.json())
+      .then(data => setAudiences(Array.isArray(data) ? data : []))
+      .catch(() => setAudiences([]))
+      .finally(() => setAudiencesLoading(false));
+  }, [audienceType, projectSlug]);
+
+  const togglePlacement = (value: string) => {
+    setPlacements(prev => prev.includes(value) ? prev.filter(p => p !== value) : [...prev, value]);
+  };
+
+  const toggleCustomAudience = (id: string) => {
+    setCustomAudienceIds(prev => prev.includes(id) ? prev.filter(a => a !== id) : [...prev, id]);
+  };
+
+  const toggleLookalikeAudience = (id: string) => {
+    setLookalikeAudienceIds(prev => prev.includes(id) ? prev.filter(a => a !== id) : [...prev, id]);
+  };
+
   const handleGenerateConcepts = async () => {
     setGeneratingConcepts(true);
     setConceptsError(null);
@@ -98,6 +156,9 @@ export function CreateCampaignModal({ projectSlug, projectId, onClose, onSuccess
       const result = await generateAdConcepts(projectSlug, {
         campaign_objective: objective,
         count: 12,
+        destination_url: destinationUrlStep1 || undefined,
+        audience_type: audienceType,
+        pixel_event: objective === "OUTCOME_SALES" ? pixelEvent : undefined,
       });
       setConcepts(result.concepts);
       setDiversityAudit(result.diversity_audit);
@@ -123,7 +184,13 @@ export function CreateCampaignModal({ projectSlug, projectId, onClose, onSuccess
           objective,
           daily_budget: budget,
           countries,
-          destination_url: destinationUrl,
+          destination_url: destinationUrl || destinationUrlStep1 || undefined,
+          pixel_event: objective === "OUTCOME_SALES" ? pixelEvent : undefined,
+          audience_type: audienceType,
+          custom_audience_ids: customAudienceIds,
+          lookalike_audience_ids: lookalikeAudienceIds,
+          placements,
+          advantage_placements: advantagePlacements,
           concepts: approvedConcepts.map(c => ({
             id: c.id,
             hook_3s: c.hook_3s,
@@ -142,7 +209,13 @@ export function CreateCampaignModal({ projectSlug, projectId, onClose, onSuccess
           countries,
           image_url: imageUrl,
           ad_copy: adCopy,
-          destination_url: destinationUrl,
+          destination_url: destinationUrl || destinationUrlStep1 || undefined,
+          pixel_event: objective === "OUTCOME_SALES" ? pixelEvent : undefined,
+          audience_type: audienceType,
+          custom_audience_ids: customAudienceIds,
+          lookalike_audience_ids: lookalikeAudienceIds,
+          placements,
+          advantage_placements: advantagePlacements,
         });
       }
       onSuccess();
@@ -154,7 +227,14 @@ export function CreateCampaignModal({ projectSlug, projectId, onClose, onSuccess
     }
   };
 
-  const canProceedStep1 = name.trim() && budget >= 10 && countries.length > 0;
+  const needsDestinationUrl = objective === "OUTCOME_SALES" || objective === "OUTCOME_TRAFFIC";
+  const destinationUrlValid = !needsDestinationUrl || (destinationUrlStep1.startsWith("https://") && destinationUrlStep1.length > 8);
+  const audienceValid =
+    audienceType === "broad" ||
+    (audienceType === "custom" && customAudienceIds.length > 0) ||
+    (audienceType === "lookalike" && lookalikeAudienceIds.length > 0) ||
+    (audienceType === "retargeting_lookalike" && customAudienceIds.length > 0 && lookalikeAudienceIds.length > 0);
+  const canProceedStep1 = name.trim() && budget >= 10 && countries.length > 0 && destinationUrlValid && audienceValid;
   const canProceedStep2 = concepts.length === 0 || approvedConcepts.length >= 6;
   const canProceedStep3 = approvedConcepts.length >= 6
     ? destinationUrl.trim().length > 0
@@ -165,6 +245,7 @@ export function CreateCampaignModal({ projectSlug, projectId, onClose, onSuccess
   // Andromeda checklist for step 4
   const uniqueAngles = new Set(approvedConcepts.map(c => c.psychological_angle));
   const uniqueFormats = new Set(approvedConcepts.map(c => c.format));
+  const effectiveDestUrl = destinationUrl || destinationUrlStep1;
   const checklist = [
     {
       label: `Mínimo 6 creativos aprobados (${approvedConcepts.length} aprobados)`,
@@ -180,6 +261,11 @@ export function CreateCampaignModal({ projectSlug, projectId, onClose, onSuccess
     {
       label: `Diversidad de formatos (mínimo 2 únicos — ${uniqueFormats.size} detectados)`,
       ok: approvedConcepts.length === 0 || uniqueFormats.size >= 2,
+    },
+    { label: "Audiencia configurada", ok: true },
+    {
+      label: `URL de destino${needsDestinationUrl ? " (requerida para este objetivo)" : ""}`,
+      ok: !needsDestinationUrl || (effectiveDestUrl.startsWith("https://") && effectiveDestUrl.length > 8),
     },
   ];
   const allChecklistOk = checklist.every(c => c.ok);
@@ -310,6 +396,226 @@ export function CreateCampaignModal({ projectSlug, projectId, onClose, onSuccess
                     </button>
                   ))}
                 </div>
+              </div>
+
+              {/* Destination URL — shown for OUTCOME_SALES and OUTCOME_TRAFFIC */}
+              {(objective === "OUTCOME_SALES" || objective === "OUTCOME_TRAFFIC") && (
+                <div>
+                  <label className="block text-sm font-medium mb-1" style={{ color: "#d1d5db" }}>
+                    URL de destino *
+                  </label>
+                  <input
+                    value={destinationUrlStep1}
+                    onChange={e => setDestinationUrlStep1(e.target.value)}
+                    type="url"
+                    className="w-full rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-[#7c3aed] text-white placeholder-gray-500"
+                    style={{ border: "1px solid #333333", backgroundColor: "#1a1a1a" }}
+                    placeholder="https://quantorialabs.com/venta"
+                  />
+                  {destinationUrlStep1 && !destinationUrlStep1.startsWith("https://") && (
+                    <p className="text-xs mt-1 text-red-400">La URL debe comenzar con https://</p>
+                  )}
+                </div>
+              )}
+
+              {/* Pixel Event — shown only for OUTCOME_SALES */}
+              {objective === "OUTCOME_SALES" && (
+                <div>
+                  <label className="block text-sm font-medium mb-1" style={{ color: "#d1d5db" }}>
+                    Evento a optimizar
+                  </label>
+                  <select
+                    value={pixelEvent}
+                    onChange={e => setPixelEvent(e.target.value)}
+                    className="w-full rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-[#7c3aed] text-white"
+                    style={{ border: "1px solid #333333", backgroundColor: "#1a1a1a" }}
+                  >
+                    {PIXEL_EVENTS.map(ev => (
+                      <option key={ev.value} value={ev.value}>{ev.label}</option>
+                    ))}
+                  </select>
+                </div>
+              )}
+
+              {/* Audience Type */}
+              <div>
+                <label className="block text-sm font-medium mb-2" style={{ color: "#d1d5db" }}>
+                  Tipo de Audiencia *
+                </label>
+                <div className="space-y-2">
+                  {(["broad", "custom", "lookalike", "retargeting_lookalike"] as const).map(type => (
+                    <button
+                      key={type}
+                      onClick={() => {
+                        setAudienceType(type);
+                        setCustomAudienceIds([]);
+                        setLookalikeAudienceIds([]);
+                      }}
+                      className="w-full flex items-center gap-3 p-3 rounded-lg border text-left transition-colors"
+                      style={{
+                        border: audienceType === type ? "1px solid #7c3aed" : "1px solid #333333",
+                        backgroundColor: audienceType === type ? "rgba(124,58,237,0.1)" : "transparent",
+                      }}
+                      onMouseEnter={e => { if (audienceType !== type) (e.currentTarget as HTMLButtonElement).style.borderColor = "#555555"; }}
+                      onMouseLeave={e => { if (audienceType !== type) (e.currentTarget as HTMLButtonElement).style.borderColor = "#333333"; }}
+                    >
+                      <div
+                        className="w-4 h-4 rounded-full border-2 flex-shrink-0"
+                        style={{
+                          borderColor: audienceType === type ? "#7c3aed" : "#555555",
+                          backgroundColor: audienceType === type ? "#7c3aed" : "transparent",
+                        }}
+                      />
+                      <span className="text-sm font-medium text-white">{AUDIENCE_TYPE_LABELS[type]}</span>
+                    </button>
+                  ))}
+                </div>
+
+                {/* Audience sub-selectors */}
+                {audienceType !== "broad" && (
+                  <div className="mt-3 space-y-3">
+                    {audiencesLoading ? (
+                      <div className="flex items-center gap-2 text-sm" style={{ color: "#9ca3af" }}>
+                        <Loader2 className="h-4 w-4 animate-spin" />
+                        Cargando audiencias...
+                      </div>
+                    ) : audiences.length === 0 ? (
+                      <p className="text-xs" style={{ color: "#9ca3af" }}>No se encontraron audiencias guardadas.</p>
+                    ) : (
+                      <>
+                        {(audienceType === "custom" || audienceType === "retargeting_lookalike") && (
+                          <div>
+                            <p className="text-xs font-medium mb-2" style={{ color: "#d1d5db" }}>
+                              {audienceType === "retargeting_lookalike" ? "Audiencia de retargeting" : "Seleccionar audiencias"}
+                            </p>
+                            <div className="space-y-1 max-h-40 overflow-y-auto">
+                              {audiences.filter((a: any) => a.audience_type === "custom" || !a.audience_type).map((a: any) => (
+                                <button
+                                  key={a.meta_audience_id}
+                                  onClick={() => {
+                                    if (audienceType === "retargeting_lookalike") {
+                                      setCustomAudienceIds(prev =>
+                                        prev.includes(a.meta_audience_id)
+                                          ? prev.filter(id => id !== a.meta_audience_id)
+                                          : [...prev, a.meta_audience_id]
+                                      );
+                                    } else {
+                                      toggleCustomAudience(a.meta_audience_id);
+                                    }
+                                  }}
+                                  className="w-full flex items-center gap-2 px-3 py-2 rounded-lg text-left text-xs transition-colors"
+                                  style={{
+                                    backgroundColor: customAudienceIds.includes(a.meta_audience_id) ? "rgba(124,58,237,0.15)" : "#1a1a1a",
+                                    border: customAudienceIds.includes(a.meta_audience_id) ? "1px solid #7c3aed" : "1px solid #333333",
+                                    color: "#d1d5db",
+                                  }}
+                                >
+                                  <div className="w-3 h-3 rounded border flex-shrink-0 flex items-center justify-center"
+                                    style={{ borderColor: customAudienceIds.includes(a.meta_audience_id) ? "#7c3aed" : "#555555", backgroundColor: customAudienceIds.includes(a.meta_audience_id) ? "#7c3aed" : "transparent" }}>
+                                    {customAudienceIds.includes(a.meta_audience_id) && <Check className="h-2 w-2 text-white" />}
+                                  </div>
+                                  {a.name} {a.approximate_count ? `(${a.approximate_count.toLocaleString()} personas)` : "(procesando...)"}
+                                </button>
+                              ))}
+                            </div>
+                          </div>
+                        )}
+
+                        {(audienceType === "lookalike" || audienceType === "retargeting_lookalike") && (
+                          <div>
+                            <p className="text-xs font-medium mb-2" style={{ color: "#d1d5db" }}>
+                              {audienceType === "retargeting_lookalike" ? "Audiencia lookalike" : "Seleccionar audiencia lookalike"}
+                            </p>
+                            <div className="space-y-1 max-h-40 overflow-y-auto">
+                              {audiences.filter((a: any) => a.audience_type === "lookalike").map((a: any) => (
+                                <button
+                                  key={a.meta_audience_id}
+                                  onClick={() => toggleLookalikeAudience(a.meta_audience_id)}
+                                  className="w-full flex items-center gap-2 px-3 py-2 rounded-lg text-left text-xs transition-colors"
+                                  style={{
+                                    backgroundColor: lookalikeAudienceIds.includes(a.meta_audience_id) ? "rgba(124,58,237,0.15)" : "#1a1a1a",
+                                    border: lookalikeAudienceIds.includes(a.meta_audience_id) ? "1px solid #7c3aed" : "1px solid #333333",
+                                    color: "#d1d5db",
+                                  }}
+                                >
+                                  <div className="w-3 h-3 rounded border flex-shrink-0 flex items-center justify-center"
+                                    style={{ borderColor: lookalikeAudienceIds.includes(a.meta_audience_id) ? "#7c3aed" : "#555555", backgroundColor: lookalikeAudienceIds.includes(a.meta_audience_id) ? "#7c3aed" : "transparent" }}>
+                                    {lookalikeAudienceIds.includes(a.meta_audience_id) && <Check className="h-2 w-2 text-white" />}
+                                  </div>
+                                  {a.name} {a.approximate_count ? `(${a.approximate_count.toLocaleString()} personas)` : "(procesando...)"}
+                                </button>
+                              ))}
+                              {audiences.filter((a: any) => a.audience_type === "lookalike").length === 0 && (
+                                <p className="text-xs py-2" style={{ color: "#9ca3af" }}>No hay audiencias lookalike disponibles.</p>
+                              )}
+                            </div>
+                          </div>
+                        )}
+                      </>
+                    )}
+
+                    {audienceType === "retargeting_lookalike" && (
+                      <div className="p-2 rounded-lg text-xs" style={{ backgroundColor: "rgba(124,58,237,0.08)", border: "1px solid rgba(124,58,237,0.2)", color: "#c4b5fd" }}>
+                        Se crearán 2 conjuntos de anuncios automáticamente
+                      </div>
+                    )}
+
+                    <button
+                      type="button"
+                      onClick={() => setShowCreateAudienceModal(true)}
+                      className="text-xs font-medium transition-colors"
+                      style={{ color: "#7c3aed" }}
+                      onMouseEnter={e => (e.currentTarget.style.color = "#a78bfa")}
+                      onMouseLeave={e => (e.currentTarget.style.color = "#7c3aed")}
+                    >
+                      + Crear nueva audiencia
+                    </button>
+                  </div>
+                )}
+              </div>
+
+              {/* Placements */}
+              <div>
+                <label className="block text-sm font-medium mb-2" style={{ color: "#d1d5db" }}>
+                  Ubicaciones
+                </label>
+                <div className="flex items-center justify-between p-3 rounded-lg mb-2" style={{ border: "1px solid #333333", backgroundColor: "#1a1a1a" }}>
+                  <span className="text-sm text-white">Advantage+ Placements</span>
+                  <button
+                    type="button"
+                    onClick={() => setAdvantagePlacements(prev => !prev)}
+                    className="relative inline-flex h-5 w-9 flex-shrink-0 rounded-full border-2 border-transparent transition-colors"
+                    style={{ backgroundColor: advantagePlacements ? "#7c3aed" : "#374151" }}
+                  >
+                    <span
+                      className="inline-block h-4 w-4 transform rounded-full bg-white shadow transition-transform"
+                      style={{ transform: advantagePlacements ? "translateX(16px)" : "translateX(0)" }}
+                    />
+                  </button>
+                </div>
+                {!advantagePlacements && (
+                  <div className="space-y-1">
+                    {PLACEMENT_OPTIONS.map(({ value, label }) => (
+                      <button
+                        key={value}
+                        type="button"
+                        onClick={() => togglePlacement(value)}
+                        className="w-full flex items-center gap-2 px-3 py-2 rounded-lg text-left text-xs transition-colors"
+                        style={{
+                          backgroundColor: placements.includes(value) ? "rgba(124,58,237,0.15)" : "#1a1a1a",
+                          border: placements.includes(value) ? "1px solid #7c3aed" : "1px solid #333333",
+                          color: "#d1d5db",
+                        }}
+                      >
+                        <div className="w-3 h-3 rounded border flex-shrink-0 flex items-center justify-center"
+                          style={{ borderColor: placements.includes(value) ? "#7c3aed" : "#555555", backgroundColor: placements.includes(value) ? "#7c3aed" : "transparent" }}>
+                          {placements.includes(value) && <Check className="h-2 w-2 text-white" />}
+                        </div>
+                        {label}
+                      </button>
+                    ))}
+                  </div>
+                )}
               </div>
 
               <div className="flex justify-end pt-2">
@@ -672,12 +978,42 @@ export function CreateCampaignModal({ projectSlug, projectId, onClose, onSuccess
                   <span className="font-medium text-white">{countries.join(", ")}</span>
                 </div>
                 <div className="flex justify-between">
-                  <span style={{ color: "#9ca3af" }}>Targeting</span>
-                  <span className="font-medium text-green-400">Broad (Andromeda)</span>
+                  <span style={{ color: "#9ca3af" }}>Audiencia</span>
+                  <span className="font-medium text-white">{AUDIENCE_TYPE_LABELS[audienceType]}</span>
                 </div>
+                {audienceType === "custom" && customAudienceIds.length > 0 && (
+                  <div className="flex justify-between">
+                    <span style={{ color: "#9ca3af" }}>Audiencias custom</span>
+                    <span className="font-medium text-white">{customAudienceIds.length} seleccionada{customAudienceIds.length > 1 ? "s" : ""}</span>
+                  </div>
+                )}
+                {(audienceType === "lookalike" || audienceType === "retargeting_lookalike") && lookalikeAudienceIds.length > 0 && (
+                  <div className="flex justify-between">
+                    <span style={{ color: "#9ca3af" }}>Audiencias lookalike</span>
+                    <span className="font-medium text-white">{lookalikeAudienceIds.length} seleccionada{lookalikeAudienceIds.length > 1 ? "s" : ""}</span>
+                  </div>
+                )}
+                {audienceType === "retargeting_lookalike" && (
+                  <div className="flex justify-between">
+                    <span style={{ color: "#9ca3af" }}>Conjuntos de anuncios</span>
+                    <span className="font-medium" style={{ color: "#a78bfa" }}>2 (automático)</span>
+                  </div>
+                )}
+                {objective === "OUTCOME_SALES" && (
+                  <div className="flex justify-between">
+                    <span style={{ color: "#9ca3af" }}>Evento pixel</span>
+                    <span className="font-medium text-white">{PIXEL_EVENTS.find(e => e.value === pixelEvent)?.label ?? pixelEvent}</span>
+                  </div>
+                )}
+                {effectiveDestUrl && (
+                  <div className="flex justify-between">
+                    <span style={{ color: "#9ca3af" }}>URL de destino</span>
+                    <span className="font-medium text-white truncate max-w-[200px]">{effectiveDestUrl}</span>
+                  </div>
+                )}
                 <div className="flex justify-between">
-                  <span style={{ color: "#9ca3af" }}>Destino</span>
-                  <span className="font-medium text-white truncate max-w-[200px]">{destinationUrl}</span>
+                  <span style={{ color: "#9ca3af" }}>Ubicaciones</span>
+                  <span className="font-medium text-white">{advantagePlacements ? "Advantage+ (auto)" : placements.length > 0 ? `${placements.length} manual${placements.length > 1 ? "es" : ""}` : "Manual (ninguna)"}</span>
                 </div>
                 {approvedConcepts.length >= 6 && (
                   <div className="flex justify-between">
@@ -750,6 +1086,21 @@ export function CreateCampaignModal({ projectSlug, projectId, onClose, onSuccess
           )}
         </div>
       </div>
+
+      {showCreateAudienceModal && (
+        <CreateAudienceModal
+          open={showCreateAudienceModal}
+          onClose={() => setShowCreateAudienceModal(false)}
+          projectSlug={projectSlug}
+          onCreated={(newAudience: any) => {
+            setAudiences((prev: any[]) => [...prev, newAudience]);
+            if (audienceType === "custom") {
+              setCustomAudienceIds(prev => [...prev, newAudience.meta_audience_id]);
+            }
+            setShowCreateAudienceModal(false);
+          }}
+        />
+      )}
     </div>
   );
 }
