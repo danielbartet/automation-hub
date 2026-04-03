@@ -1,5 +1,5 @@
 "use client";
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import { X, Loader2, Sparkles, PenLine } from "lucide-react";
 import { ImageUploadZone } from "./ImageUploadZone";
 import { generateContent, createContentManual } from "@/lib/api";
@@ -19,6 +19,7 @@ interface GenerateContentModalProps {
   project?: Project;
   initialHint?: string;
   initialContentType?: string;
+  initialCategory?: string;
   onClose: () => void;
   onSuccess: () => void;
 }
@@ -43,7 +44,7 @@ const SPINNER_LABELS: Record<ContentType, string> = {
   text_post: "Generando post...",
 };
 
-export function GenerateContentModal({ projectSlug, project, initialHint, initialContentType, onClose, onSuccess }: GenerateContentModalProps) {
+export function GenerateContentModal({ projectSlug, project, initialHint, initialContentType, initialCategory, onClose, onSuccess }: GenerateContentModalProps) {
   const [tab, setTab] = useState<"auto" | "manual">("auto");
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
@@ -56,8 +57,19 @@ export function GenerateContentModal({ projectSlug, project, initialHint, initia
 
   // Auto form state
   const [autoContentType, setAutoContentType] = useState<ContentType>((initialContentType as ContentType) ?? "carousel_6_slides");
-  const [autoCategory, setAutoCategory] = useState<string | null>(null);
+  const [autoCategory, setAutoCategory] = useState<string | null>(initialCategory ?? null);
   const [autoHint, setAutoHint] = useState(initialHint ?? "");
+
+  // Sync initial values from props (handles cases where props arrive after first render)
+  useEffect(() => {
+    const validTypes: ContentType[] = ["carousel_6_slides", "single_image", "text_post"];
+    if (initialContentType && validTypes.includes(initialContentType as ContentType)) {
+      setAutoContentType(initialContentType as ContentType);
+    }
+    if (initialCategory) setAutoCategory(initialCategory);
+    if (initialHint) setAutoHint(initialHint);
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
   const [autoImageMode, setAutoImageMode] = useState<ImageMode>("auto");
 
   // Manual form state

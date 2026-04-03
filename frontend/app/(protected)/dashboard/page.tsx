@@ -173,8 +173,9 @@ export default function DashboardPage() {
         {selectedSlug && (
           <WhatToPostTodayCard
             projectSlug={selectedSlug}
-            onGenerateContent={(hint, format) => {
+            onGenerateContent={(hint, format, category) => {
               const params = new URLSearchParams({ hint, format });
+              if (category) params.set("category", category);
               router.push(`/dashboard/content?${params.toString()}`);
             }}
             onPlanWeek={() => {

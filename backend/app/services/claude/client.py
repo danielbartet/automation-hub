@@ -302,6 +302,7 @@ Instructions:
    - Friday/Viernes: lighter content, community building
    - Weekend/Fin de semana: reflective, identity content
 4. Recommend what to post TODAY with maximum differentiation from competitors.
+5. For "suggested_category", you MUST pick exactly one value from this list: {', '.join(content_categories) if content_categories else 'any'}
 
 Return ONLY valid JSON (no markdown, no code blocks):
 {{
@@ -313,6 +314,7 @@ Return ONLY valid JSON (no markdown, no code blocks):
     "format_reason": "why this format today",
     "content_angle": "Logical",
     "angle_reason": "why this angle",
+    "suggested_category": "{content_categories[0] if content_categories else ''}",
     "suggested_topic": "specific topic",
     "suggested_hook": "exact opening line",
     "suggested_cta": "what action to ask",
