@@ -211,6 +211,16 @@ async def create_website_audience(
                 {
                     "event_sources": [{"id": str(pixel_id), "type": "PIXEL"}],
                     "retention_seconds": body.retention_days * 86400,
+                    "filter": {
+                        "operator": "and",
+                        "filters": [
+                            {
+                                "field": "event",
+                                "operator": "eq",
+                                "value": body.event_type,
+                            }
+                        ],
+                    },
                 }
             ],
         }
