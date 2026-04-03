@@ -173,7 +173,7 @@ export function CreateAudienceModal({
             "Content-Type": "application/json",
             Authorization: `Bearer ${token}`,
           },
-          body: JSON.stringify({ name, retention_days: retention, event }),
+          body: JSON.stringify({ name, retention_days: retention, event_type: event }),
         });
       } else if (activeTab === "customer_list") {
         if (!csvFile) {
@@ -232,9 +232,14 @@ export function CreateAudienceModal({
 
       if (!res.ok) {
         const errData = await res.json().catch(() => ({}));
-        throw new Error(
-          (errData as { detail?: string }).detail ?? "Error al crear audiencia"
-        );
+        const detail = (errData as { detail?: unknown }).detail;
+        const message =
+          typeof detail === "string"
+            ? detail
+            : Array.isArray(detail)
+            ? detail.map((d: { msg?: string }) => d.msg ?? JSON.stringify(d)).join(", ")
+            : "Error al crear audiencia";
+        throw new Error(message);
       }
 
       const newAudience: Audience = await res.json();
