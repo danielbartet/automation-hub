@@ -7,7 +7,7 @@ type RecommendationData = Awaited<ReturnType<typeof recommendToday>>;
 
 interface WhatToPostTodayCardProps {
   projectSlug: string;
-  onGenerateContent: (hint: string) => void;
+  onGenerateContent: (hint: string, format: string) => void;
   onPlanWeek: () => void;
 }
 
@@ -65,7 +65,8 @@ export function WhatToPostTodayCard({ projectSlug, onGenerateContent, onPlanWeek
     const hint =
       data.quick_actions.find((a) => a.action === "generate")?.topic_hint ||
       data.recommendation.suggested_topic;
-    onGenerateContent(hint);
+    const format = data.recommendation.format || "carousel_6_slides";
+    onGenerateContent(hint, format);
   };
 
   const urgency = data?.urgency ?? "medium";

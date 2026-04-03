@@ -18,6 +18,7 @@ interface GenerateContentModalProps {
   projectSlug: string;
   project?: Project;
   initialHint?: string;
+  initialContentType?: string;
   onClose: () => void;
   onSuccess: () => void;
 }
@@ -42,7 +43,7 @@ const SPINNER_LABELS: Record<ContentType, string> = {
   text_post: "Generando post...",
 };
 
-export function GenerateContentModal({ projectSlug, project, initialHint, onClose, onSuccess }: GenerateContentModalProps) {
+export function GenerateContentModal({ projectSlug, project, initialHint, initialContentType, onClose, onSuccess }: GenerateContentModalProps) {
   const [tab, setTab] = useState<"auto" | "manual">("auto");
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
@@ -54,7 +55,7 @@ export function GenerateContentModal({ projectSlug, project, initialHint, onClos
   } | null>(null);
 
   // Auto form state
-  const [autoContentType, setAutoContentType] = useState<ContentType>("carousel_6_slides");
+  const [autoContentType, setAutoContentType] = useState<ContentType>((initialContentType as ContentType) ?? "carousel_6_slides");
   const [autoCategory, setAutoCategory] = useState<string | null>(null);
   const [autoHint, setAutoHint] = useState(initialHint ?? "");
   const [autoImageMode, setAutoImageMode] = useState<ImageMode>("auto");

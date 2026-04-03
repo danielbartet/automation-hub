@@ -368,6 +368,7 @@ export default function ContentPage() {
   const [selectedProjectId, setSelectedProjectId] = useState<string>("");
   const [selectedProjectSlug, setSelectedProjectSlug] = useState<string>("");
   const [pendingHint, setPendingHint] = useState<string | null>(null);
+  const [pendingFormat, setPendingFormat] = useState<string | null>(null);
   const [content, setContent] = useState<ContentPost[]>([]);
   const [loadingProjects, setLoadingProjects] = useState(true);
   const [loadingContent, setLoadingContent] = useState(false);
@@ -405,7 +406,9 @@ export default function ContentPage() {
 
   useEffect(() => {
     const hint = searchParams.get("hint");
+    const format = searchParams.get("format");
     if (hint) setPendingHint(hint);
+    if (format) setPendingFormat(format);
   }, [searchParams]);
 
   useEffect(() => {
@@ -751,8 +754,9 @@ export default function ContentPage() {
           projectSlug={selectedProjectSlug}
           project={projects.find((p) => p.slug === selectedProjectSlug)}
           initialHint={pendingHint ?? undefined}
-          onClose={() => { setShowModal(false); setPendingHint(null); }}
-          onSuccess={() => { loadContent(); setPendingHint(null); }}
+          initialContentType={pendingFormat ?? undefined}
+          onClose={() => { setShowModal(false); setPendingHint(null); setPendingFormat(null); }}
+          onSuccess={() => { loadContent(); setPendingHint(null); setPendingFormat(null); }}
         />
       )}
       {editPost && selectedProjectSlug && (
