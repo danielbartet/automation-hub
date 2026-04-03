@@ -342,7 +342,14 @@ Return ONLY valid JSON (no markdown, no code blocks):
   ]
 }}"""
 
-        response_text = await self.generate_content(user_prompt, system_prompt)
+        # Use direct API call with enough tokens for the full JSON response
+        response = self.client.messages.create(
+            model=self.MODEL,
+            max_tokens=2000,
+            system=system_prompt,
+            messages=[{"role": "user", "content": user_prompt}],
+        )
+        response_text = response.content[0].text
 
         # Strip markdown code blocks if present
         response_text = re.sub(r'^```(?:json)?\s*', '', response_text.strip())
