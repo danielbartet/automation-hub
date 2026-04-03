@@ -156,7 +156,13 @@ export async function createCampaign(projectSlug: string, data: {
   countries: string[];
   image_url: string;
   ad_copy: string;
-  destination_url: string;
+  destination_url?: string;
+  pixel_event?: string;
+  audience_type?: string;
+  custom_audience_ids?: string[];
+  lookalike_audience_ids?: string[];
+  placements?: string[];
+  advantage_placements?: boolean;
 }) {
   const res = await fetch(`${API_BASE}/api/v1/ads/create/${projectSlug}`, {
     method: "POST",
@@ -373,7 +379,13 @@ export async function createCampaignWithConcepts(
     objective: string;
     daily_budget: number;
     countries: string[];
-    destination_url: string;
+    destination_url?: string;
+    pixel_event?: string;
+    audience_type?: string;
+    custom_audience_ids?: string[];
+    lookalike_audience_ids?: string[];
+    placements?: string[];
+    advantage_placements?: boolean;
     concepts: Array<{
       id: number;
       hook_3s: string;
