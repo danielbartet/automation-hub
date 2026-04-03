@@ -5,7 +5,7 @@ import { useSession } from "next-auth/react";
 import { Header } from "@/components/layout/Header";
 import { CreateAudienceModal } from "@/components/dashboard/CreateAudienceModal";
 import { fetchProjects } from "@/lib/api";
-import { Loader2, Plus, Trash2 } from "lucide-react";
+import { Loader2, Plus, Trash2, UserPlus } from "lucide-react";
 
 const API_BASE = process.env.NEXT_PUBLIC_API_URL ?? "http://localhost:8000";
 
@@ -91,6 +91,14 @@ export default function AudiencesPage() {
   const [deletingId, setDeletingId] = useState<number | null>(null);
   const [confirmDeleteId, setConfirmDeleteId] = useState<number | null>(null);
 
+  // Add contacts state
+  const [addContactsAudience, setAddContactsAudience] = useState<Audience | null>(null);
+  const [addContactsFile, setAddContactsFile] = useState<File | null>(null);
+  const [addContactsDragging, setAddContactsDragging] = useState(false);
+  const [addContactsLoading, setAddContactsLoading] = useState(false);
+  const [addContactsResult, setAddContactsResult] = useState<string | null>(null);
+  const [addContactsError, setAddContactsError] = useState<string | null>(null);
+
   useEffect(() => {
     fetchProjects()
       .then((list: Project[]) => {
@@ -153,6 +161,49 @@ export default function AudiencesPage() {
   };
 
   const selectedProject = projects.find((p) => p.slug === selectedSlug) ?? null;
+
+  const openAddContacts = (audience: Audience) => {
+    setAddContactsAudience(audience);
+    setAddContactsFile(null);
+    setAddContactsResult(null);
+    setAddContactsError(null);
+  };
+
+  const closeAddContacts = () => {
+    setAddContactsAudience(null);
+    setAddContactsFile(null);
+    setAddContactsResult(null);
+    setAddContactsError(null);
+  };
+
+  const handleAddContactsSubmit = async () => {
+    if (!addContactsAudience || !addContactsFile || !token) return;
+    setAddContactsLoading(true);
+    setAddContactsResult(null);
+    setAddContactsError(null);
+    try {
+      const formData = new FormData();
+      formData.append("file", addContactsFile);
+      const res = await fetch(
+        `${API_BASE}/api/v1/audiences/${selectedSlug}/${addContactsAudience.id}/add-users`,
+        {
+          method: "POST",
+          headers: { Authorization: `Bearer ${token}` },
+          body: formData,
+        }
+      );
+      const data = await res.json();
+      if (!res.ok) {
+        throw new Error(data.detail ?? "Error al subir contactos");
+      }
+      setAddContactsResult(`Se agregaron ${data.added} contactos`);
+      setAddContactsFile(null);
+    } catch (err) {
+      setAddContactsError(err instanceof Error ? err.message : "Error al subir contactos");
+    } finally {
+      setAddContactsLoading(false);
+    }
+  };
 
   return (
     <div>
@@ -342,47 +393,67 @@ export default function AudiencesPage() {
                         {relativeDate(audience.created_at)}
                       </td>
                       <td className="px-4 py-3">
-                        {confirmDeleteId === audience.id ? (
-                          <div className="flex items-center gap-2">
+                        <div className="flex items-center gap-1">
+                          {audience.type === "customer_list" && (
                             <button
-                              onClick={() => handleDelete(audience.id)}
+                              onClick={() => openAddContacts(audience)}
+                              className="p-1.5 rounded transition-colors"
+                              title="Añadir contactos"
+                              style={{ color: "#7c3aed" }}
+                              onMouseEnter={(e) => {
+                                (e.currentTarget as HTMLButtonElement).style.backgroundColor =
+                                  "#1a1030";
+                              }}
+                              onMouseLeave={(e) => {
+                                (e.currentTarget as HTMLButtonElement).style.backgroundColor =
+                                  "transparent";
+                              }}
+                            >
+                              <UserPlus className="h-4 w-4" />
+                            </button>
+                          )}
+                          {confirmDeleteId === audience.id ? (
+                            <div className="flex items-center gap-2">
+                              <button
+                                onClick={() => handleDelete(audience.id)}
+                                disabled={deletingId === audience.id}
+                                className="text-xs px-2 py-1 rounded font-medium text-white"
+                                style={{ backgroundColor: "#7f1d1d" }}
+                              >
+                                {deletingId === audience.id ? (
+                                  <Loader2 className="h-3 w-3 animate-spin" />
+                                ) : (
+                                  "Confirmar"
+                                )}
+                              </button>
+                              <button
+                                onClick={() => setConfirmDeleteId(null)}
+                                className="text-xs px-2 py-1 rounded font-medium"
+                                style={{ color: "#9ca3af" }}
+                              >
+                                Cancelar
+                              </button>
+                            </div>
+                          ) : (
+                            <button
+                              onClick={() => setConfirmDeleteId(audience.id)}
                               disabled={deletingId === audience.id}
-                              className="text-xs px-2 py-1 rounded font-medium text-white"
-                              style={{ backgroundColor: "#7f1d1d" }}
+                              className="p-1.5 rounded transition-colors disabled:opacity-50"
+                              title="Eliminar audiencia"
+                              style={{ color: "#ef4444" }}
+                              onMouseEnter={(e) => {
+                                (e.currentTarget as HTMLButtonElement).style.backgroundColor =
+                                  "#1a0000";
+                              }}
+                              onMouseLeave={(e) => {
+                                (e.currentTarget as HTMLButtonElement).style.backgroundColor =
+                                  "transparent";
+                              }}
                             >
-                              {deletingId === audience.id ? (
-                                <Loader2 className="h-3 w-3 animate-spin" />
-                              ) : (
-                                "Confirmar"
-                              )}
+                              <Trash2 className="h-4 w-4" />
                             </button>
-                            <button
-                              onClick={() => setConfirmDeleteId(null)}
-                              className="text-xs px-2 py-1 rounded font-medium"
-                              style={{ color: "#9ca3af" }}
-                            >
-                              Cancelar
-                            </button>
-                          </div>
-                        ) : (
-                          <button
-                            onClick={() => setConfirmDeleteId(audience.id)}
-                            disabled={deletingId === audience.id}
-                            className="p-1.5 rounded transition-colors disabled:opacity-50"
-                            title="Eliminar audiencia"
-                            style={{ color: "#ef4444" }}
-                            onMouseEnter={(e) => {
-                              (e.currentTarget as HTMLButtonElement).style.backgroundColor =
-                                "#1a0000";
-                            }}
-                            onMouseLeave={(e) => {
-                              (e.currentTarget as HTMLButtonElement).style.backgroundColor =
-                                "transparent";
-                            }}
-                          >
-                            <Trash2 className="h-4 w-4" />
-                          </button>
-                        )}
+                          )}
+                        </div>
                       </td>
                     </tr>
                   ))}
@@ -402,6 +473,106 @@ export default function AudiencesPage() {
             setAudiences((prev) => [newAudience, ...prev]);
           }}
         />
+      )}
+
+      {/* Add contacts modal */}
+      {addContactsAudience && (
+        <div
+          className="fixed inset-0 z-50 flex items-center justify-center"
+          style={{ backgroundColor: "rgba(0,0,0,0.7)" }}
+          onClick={(e) => {
+            if (e.target === e.currentTarget) closeAddContacts();
+          }}
+        >
+          <div
+            className="rounded-xl p-6 w-full max-w-md space-y-4"
+            style={{ backgroundColor: "#111111", border: "1px solid #333333" }}
+          >
+            <h2 className="text-base font-semibold text-white">
+              Añadir contactos a {addContactsAudience.name}
+            </h2>
+
+            {/* Drop zone */}
+            <div
+              className="rounded-lg border-2 border-dashed flex flex-col items-center justify-center py-8 px-4 cursor-pointer transition-colors"
+              style={{
+                borderColor: addContactsDragging ? "#7c3aed" : "#333333",
+                backgroundColor: addContactsDragging ? "#1a1030" : "#0a0a0a",
+              }}
+              onDragOver={(e) => {
+                e.preventDefault();
+                setAddContactsDragging(true);
+              }}
+              onDragLeave={() => setAddContactsDragging(false)}
+              onDrop={(e) => {
+                e.preventDefault();
+                setAddContactsDragging(false);
+                const dropped = e.dataTransfer.files[0];
+                if (dropped) setAddContactsFile(dropped);
+              }}
+              onClick={() => document.getElementById("add-contacts-file-input")?.click()}
+            >
+              <input
+                id="add-contacts-file-input"
+                type="file"
+                accept=".csv"
+                className="hidden"
+                onChange={(e) => {
+                  const f = e.target.files?.[0];
+                  if (f) setAddContactsFile(f);
+                }}
+              />
+              {addContactsFile ? (
+                <p className="text-sm text-white font-medium">{addContactsFile.name}</p>
+              ) : (
+                <>
+                  <p className="text-sm font-medium" style={{ color: "#9ca3af" }}>
+                    Arrastrá o hacé clic para seleccionar un CSV
+                  </p>
+                  <p className="text-xs mt-1" style={{ color: "#6b7280" }}>
+                    Debe tener una columna &quot;email&quot; o &quot;correo&quot;
+                  </p>
+                </>
+              )}
+            </div>
+
+            {addContactsResult && (
+              <p className="text-sm text-green-400">{addContactsResult}</p>
+            )}
+            {addContactsError && (
+              <p className="text-sm text-red-400">{addContactsError}</p>
+            )}
+
+            <div className="flex justify-end gap-3 pt-1">
+              <button
+                onClick={closeAddContacts}
+                className="px-4 py-2 text-sm rounded-lg font-medium"
+                style={{ color: "#9ca3af" }}
+              >
+                Cerrar
+              </button>
+              <button
+                onClick={handleAddContactsSubmit}
+                disabled={!addContactsFile || addContactsLoading}
+                className="flex items-center gap-2 px-4 py-2 text-sm text-white font-medium rounded-lg disabled:opacity-50"
+                style={{ backgroundColor: "#7c3aed" }}
+                onMouseEnter={(e) => {
+                  if (!(e.currentTarget as HTMLButtonElement).disabled)
+                    (e.currentTarget as HTMLButtonElement).style.backgroundColor = "#6d28d9";
+                }}
+                onMouseLeave={(e) => {
+                  (e.currentTarget as HTMLButtonElement).style.backgroundColor = "#7c3aed";
+                }}
+              >
+                {addContactsLoading ? (
+                  <Loader2 className="h-4 w-4 animate-spin" />
+                ) : (
+                  "Subir"
+                )}
+              </button>
+            </div>
+          </div>
+        </div>
       )}
     </div>
   );

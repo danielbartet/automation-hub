@@ -489,6 +489,83 @@ async def create_lookalike_audience(
     return created
 
 
+@router.post("/{project_slug}/{audience_id}/add-users")
+async def add_users_to_audience(
+    project_slug: str,
+    audience_id: str,
+    file: UploadFile = File(...),
+    db: AsyncSession = Depends(get_session),
+    _current_user=Depends(get_current_user),
+) -> dict:
+    """Add contacts from a CSV file to an existing customer-list audience."""
+    project = await _get_project(project_slug, db)
+    token = project.meta_access_token or getattr(settings, "META_ACCESS_TOKEN", "")
+    if not token:
+        raise HTTPException(status_code=400, detail="Project has no Meta access token configured")
+
+    # Look up the audience and verify ownership + type
+    result = await db.execute(
+        select(Audience).where(Audience.id == audience_id, Audience.project_id == project.id)
+    )
+    audience = result.scalar_one_or_none()
+    if not audience:
+        raise HTTPException(status_code=400, detail="Audience not found")
+    if audience.type != "customer_list":
+        raise HTTPException(status_code=400, detail="Audience is not a customer_list type")
+    if not audience.meta_audience_id:
+        raise HTTPException(status_code=400, detail="Audience has no Meta audience ID")
+
+    # Read and parse CSV
+    content = await file.read()
+    text = content.decode("utf-8", errors="replace")
+    reader = csv.DictReader(io.StringIO(text))
+
+    # Find email column (case-insensitive: email, Email, correo)
+    fieldnames = reader.fieldnames or []
+    email_col: str | None = None
+    for candidate in ("email", "Email", "correo", "EMAIL"):
+        if candidate in fieldnames:
+            email_col = candidate
+            break
+    if email_col is None:
+        for fn in fieldnames:
+            if fn.lower() in ("email", "correo"):
+                email_col = fn
+                break
+    if email_col is None:
+        raise HTTPException(
+            status_code=400,
+            detail=f"No email column found. Detected columns: {fieldnames}",
+        )
+
+    hashed_emails = []
+    for row in reader:
+        raw = row.get(email_col, "").strip().lower()
+        if raw:
+            hashed_emails.append(hashlib.sha256(raw.encode()).hexdigest())
+
+    if not hashed_emails:
+        raise HTTPException(status_code=400, detail="CSV contains no valid email addresses")
+
+    # Upload hashed emails to existing Meta audience
+    upload_resp = await _meta_post_json(
+        token,
+        f"/{audience.meta_audience_id}/users",
+        {
+            "payload": {
+                "schema": ["EMAIL_SHA256"],
+                "data": [[h] for h in hashed_emails],
+            }
+        },
+    )
+    if "error" in upload_resp:
+        err = upload_resp["error"]
+        detail = err.get("error_user_msg") or err.get("message") or "Meta API error"
+        raise HTTPException(status_code=400, detail=detail)
+
+    return {"added": len(hashed_emails)}
+
+
 @router.delete("/{project_slug}/{audience_id}")
 async def delete_audience(
     project_slug: str,
