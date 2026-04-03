@@ -108,20 +108,17 @@ async def _meta_get(token: str, path: str, params: dict | None = None) -> dict:
 
 
 async def _meta_post_json(token: str, path: str, payload: dict) -> dict:
-    """POST to Meta API. Sends as form-encoded with complex fields as JSON strings."""
+    """POST to Meta API as application/json body with access_token as query param."""
     url = f"{META_BASE}{path}"
-    form_data: dict[str, str] = {"access_token": token}
-    for key, value in payload.items():
-        if isinstance(value, (dict, list)):
-            form_data[key] = json.dumps(value)
-        else:
-            form_data[key] = str(value)
     print(f"[_meta_post_json] POST {path}")
-    for k, v in form_data.items():
-        if k != "access_token":
-            print(f"  {k} = {v!r}")
+    for k, v in payload.items():
+        print(f"  {k} = {v!r}")
     async with httpx.AsyncClient(timeout=30.0) as client:
-        resp = await client.post(url, data=form_data)
+        resp = await client.post(
+            url,
+            params={"access_token": token},
+            json=payload,
+        )
         result = resp.json()
         if "error" in result:
             print(f"[_meta_post_json] Error response: {json.dumps(result['error'])}")
