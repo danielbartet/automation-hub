@@ -253,6 +253,10 @@ async def generate_content(
             effective_media_config = dict(media_config)
             if not effective_media_config.get("brand_handle"):
                 effective_media_config["brand_handle"] = project.slug.replace("-", "")
+            logger.info(f"media_config for {project.slug}: {media_config}")
+            logger.info(f"image_provider: {media_config.get('image_provider')}")
+            logger.info(f"image_bg_color: {media_config.get('image_bg_color')}")
+            logger.info(f"image_primary_color: {media_config.get('image_primary_color')}")
             for i, slide in enumerate(slides_data):
                 slide_data = {
                     "headline": slide.get("headline", ""),
@@ -559,32 +563,35 @@ async def update_content(
                 if not publish_image_urls and post.image_url:
                     publish_image_urls = [post.image_url]
 
-                first_image_url = publish_image_urls[0] if publish_image_urls else None
-
                 instagram_media_id: str | None = None
                 facebook_post_id: str | None = None
                 ig_error: Exception | None = None
                 fb_error: Exception | None = None
 
                 # Publish to Instagram (independent — errors are captured, not raised)
-                if project.instagram_account_id and first_image_url:
+                if project.instagram_account_id and publish_image_urls:
                     logger.info(
-                        "Post %s: attempting Instagram publish to account %s",
-                        post.id, project.instagram_account_id,
+                        "Post %s: attempting Instagram publish to account %s (%d image(s))",
+                        post.id, project.instagram_account_id, len(publish_image_urls),
                     )
                     try:
                         ig_service = InstagramService(meta_client)
-                        container = await ig_service.create_media_container(
-                            project.instagram_account_id, first_image_url, caption
-                        )
-                        creation_id = container.get("id")
-                        if creation_id:
-                            await ig_service.wait_for_container(creation_id)
-                            published = await ig_service.publish_media(project.instagram_account_id, creation_id)
-                            instagram_media_id = published.get("id")
-                            logger.info("Post %s: Instagram published — media_id=%s", post.id, instagram_media_id)
+                        if len(publish_image_urls) > 1:
+                            instagram_media_id = await ig_service.publish_carousel(
+                                project.instagram_account_id, publish_image_urls, caption
+                            )
                         else:
-                            logger.warning("Post %s: Instagram container returned no id", post.id)
+                            container = await ig_service.create_media_container(
+                                project.instagram_account_id, publish_image_urls[0], caption
+                            )
+                            creation_id = container.get("id")
+                            if creation_id:
+                                await ig_service.wait_for_container(creation_id)
+                                published = await ig_service.publish_media(project.instagram_account_id, creation_id)
+                                instagram_media_id = published.get("id")
+                            else:
+                                logger.warning("Post %s: Instagram container returned no id", post.id)
+                        logger.info("Post %s: Instagram published — media_id=%s", post.id, instagram_media_id)
                     except Exception as exc:
                         ig_error = exc
                         logger.warning(
@@ -593,19 +600,27 @@ async def update_content(
                         )
                 else:
                     logger.info(
-                        "Post %s: skipping Instagram (account_id=%s, first_image_url=%s)",
-                        post.id, project.instagram_account_id, first_image_url,
+                        "Post %s: skipping Instagram (account_id=%s, image_count=%d)",
+                        post.id, project.instagram_account_id, len(publish_image_urls),
                     )
 
                 # Publish to Facebook Page (independent — 403 is non-blocking)
                 if project.facebook_page_id:
                     logger.info(
-                        "Post %s: attempting Facebook publish to page %s",
-                        post.id, project.facebook_page_id,
+                        "Post %s: attempting Facebook publish to page %s (%d image(s))",
+                        post.id, project.facebook_page_id, len(publish_image_urls),
                     )
                     try:
                         pages_service = PagesService(meta_client)
-                        fb_result = await pages_service.publish_post(project.facebook_page_id, caption, first_image_url)
+                        if len(publish_image_urls) > 1:
+                            fb_result = await pages_service.publish_carousel(
+                                project.facebook_page_id, publish_image_urls, caption
+                            )
+                        else:
+                            first_image_url = publish_image_urls[0] if publish_image_urls else None
+                            fb_result = await pages_service.publish_post(
+                                project.facebook_page_id, caption, first_image_url
+                            )
                         facebook_post_id = fb_result.get("id")
                         logger.info("Post %s: Facebook published — post_id=%s", post.id, facebook_post_id)
                     except Exception as exc:
