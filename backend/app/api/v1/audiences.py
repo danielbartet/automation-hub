@@ -114,9 +114,13 @@ async def _meta_post_json(token: str, path: str, payload: dict) -> dict:
     form_data: dict[str, str] = {"access_token": token}
     for key, value in payload.items():
         if isinstance(value, (dict, list)):
-            form_data[key] = json.dumps(value)
+            form_data[key] = json.dumps(value, separators=(",", ":"))
         else:
             form_data[key] = str(value)
+    print(f"[_meta_post_json] POST {path} form_data keys={list(form_data.keys())}")
+    for k, v in form_data.items():
+        if k != "access_token":
+            print(f"  {k} = {v}")
     async with httpx.AsyncClient(timeout=30.0) as client:
         resp = await client.post(url, data=form_data)
         return resp.json()
