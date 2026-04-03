@@ -221,7 +221,6 @@ async def create_website_audience(
         f"/act_{ad_account_id}/customaudiences",
         {
             "name": body.name,
-            "subtype": "WEBSITE",
             "retention_days": body.retention_days,
             "rule": rule,
         },
@@ -397,7 +396,6 @@ async def create_engagement_audience(
         f"/act_{ad_account_id}/customaudiences",
         {
             "name": body.name,
-            "subtype": "ENGAGEMENT",
             "retention_days": body.retention_days,
             "rule": rule,
         },
