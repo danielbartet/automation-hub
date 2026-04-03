@@ -128,6 +128,20 @@ async def _meta_post_json(token: str, path: str, payload: dict) -> dict:
         return result
 
 
+async def _meta_post_body(token: str, path: str, payload: dict) -> dict:
+    """POST to Meta API as JSON body with access_token in query params."""
+    url = f"{META_BASE}{path}"
+    print(f"[_meta_post_body] POST {path}")
+    for k, v in payload.items():
+        print(f"  {k} = {json.dumps(v)!r}")
+    async with httpx.AsyncClient(timeout=30.0) as client:
+        resp = await client.post(url, params={"access_token": token}, json=payload)
+        result = resp.json()
+        if "error" in result:
+            print(f"[_meta_post_body] Error response: {json.dumps(result['error'])}")
+        return result
+
+
 async def _meta_delete(token: str, path: str) -> dict:
     """Perform a DELETE request against the Meta Graph API."""
     url = f"{META_BASE}{path}"
@@ -226,7 +240,7 @@ async def create_website_audience(
         }
     }
 
-    meta_resp = await _meta_post_json(
+    meta_resp = await _meta_post_body(
         token,
         f"/act_{ad_account_id}/customaudiences",
         {"name": body.name, "rule": rule},
