@@ -2,7 +2,7 @@
 
 import { useState, useEffect, useRef } from "react";
 import { useSession } from "next-auth/react";
-import { X, Loader2, Upload, CheckCircle } from "lucide-react";
+import { X, Loader2, Upload, CheckCircle2, Clock } from "lucide-react";
 import type { Audience } from "@/app/(protected)/dashboard/ads/audiences/page";
 
 const API_BASE = process.env.NEXT_PUBLIC_API_URL ?? "http://localhost:8000";
@@ -68,6 +68,7 @@ export function CreateAudienceModal({
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [success, setSuccess] = useState(false);
+  const [createdAudience, setCreatedAudience] = useState<Audience | null>(null);
 
   // Shared
   const [name, setName] = useState("");
@@ -93,12 +94,20 @@ export function CreateAudienceModal({
   const [baseAudiences, setBaseAudiences] = useState<Audience[]>([]);
   const [loadingBase, setLoadingBase] = useState(false);
 
+  const handleClose = () => {
+    if (createdAudience) {
+      onCreated?.(createdAudience);
+    }
+    onClose();
+  };
+
   // Reset state on open/tab change
   useEffect(() => {
     if (open) {
       setActiveTab(defaultTab);
       setError(null);
       setSuccess(false);
+      setCreatedAudience(null);
       setName("");
       setCsvFile(null);
     }
@@ -229,12 +238,8 @@ export function CreateAudienceModal({
       }
 
       const newAudience: Audience = await res.json();
+      setCreatedAudience(newAudience);
       setSuccess(true);
-
-      setTimeout(() => {
-        onCreated?.(newAudience);
-        onClose();
-      }, 2000);
     } catch (err) {
       setError(err instanceof Error ? err.message : "Error al crear audiencia");
     } finally {
@@ -256,7 +261,7 @@ export function CreateAudienceModal({
       className="fixed inset-0 z-50 flex items-center justify-center"
       style={{ backgroundColor: "rgba(0,0,0,0.7)" }}
       onClick={(e) => {
-        if (e.target === e.currentTarget) onClose();
+        if (e.target === e.currentTarget) handleClose();
       }}
     >
       <div
@@ -270,7 +275,7 @@ export function CreateAudienceModal({
         >
           <h2 className="text-base font-semibold text-white">Nueva audiencia</h2>
           <button
-            onClick={onClose}
+            onClick={handleClose}
             className="p-1.5 rounded-md transition-colors"
             style={{ color: "#9ca3af" }}
             onMouseEnter={(e) => {
@@ -321,12 +326,44 @@ export function CreateAudienceModal({
         {/* Body */}
         <div className="p-6 space-y-4 max-h-[60vh] overflow-y-auto">
           {success ? (
-            <div className="flex flex-col items-center justify-center py-8 text-center">
-              <CheckCircle className="h-10 w-10 text-green-400 mb-3" />
-              <p className="text-white font-medium">Audiencia creada</p>
-              <p className="text-sm mt-1" style={{ color: "#9ca3af" }}>
-                Procesando en Meta (24-48hs)
-              </p>
+            <div className="space-y-4 py-2">
+              <div className="flex flex-col items-center text-center gap-2">
+                <div className="rounded-full p-3" style={{ backgroundColor: "rgba(34,197,94,0.15)" }}>
+                  <CheckCircle2 className="h-8 w-8" style={{ color: "#4ade80" }} />
+                </div>
+                <h3 className="font-semibold text-lg text-white">Audiencia creada correctamente</h3>
+              </div>
+
+              <div className="rounded-md p-4 text-sm space-y-1" style={{ backgroundColor: "#1a1a1a", border: "1px solid #333333", color: "#9ca3af" }}>
+                <div className="flex items-start gap-2">
+                  <Clock className="h-4 w-4 mt-0.5 shrink-0 text-yellow-500" />
+                  <div>
+                    <p className="font-medium" style={{ color: "#d1d5db" }}>Meta está construyendo tu audiencia</p>
+                    <p className="mt-0.5">Esto toma entre 24 y 48 horas. Podés verla en el panel de Audiencias — aparecerá como &quot;Procesando&quot; y cambiará a &quot;Lista&quot; cuando esté disponible para usar en campañas.</p>
+                  </div>
+                </div>
+              </div>
+
+              <div className="flex gap-2 justify-end pt-2">
+                <a
+                  href="/dashboard/ads/audiences"
+                  className="px-3 py-1.5 text-xs font-medium rounded-lg transition-colors"
+                  style={{ border: "1px solid #333333", color: "#9ca3af" }}
+                  onMouseEnter={e => { (e.currentTarget as HTMLAnchorElement).style.color = "#ffffff"; (e.currentTarget as HTMLAnchorElement).style.backgroundColor = "#1a1a1a"; }}
+                  onMouseLeave={e => { (e.currentTarget as HTMLAnchorElement).style.color = "#9ca3af"; (e.currentTarget as HTMLAnchorElement).style.backgroundColor = "transparent"; }}
+                >
+                  Ir a Audiencias
+                </a>
+                <button
+                  onClick={handleClose}
+                  className="px-4 py-1.5 text-xs font-medium rounded-lg text-white transition-colors"
+                  style={{ backgroundColor: "#7c3aed" }}
+                  onMouseEnter={e => (e.currentTarget.style.backgroundColor = "#6d28d9")}
+                  onMouseLeave={e => (e.currentTarget.style.backgroundColor = "#7c3aed")}
+                >
+                  Cerrar
+                </button>
+              </div>
             </div>
           ) : (
             <>

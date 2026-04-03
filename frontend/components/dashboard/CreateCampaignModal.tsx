@@ -1,6 +1,6 @@
 "use client";
 import { useState, useEffect } from "react";
-import { X, Loader2, ChevronRight, ChevronLeft, Check, RefreshCw, Sparkles } from "lucide-react";
+import { X, Loader2, ChevronRight, ChevronLeft, Check, RefreshCw, Sparkles, AlertTriangle, XCircle } from "lucide-react";
 import { ImageUploadZone } from "./ImageUploadZone";
 import { ConceptsGrid } from "./ConceptsGrid";
 import { CreateAudienceModal } from "./CreateAudienceModal";
@@ -480,77 +480,139 @@ export function CreateCampaignModal({ projectSlug, projectId, onClose, onSuccess
                         Cargando audiencias...
                       </div>
                     ) : audiences.length === 0 ? (
-                      <p className="text-xs" style={{ color: "#9ca3af" }}>No se encontraron audiencias guardadas.</p>
+                      <div className="text-sm rounded-md p-3 space-y-1" style={{ border: "1px solid #333333", color: "#9ca3af" }}>
+                        <p className="font-medium" style={{ color: "#d1d5db" }}>Sin audiencias listas todavía.</p>
+                        <p>Creá una audiencia primero y esperá que Meta la procese.</p>
+                        <a href="/dashboard/ads/audiences" className="text-xs underline" style={{ color: "#7c3aed" }}>
+                          Ir a Audiencias →
+                        </a>
+                      </div>
                     ) : (
                       <>
-                        {(audienceType === "custom" || audienceType === "retargeting_lookalike") && (
-                          <div>
-                            <p className="text-xs font-medium mb-2" style={{ color: "#d1d5db" }}>
-                              {audienceType === "retargeting_lookalike" ? "Audiencia de retargeting" : "Seleccionar audiencias"}
-                            </p>
-                            <div className="space-y-1 max-h-40 overflow-y-auto">
-                              {audiences.filter((a: any) => a.audience_type === "custom" || !a.audience_type).map((a: any) => (
-                                <button
-                                  key={a.meta_audience_id}
-                                  onClick={() => {
-                                    if (audienceType === "retargeting_lookalike") {
-                                      setCustomAudienceIds(prev =>
-                                        prev.includes(a.meta_audience_id)
-                                          ? prev.filter(id => id !== a.meta_audience_id)
-                                          : [...prev, a.meta_audience_id]
+                        {(() => {
+                          const hasReadyAudiences = audiences.some((a: any) => a.status === "ready");
+                          return (
+                            <>
+                              {(audienceType === "custom" || audienceType === "retargeting_lookalike") && (
+                                <div>
+                                  <p className="text-xs font-medium mb-2" style={{ color: "#d1d5db" }}>
+                                    {audienceType === "retargeting_lookalike" ? "Audiencia de retargeting" : "Seleccionar audiencias"}
+                                  </p>
+                                  <div className="space-y-1 max-h-40 overflow-y-auto">
+                                    {audiences.filter((a: any) => a.audience_type === "custom" || !a.audience_type).map((a: any) => {
+                                      const isReady = a.status === "ready";
+                                      const isProcessing = a.status === "processing";
+                                      const isError = a.status === "error";
+                                      const isSelected = customAudienceIds.includes(a.meta_audience_id);
+                                      return (
+                                        <button
+                                          key={a.meta_audience_id}
+                                          disabled={!isReady}
+                                          onClick={() => {
+                                            if (!isReady) return;
+                                            if (audienceType === "retargeting_lookalike") {
+                                              setCustomAudienceIds(prev =>
+                                                prev.includes(a.meta_audience_id)
+                                                  ? prev.filter(id => id !== a.meta_audience_id)
+                                                  : [...prev, a.meta_audience_id]
+                                              );
+                                            } else {
+                                              toggleCustomAudience(a.meta_audience_id);
+                                            }
+                                          }}
+                                          className="w-full flex items-center gap-2 px-3 py-2 rounded-lg text-left text-xs transition-colors disabled:opacity-60 disabled:cursor-not-allowed"
+                                          style={{
+                                            backgroundColor: isSelected ? "rgba(124,58,237,0.15)" : "#1a1a1a",
+                                            border: isSelected ? "1px solid #7c3aed" : "1px solid #333333",
+                                            color: isReady ? "#d1d5db" : "#6b7280",
+                                          }}
+                                        >
+                                          <div className="w-3 h-3 rounded border flex-shrink-0 flex items-center justify-center"
+                                            style={{ borderColor: isSelected ? "#7c3aed" : "#555555", backgroundColor: isSelected ? "#7c3aed" : "transparent" }}>
+                                            {isSelected && <Check className="h-2 w-2 text-white" />}
+                                          </div>
+                                          <span className="flex-1">
+                                            {a.name}
+                                            {isReady && a.approximate_count ? ` (${a.approximate_count.toLocaleString()} personas)` : ""}
+                                            {isProcessing && " — Procesando (24-48hs)"}
+                                            {isError && " — Error"}
+                                          </span>
+                                          {isProcessing && <Loader2 className="h-3 w-3 animate-spin text-yellow-500 flex-shrink-0" />}
+                                          {isError && <XCircle className="h-3 w-3 text-red-500 flex-shrink-0" />}
+                                        </button>
                                       );
-                                    } else {
-                                      toggleCustomAudience(a.meta_audience_id);
-                                    }
-                                  }}
-                                  className="w-full flex items-center gap-2 px-3 py-2 rounded-lg text-left text-xs transition-colors"
-                                  style={{
-                                    backgroundColor: customAudienceIds.includes(a.meta_audience_id) ? "rgba(124,58,237,0.15)" : "#1a1a1a",
-                                    border: customAudienceIds.includes(a.meta_audience_id) ? "1px solid #7c3aed" : "1px solid #333333",
-                                    color: "#d1d5db",
-                                  }}
-                                >
-                                  <div className="w-3 h-3 rounded border flex-shrink-0 flex items-center justify-center"
-                                    style={{ borderColor: customAudienceIds.includes(a.meta_audience_id) ? "#7c3aed" : "#555555", backgroundColor: customAudienceIds.includes(a.meta_audience_id) ? "#7c3aed" : "transparent" }}>
-                                    {customAudienceIds.includes(a.meta_audience_id) && <Check className="h-2 w-2 text-white" />}
+                                    })}
                                   </div>
-                                  {a.name} {a.approximate_count ? `(${a.approximate_count.toLocaleString()} personas)` : "(procesando...)"}
-                                </button>
-                              ))}
-                            </div>
-                          </div>
-                        )}
-
-                        {(audienceType === "lookalike" || audienceType === "retargeting_lookalike") && (
-                          <div>
-                            <p className="text-xs font-medium mb-2" style={{ color: "#d1d5db" }}>
-                              {audienceType === "retargeting_lookalike" ? "Audiencia lookalike" : "Seleccionar audiencia lookalike"}
-                            </p>
-                            <div className="space-y-1 max-h-40 overflow-y-auto">
-                              {audiences.filter((a: any) => a.audience_type === "lookalike").map((a: any) => (
-                                <button
-                                  key={a.meta_audience_id}
-                                  onClick={() => toggleLookalikeAudience(a.meta_audience_id)}
-                                  className="w-full flex items-center gap-2 px-3 py-2 rounded-lg text-left text-xs transition-colors"
-                                  style={{
-                                    backgroundColor: lookalikeAudienceIds.includes(a.meta_audience_id) ? "rgba(124,58,237,0.15)" : "#1a1a1a",
-                                    border: lookalikeAudienceIds.includes(a.meta_audience_id) ? "1px solid #7c3aed" : "1px solid #333333",
-                                    color: "#d1d5db",
-                                  }}
-                                >
-                                  <div className="w-3 h-3 rounded border flex-shrink-0 flex items-center justify-center"
-                                    style={{ borderColor: lookalikeAudienceIds.includes(a.meta_audience_id) ? "#7c3aed" : "#555555", backgroundColor: lookalikeAudienceIds.includes(a.meta_audience_id) ? "#7c3aed" : "transparent" }}>
-                                    {lookalikeAudienceIds.includes(a.meta_audience_id) && <Check className="h-2 w-2 text-white" />}
-                                  </div>
-                                  {a.name} {a.approximate_count ? `(${a.approximate_count.toLocaleString()} personas)` : "(procesando...)"}
-                                </button>
-                              ))}
-                              {audiences.filter((a: any) => a.audience_type === "lookalike").length === 0 && (
-                                <p className="text-xs py-2" style={{ color: "#9ca3af" }}>No hay audiencias lookalike disponibles.</p>
+                                </div>
                               )}
-                            </div>
-                          </div>
-                        )}
+
+                              {(audienceType === "lookalike" || audienceType === "retargeting_lookalike") && (
+                                <div>
+                                  <p className="text-xs font-medium mb-2" style={{ color: "#d1d5db" }}>
+                                    {audienceType === "retargeting_lookalike" ? "Audiencia lookalike" : "Seleccionar audiencia lookalike"}
+                                  </p>
+                                  <div className="space-y-1 max-h-40 overflow-y-auto">
+                                    {audiences.filter((a: any) => a.audience_type === "lookalike").map((a: any) => {
+                                      const isReady = a.status === "ready";
+                                      const isProcessing = a.status === "processing";
+                                      const isError = a.status === "error";
+                                      const isSelected = lookalikeAudienceIds.includes(a.meta_audience_id);
+                                      return (
+                                        <button
+                                          key={a.meta_audience_id}
+                                          disabled={!isReady}
+                                          onClick={() => { if (isReady) toggleLookalikeAudience(a.meta_audience_id); }}
+                                          className="w-full flex items-center gap-2 px-3 py-2 rounded-lg text-left text-xs transition-colors disabled:opacity-60 disabled:cursor-not-allowed"
+                                          style={{
+                                            backgroundColor: isSelected ? "rgba(124,58,237,0.15)" : "#1a1a1a",
+                                            border: isSelected ? "1px solid #7c3aed" : "1px solid #333333",
+                                            color: isReady ? "#d1d5db" : "#6b7280",
+                                          }}
+                                        >
+                                          <div className="w-3 h-3 rounded border flex-shrink-0 flex items-center justify-center"
+                                            style={{ borderColor: isSelected ? "#7c3aed" : "#555555", backgroundColor: isSelected ? "#7c3aed" : "transparent" }}>
+                                            {isSelected && <Check className="h-2 w-2 text-white" />}
+                                          </div>
+                                          <span className="flex-1">
+                                            {a.name}
+                                            {isReady && a.approximate_count ? ` (${a.approximate_count.toLocaleString()} personas)` : ""}
+                                            {isProcessing && " — Procesando (24-48hs)"}
+                                            {isError && " — Error"}
+                                          </span>
+                                          {isProcessing && <Loader2 className="h-3 w-3 animate-spin text-yellow-500 flex-shrink-0" />}
+                                          {isError && <XCircle className="h-3 w-3 text-red-500 flex-shrink-0" />}
+                                        </button>
+                                      );
+                                    })}
+                                    {audiences.filter((a: any) => a.audience_type === "lookalike").length === 0 && (
+                                      <p className="text-xs py-2" style={{ color: "#9ca3af" }}>No hay audiencias lookalike disponibles.</p>
+                                    )}
+                                  </div>
+                                </div>
+                              )}
+
+                              {!hasReadyAudiences && (
+                                <div className="flex items-start gap-2 rounded-md p-3 text-sm" style={{ backgroundColor: "rgba(234,179,8,0.08)", border: "1px solid rgba(234,179,8,0.3)" }}>
+                                  <AlertTriangle className="h-4 w-4 mt-0.5 shrink-0" style={{ color: "#ca8a04" }} />
+                                  <div className="space-y-2 flex-1">
+                                    <p style={{ color: "#ca8a04" }}>
+                                      Tus audiencias todavía están siendo procesadas por Meta. Podés crear la campaña ahora pero el alcance será limitado hasta que estén listas.
+                                    </p>
+                                    <div>
+                                      <a
+                                        href="/dashboard/ads/audiences"
+                                        className="text-xs font-medium underline"
+                                        style={{ color: "#9ca3af" }}
+                                      >
+                                        Ir a Audiencias
+                                      </a>
+                                    </div>
+                                  </div>
+                                </div>
+                              )}
+                            </>
+                          );
+                        })()}
                       </>
                     )}
 
