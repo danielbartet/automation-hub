@@ -223,14 +223,14 @@ async def create_website_audience(
             "operator": "or",
             "rules": [
                 {
-                    "event_sources": [{"id": str(pixel_id), "type": "PIXEL"}],
+                    "event_sources": [{"id": str(pixel_id), "type": "pixel"}],
                     "retention_seconds": body.retention_days * 86400,
                     "filter": {
                         "operator": "and",
                         "filters": [
                             {
                                 "field": "event",
-                                "operator": "eq",
+                                "operator": "=",
                                 "value": body.event_type,
                             }
                         ],
