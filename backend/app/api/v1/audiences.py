@@ -116,30 +116,17 @@ async def _meta_post_json(token: str, path: str, payload: dict) -> dict:
             form_data[key] = json.dumps(value, separators=(",", ":"))
         else:
             form_data[key] = str(value)
-    print(f"[_meta_post_json] POST {path}")
-    for k, v in form_data.items():
-        if k != "access_token":
-            print(f"  {k} = {v!r}")
     async with httpx.AsyncClient(timeout=30.0) as client:
         resp = await client.post(url, data=form_data)
-        result = resp.json()
-        if "error" in result:
-            print(f"[_meta_post_json] Error response: {json.dumps(result['error'])}")
-        return result
+        return resp.json()
 
 
 async def _meta_post_body(token: str, path: str, payload: dict) -> dict:
     """POST to Meta API as JSON body with access_token in query params."""
     url = f"{META_BASE}{path}"
-    print(f"[_meta_post_body] POST {path}")
-    for k, v in payload.items():
-        print(f"  {k} = {json.dumps(v)!r}")
     async with httpx.AsyncClient(timeout=30.0) as client:
         resp = await client.post(url, params={"access_token": token}, json=payload)
-        result = resp.json()
-        if "error" in result:
-            print(f"[_meta_post_body] Error response: {json.dumps(result['error'])}")
-        return result
+        return resp.json()
 
 
 async def _meta_delete(token: str, path: str) -> dict:
@@ -249,7 +236,6 @@ async def create_website_audience(
     if "error" in meta_resp:
         err = meta_resp["error"]
         detail = err.get("error_user_msg") or err.get("message") or "Meta API error"
-        print(f"[audiences] Meta error creating website audience: {json.dumps(err)}")
         raise HTTPException(status_code=400, detail=detail)
 
     audience = Audience(
