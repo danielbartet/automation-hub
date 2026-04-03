@@ -465,7 +465,7 @@ async def get_campaign_detail(
                 ins_resp = await client.get(
                     f"{META_BASE}/{meta_campaign_id}/insights",
                     params={
-                        "fields": "spend,impressions,reach,clicks,ctr,cpc,cpm,frequency,actions,cost_per_action_type",
+                        "fields": "spend,impressions,reach,clicks,ctr,cpc,cpm,frequency,actions,action_values,cost_per_action_type,purchase_roas",
                         "time_range": json.dumps(time_range),
                         "access_token": token,
                     },
@@ -478,7 +478,7 @@ async def get_campaign_detail(
                 daily_resp = await client.get(
                     f"{META_BASE}/{meta_campaign_id}/insights",
                     params={
-                        "fields": "spend,impressions,reach,clicks,ctr,cpc,cpm,frequency,actions,cost_per_action_type",
+                        "fields": "spend,impressions,reach,clicks,ctr,cpc,cpm,frequency,actions,action_values,cost_per_action_type,purchase_roas",
                         "time_range": json.dumps(time_range),
                         "time_increment": "1",
                         "access_token": token,
@@ -550,6 +550,7 @@ async def get_campaign_detail(
 
     # Build insights summary
     actions = {a["action_type"]: float(a["value"]) for a in insights_summary_raw.get("actions", [])}
+    action_values = {a["action_type"]: float(a["value"]) for a in insights_summary_raw.get("action_values", [])}
     cpa_dict = {a["action_type"]: float(a["value"]) for a in insights_summary_raw.get("cost_per_action_type", [])}
     objective = (campaign_info.get("objective") or (campaign.objective if campaign else None) or "").upper()
 
@@ -562,22 +563,66 @@ async def get_campaign_detail(
     avg_cpm = float(insights_summary_raw.get("cpm", 0))
     avg_frequency = float(insights_summary_raw.get("frequency", 0))
 
+    # Extract action counts
+    leads = actions.get("lead") or None
+    if leads is not None:
+        leads = int(leads)
+    landing_page_views_raw = actions.get("landing_page_view")
+    landing_page_views = int(landing_page_views_raw) if landing_page_views_raw is not None else None
+    link_clicks_raw = actions.get("link_click")
+    link_clicks = int(link_clicks_raw) if link_clicks_raw is not None else None
+    post_reactions_raw = actions.get("post_reaction")
+    post_reactions = int(post_reactions_raw) if post_reactions_raw is not None else None
+    post_saves_raw = actions.get("onsite_conversion.post_save")
+    post_saves = int(post_saves_raw) if post_saves_raw is not None else None
+    comments_raw = actions.get("comment")
+    comments = int(comments_raw) if comments_raw is not None else None
+    video_views_raw = actions.get("video_view")
+    video_views = int(video_views_raw) if video_views_raw is not None else None
+    page_engagement_raw = actions.get("page_engagement")
+    page_engagement = int(page_engagement_raw) if page_engagement_raw is not None else None
+
+    # Derived metrics
+    cpl = round(total_spend / leads, 2) if leads and leads > 0 else None
+    cost_per_lpv = round(total_spend / landing_page_views, 2) if landing_page_views and landing_page_views > 0 else None
+    click_to_lead_rate = round((leads / link_clicks) * 100, 2) if leads and link_clicks and link_clicks > 0 else None
+    lp_conversion_rate = round((leads / landing_page_views) * 100, 2) if leads and landing_page_views and landing_page_views > 0 else None
+    cpc_derived = round(total_spend / link_clicks, 2) if link_clicks and link_clicks > 0 else None
+    hook_rate = round((landing_page_views / total_impressions) * 100, 2) if landing_page_views and total_impressions > 0 else None
+
     if "LEADS" in objective:
-        total_results = actions.get("lead", 0)
+        total_results = leads or 0
         result_label = "Leads"
         cost_per_result = cpa_dict.get("lead", 0)
         roas = None
+        purchases = None
+        revenue = None
+        cost_per_purchase = None
     elif "SALES" in objective:
-        total_results = actions.get("purchase", 0)
+        purchases_raw = actions.get("purchase")
+        purchases = int(purchases_raw) if purchases_raw is not None else None
+        total_results = purchases or 0
         result_label = "Compras"
         cost_per_result = cpa_dict.get("purchase", 0)
-        revenue = actions.get("omni_purchase", 0)
-        roas = round(revenue / total_spend, 2) if total_spend > 0 else None
+        revenue_raw = action_values.get("purchase")
+        revenue = float(revenue_raw) if revenue_raw is not None else None
+        # purchase_roas from Meta is preferred
+        purchase_roas_data = insights_summary_raw.get("purchase_roas") or []
+        if purchase_roas_data and isinstance(purchase_roas_data, list) and len(purchase_roas_data) > 0:
+            roas = float(purchase_roas_data[0].get("value", 0))
+        elif revenue and total_spend > 0:
+            roas = round(revenue / total_spend, 2)
+        else:
+            roas = None
+        cost_per_purchase = round(total_spend / purchases, 2) if purchases and purchases > 0 else None
     else:
         total_results = float(total_clicks)
         result_label = "Clicks"
         cost_per_result = avg_cpc
         roas = None
+        purchases = None
+        revenue = None
+        cost_per_purchase = None
 
     insights_summary = {
         "period": f"{since} / {today}",
@@ -593,6 +638,25 @@ async def get_campaign_detail(
         "result_label": result_label,
         "cost_per_result": cost_per_result,
         "roas": roas,
+        # Funnel metrics
+        "leads": leads,
+        "landing_page_views": landing_page_views,
+        "link_clicks": link_clicks,
+        "post_reactions": post_reactions,
+        "post_saves": post_saves,
+        "comments": comments,
+        "video_views": video_views,
+        "page_engagement": page_engagement,
+        "cpl": cpl,
+        "cost_per_landing_page_view": cost_per_lpv,
+        "click_to_lead_rate": click_to_lead_rate,
+        "landing_page_conversion_rate": lp_conversion_rate,
+        "cpc_derived": cpc_derived,
+        "hook_rate": hook_rate,
+        # Sales-specific
+        "purchases": purchases,
+        "revenue": revenue,
+        "cost_per_purchase": cost_per_purchase,
     }
 
     # Build daily insights

@@ -66,6 +66,25 @@ interface CampaignDetail {
     result_label: string
     cost_per_result: number
     roas: number | null
+    // Funnel metrics
+    leads?: number | null
+    landing_page_views?: number | null
+    link_clicks?: number | null
+    post_reactions?: number | null
+    post_saves?: number | null
+    comments?: number | null
+    video_views?: number | null
+    page_engagement?: number | null
+    cpl?: number | null
+    cost_per_landing_page_view?: number | null
+    click_to_lead_rate?: number | null
+    landing_page_conversion_rate?: number | null
+    cpc_derived?: number | null
+    hook_rate?: number | null
+    // Sales-specific
+    purchases?: number | null
+    revenue?: number | null
+    cost_per_purchase?: number | null
   }
   daily_insights: Array<{
     date: string
@@ -353,40 +372,120 @@ export default function CampaignDetailPage() {
   const objective = detail.campaign.objective
 
   // ── KPI grid based on objective ────────────────────────────────────────────
-  let kpiCards: React.ReactNode
+  const hasEngagement = (ins.post_reactions ?? 0) > 0 || (ins.comments ?? 0) > 0 || (ins.post_saves ?? 0) > 0 || (ins.video_views ?? 0) > 0 || (ins.page_engagement ?? 0) > 0
+
+  let kpiRows: React.ReactNode
   if (objective === "OUTCOME_LEADS") {
-    kpiCards = (
-      <>
-        <KPICard label="Total Gastado" value={fmt(ins.total_spend)} sub={ins.period} />
-        <KPICard label="Leads" value={String(ins.total_results ?? "—")} sub={ins.result_label} />
-        <KPICard label="Costo / Lead" value={fmt(ins.cost_per_result)} />
-        <KPICard label="CTR" value={ins.avg_ctr != null ? `${ins.avg_ctr.toFixed(2)}%` : "—"} />
-        <KPICard label="Frecuencia" value={ins.avg_frequency != null ? ins.avg_frequency.toFixed(2) : "—"} />
-        <KPICard label="Alcance" value={ins.total_reach != null ? ins.total_reach.toLocaleString() : "—"} />
-      </>
+    kpiRows = (
+      <div className="space-y-4">
+        {/* Row 1 — main metrics */}
+        <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-6 gap-4">
+          <KPICard label="Total Gastado" value={fmt(ins.total_spend)} sub={ins.period} />
+          <KPICard label="Leads" value={ins.leads != null ? String(ins.leads) : String(ins.total_results ?? "—")} sub={ins.result_label} />
+          <KPICard label="Costo / Lead" value={ins.cpl != null ? fmt(ins.cpl) : fmt(ins.cost_per_result)} />
+          <KPICard label="CTR" value={ins.avg_ctr != null ? `${ins.avg_ctr.toFixed(2)}%` : "—"} />
+          <KPICard label="Frecuencia" value={ins.avg_frequency != null ? ins.avg_frequency.toFixed(2) : "—"} />
+          <KPICard label="Alcance" value={ins.total_reach != null ? ins.total_reach.toLocaleString() : "—"} />
+        </div>
+        {/* Row 2 — funnel (only if data exists) */}
+        {(ins.landing_page_views != null || ins.click_to_lead_rate != null || ins.landing_page_conversion_rate != null || ins.cpc_derived != null) && (
+          <div>
+            <p className="text-gray-500 text-xs mb-2 uppercase tracking-wider">Embudo</p>
+            <div className="grid grid-cols-2 sm:grid-cols-4 gap-4">
+              {ins.landing_page_views != null && (
+                <KPICard label="Visitas a Landing" value={ins.landing_page_views.toLocaleString()} />
+              )}
+              {ins.click_to_lead_rate != null && (
+                <KPICard label="Click → Lead" value={`${ins.click_to_lead_rate.toFixed(1)}%`} sub="% de clicks que se convierten en lead" />
+              )}
+              {ins.landing_page_conversion_rate != null && (
+                <KPICard label="Conv. Landing" value={`${ins.landing_page_conversion_rate.toFixed(1)}%`} sub="% de visitas que generan un lead" />
+              )}
+              {ins.cpc_derived != null && (
+                <KPICard label="CPC (link)" value={fmt(ins.cpc_derived)} />
+              )}
+              {ins.hook_rate != null && (
+                <KPICard label="Hook Rate" value={`${ins.hook_rate.toFixed(1)}%`} sub="% de impresiones que llegan a la landing" />
+              )}
+              {ins.cost_per_landing_page_view != null && (
+                <KPICard label="Costo / Vista LP" value={fmt(ins.cost_per_landing_page_view)} />
+              )}
+            </div>
+          </div>
+        )}
+        {/* Row 3 — engagement (only if any > 0) */}
+        {hasEngagement && (
+          <div>
+            <p className="text-gray-500 text-xs mb-2 uppercase tracking-wider">Engagement</p>
+            <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-5 gap-4">
+              {ins.post_reactions != null && <KPICard label="Reacciones" value={ins.post_reactions.toLocaleString()} />}
+              {ins.comments != null && <KPICard label="Comentarios" value={ins.comments.toLocaleString()} />}
+              {ins.post_saves != null && <KPICard label="Guardados" value={ins.post_saves.toLocaleString()} />}
+              {ins.video_views != null && <KPICard label="Views de Video" value={ins.video_views.toLocaleString()} />}
+              {ins.page_engagement != null && <KPICard label="Page Engagement" value={ins.page_engagement.toLocaleString()} />}
+            </div>
+          </div>
+        )}
+      </div>
     )
   } else if (objective === "OUTCOME_SALES") {
-    kpiCards = (
-      <>
-        <KPICard label="Total Gastado" value={fmt(ins.total_spend)} sub={ins.period} />
-        <KPICard label="ROAS" value={ins.roas != null ? `${ins.roas.toFixed(2)}x` : "—"} />
-        <KPICard label="Compras" value={String(ins.total_results ?? "—")} sub={ins.result_label} />
-        <KPICard label="CPA" value={fmt(ins.cost_per_result)} />
-        <KPICard label="CTR" value={ins.avg_ctr != null ? `${ins.avg_ctr.toFixed(2)}%` : "—"} />
-        <KPICard label="Frecuencia" value={ins.avg_frequency != null ? ins.avg_frequency.toFixed(2) : "—"} />
-      </>
+    kpiRows = (
+      <div className="space-y-4">
+        {/* Row 1 */}
+        <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-6 gap-4">
+          <KPICard label="Total Gastado" value={fmt(ins.total_spend)} sub={ins.period} />
+          <KPICard label="ROAS" value={ins.roas != null ? `${ins.roas.toFixed(2)}x` : "—"} sub="Retorno sobre inversión publicitaria" />
+          <KPICard label="Compras" value={ins.purchases != null ? String(ins.purchases) : String(ins.total_results ?? "—")} sub={ins.result_label} />
+          <KPICard label="CPA" value={ins.cost_per_purchase != null ? fmt(ins.cost_per_purchase) : fmt(ins.cost_per_result)} />
+          <KPICard label="CTR" value={ins.avg_ctr != null ? `${ins.avg_ctr.toFixed(2)}%` : "—"} />
+          <KPICard label="Frecuencia" value={ins.avg_frequency != null ? ins.avg_frequency.toFixed(2) : "—"} />
+        </div>
+        {/* Row 2 */}
+        <div className="grid grid-cols-2 sm:grid-cols-4 gap-4">
+          {ins.revenue != null && <KPICard label="Revenue" value={fmt(ins.revenue)} />}
+          {ins.cpl != null && <KPICard label="CPL" value={fmt(ins.cpl)} />}
+          {ins.landing_page_views != null && <KPICard label="Visitas a Landing" value={ins.landing_page_views.toLocaleString()} />}
+          {ins.click_to_lead_rate != null && (
+            <KPICard label="Click → Compra" value={`${ins.click_to_lead_rate.toFixed(1)}%`} sub="% de clicks que se convierten en compra" />
+          )}
+        </div>
+        {/* Row 3 — engagement */}
+        {hasEngagement && (
+          <div>
+            <p className="text-gray-500 text-xs mb-2 uppercase tracking-wider">Engagement</p>
+            <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-5 gap-4">
+              {ins.post_reactions != null && <KPICard label="Reacciones" value={ins.post_reactions.toLocaleString()} />}
+              {ins.comments != null && <KPICard label="Comentarios" value={ins.comments.toLocaleString()} />}
+              {ins.post_saves != null && <KPICard label="Guardados" value={ins.post_saves.toLocaleString()} />}
+              {ins.video_views != null && <KPICard label="Views de Video" value={ins.video_views.toLocaleString()} />}
+              {ins.page_engagement != null && <KPICard label="Page Engagement" value={ins.page_engagement.toLocaleString()} />}
+            </div>
+          </div>
+        )}
+      </div>
     )
   } else {
     // OUTCOME_TRAFFIC or other
-    kpiCards = (
-      <>
-        <KPICard label="Total Gastado" value={fmt(ins.total_spend)} sub={ins.period} />
-        <KPICard label="Clicks" value={ins.total_clicks != null ? ins.total_clicks.toLocaleString() : "—"} />
-        <KPICard label="CPC" value={fmt(ins.avg_cpc)} />
-        <KPICard label="CTR" value={ins.avg_ctr != null ? `${ins.avg_ctr.toFixed(2)}%` : "—"} />
-        <KPICard label="Alcance" value={ins.total_reach != null ? ins.total_reach.toLocaleString() : "—"} />
-        <KPICard label="CPM" value={fmt(ins.avg_cpm)} />
-      </>
+    kpiRows = (
+      <div className="space-y-4">
+        {/* Row 1 */}
+        <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-6 gap-4">
+          <KPICard label="Total Gastado" value={fmt(ins.total_spend)} sub={ins.period} />
+          <KPICard label="Clicks" value={ins.link_clicks != null ? ins.link_clicks.toLocaleString() : ins.total_clicks != null ? ins.total_clicks.toLocaleString() : "—"} />
+          <KPICard label="CPC" value={ins.cpc_derived != null ? fmt(ins.cpc_derived) : fmt(ins.avg_cpc)} />
+          <KPICard label="CTR" value={ins.avg_ctr != null ? `${ins.avg_ctr.toFixed(2)}%` : "—"} />
+          <KPICard label="Alcance" value={ins.total_reach != null ? ins.total_reach.toLocaleString() : "—"} />
+          <KPICard label="CPM" value={fmt(ins.avg_cpm)} />
+        </div>
+        {/* Row 2 */}
+        <div className="grid grid-cols-2 sm:grid-cols-4 gap-4">
+          {ins.landing_page_views != null && <KPICard label="Visitas a Landing" value={ins.landing_page_views.toLocaleString()} />}
+          {ins.hook_rate != null && <KPICard label="Hook Rate" value={`${ins.hook_rate.toFixed(1)}%`} sub="% de impresiones que llegan a la landing" />}
+          {ins.post_reactions != null && <KPICard label="Reacciones" value={ins.post_reactions.toLocaleString()} />}
+          {ins.post_saves != null && <KPICard label="Guardados" value={ins.post_saves.toLocaleString()} />}
+          {ins.video_views != null && <KPICard label="Views de Video" value={ins.video_views.toLocaleString()} />}
+        </div>
+      </div>
     )
   }
 
@@ -682,9 +781,7 @@ export default function CampaignDetailPage() {
         </div>
 
         {/* ── KPI CARDS ───────────────────────────────────────────────────── */}
-        <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-6 gap-4">
-          {kpiCards}
-        </div>
+        {kpiRows}
 
         {/* ── DATE RANGE + CHARTS ─────────────────────────────────────────── */}
         <div>
