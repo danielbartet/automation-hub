@@ -108,22 +108,24 @@ async def _meta_get(token: str, path: str, params: dict | None = None) -> dict:
 
 
 async def _meta_post_json(token: str, path: str, payload: dict) -> dict:
-    """POST to Meta API with JSON-serialized complex fields as form data."""
+    """POST to Meta API. Sends as form-encoded with complex fields as JSON strings."""
     url = f"{META_BASE}{path}"
-    # Meta Graph API accepts form-encoded data; complex objects must be JSON strings
     form_data: dict[str, str] = {"access_token": token}
     for key, value in payload.items():
         if isinstance(value, (dict, list)):
-            form_data[key] = json.dumps(value, separators=(",", ":"))
+            form_data[key] = json.dumps(value)
         else:
             form_data[key] = str(value)
-    print(f"[_meta_post_json] POST {path} form_data keys={list(form_data.keys())}")
+    print(f"[_meta_post_json] POST {path}")
     for k, v in form_data.items():
         if k != "access_token":
-            print(f"  {k} = {v}")
+            print(f"  {k} = {v!r}")
     async with httpx.AsyncClient(timeout=30.0) as client:
         resp = await client.post(url, data=form_data)
-        return resp.json()
+        result = resp.json()
+        if "error" in result:
+            print(f"[_meta_post_json] Error response: {json.dumps(result['error'])}")
+        return result
 
 
 async def _meta_delete(token: str, path: str) -> dict:
@@ -208,10 +210,11 @@ async def create_website_audience(
             "rules": [
                 {
                     "event_sources": [{"id": str(pixel_id), "type": "PIXEL"}],
+                    "retention_seconds": body.retention_days * 86400,
                     "filter": {
                         "operator": "and",
                         "filters": [
-                            {"field": "event", "operator": "eq", "value": body.event_type}
+                            {"field": "event", "operator": "=", "value": body.event_type}
                         ],
                     },
                 }
