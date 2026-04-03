@@ -225,11 +225,7 @@ async def create_website_audience(
     meta_resp = await _meta_post_json(
         token,
         f"/act_{ad_account_id}/customaudiences",
-        {
-            "name": body.name,
-            "retention_days": body.retention_days,
-            "rule": rule,
-        },
+        {"name": body.name, "rule": rule},
     )
 
     if "error" in meta_resp:
