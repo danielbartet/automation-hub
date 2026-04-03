@@ -27,6 +27,10 @@ from app.services.storage.s3 import S3Service
 
 router = APIRouter()
 
+# In-memory recommendation cache: {project_slug: {"data": dict, "generated_at": datetime}}
+_recommendation_cache: dict = {}
+_CACHE_TTL_SECONDS = 7200  # 2 hours
+
 claude_client = ClaudeClient()
 _s3_service: S3Service | None = None
 
@@ -1287,4 +1291,100 @@ async def generate_video_for_post(
     return {
         "video_url": video_url,
         "credits_remaining": project.credits_balance,
+    }
+
+
+class RecommendTodayRequest(BaseModel):
+    force_refresh: bool = False
+
+
+@router.post("/recommend-today/{project_slug}")
+async def recommend_today(
+    project_slug: str,
+    body: RecommendTodayRequest = RecommendTodayRequest(),
+    db: AsyncSession = Depends(get_session),
+) -> dict:
+    """Generate a 'what to post today' recommendation using post history and competitor analysis."""
+    from datetime import datetime, timezone
+
+    # Check cache first (unless force_refresh)
+    if not body.force_refresh:
+        cached = _recommendation_cache.get(project_slug)
+        if cached:
+            age = (datetime.now(timezone.utc) - cached["generated_at"]).total_seconds()
+            if age < _CACHE_TTL_SECONDS:
+                return {
+                    "recommendation": cached["data"].get("recommendation"),
+                    "competitive_insight": cached["data"].get("competitive_insight"),
+                    "quick_actions": cached["data"].get("quick_actions"),
+                    "generated_at": cached["generated_at"].isoformat(),
+                    "cached": True,
+                }
+
+    # Load project
+    result = await db.execute(select(Project).where(Project.slug == project_slug))
+    project = result.scalar_one_or_none()
+    if not project:
+        raise HTTPException(status_code=404, detail="Project not found")
+
+    # Load last 10 posts
+    posts_result = await db.execute(
+        select(ContentPost)
+        .where(ContentPost.project_id == project.id)
+        .order_by(ContentPost.created_at.desc())
+        .limit(10)
+    )
+    recent_posts_raw = posts_result.scalars().all()
+    recent_posts = [
+        {
+            "created_at": p.created_at.strftime("%Y-%m-%d") if p.created_at else "",
+            "format": p.format or "",
+            "content": p.content or {},
+            "status": p.status or "",
+        }
+        for p in recent_posts_raw
+    ]
+
+    # Load competitor ads (if competitors configured)
+    competitor_ads = []
+    config = project.content_config or {}
+    competitors_raw = config.get("competitors", "")
+    if competitors_raw and project.meta_access_token:
+        try:
+            from app.services.meta.ad_library import MetaAdLibraryService
+            competitors_list = [c.strip() for c in competitors_raw.split(",") if c.strip()]
+            if competitors_list:
+                access_token = decrypt_token(project.meta_access_token)
+                ad_lib = MetaAdLibraryService()
+                competitor_ads = await ad_lib.get_competitor_ads(
+                    access_token=access_token,
+                    competitors=competitors_list,
+                )
+        except Exception:
+            # Competitor ads are optional — fail silently
+            competitor_ads = []
+
+    # Generate recommendation via Claude
+    try:
+        result_data = await claude_client.generate_content_recommendation(
+            project=project,
+            recent_posts=recent_posts,
+            competitor_ads=competitor_ads,
+        )
+    except Exception as e:
+        raise HTTPException(status_code=503, detail=f"Failed to generate recommendation: {str(e)}")
+
+    # Store in cache
+    now = datetime.now(timezone.utc)
+    _recommendation_cache[project_slug] = {
+        "data": result_data,
+        "generated_at": now,
+    }
+
+    return {
+        "recommendation": result_data.get("recommendation"),
+        "competitive_insight": result_data.get("competitive_insight"),
+        "quick_actions": result_data.get("quick_actions"),
+        "generated_at": now.isoformat(),
+        "cached": False,
     }

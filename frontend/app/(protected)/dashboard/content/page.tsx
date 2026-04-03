@@ -2,6 +2,7 @@
 
 import { useEffect, useState, useCallback, useRef } from "react";
 import { useSession } from "next-auth/react";
+import { useSearchParams } from "next/navigation";
 import { Header } from "@/components/layout/Header";
 import { fetchProjects, fetchContent, importFromMeta, updateContent } from "@/lib/api";
 import { PlusCircle, FileText, Loader2, Pencil, Video, Image, ChevronDown, Upload, X } from "lucide-react";
@@ -361,10 +362,12 @@ function formatDate(dateStr: string) {
 
 export default function ContentPage() {
   const { data: session } = useSession();
+  const searchParams = useSearchParams();
   const isClient = session?.user?.role === "client";
   const [projects, setProjects] = useState<Project[]>([]);
   const [selectedProjectId, setSelectedProjectId] = useState<string>("");
   const [selectedProjectSlug, setSelectedProjectSlug] = useState<string>("");
+  const [pendingHint, setPendingHint] = useState<string | null>(null);
   const [content, setContent] = useState<ContentPost[]>([]);
   const [loadingProjects, setLoadingProjects] = useState(true);
   const [loadingContent, setLoadingContent] = useState(false);
@@ -401,6 +404,11 @@ export default function ContentPage() {
   };
 
   useEffect(() => {
+    const hint = searchParams.get("hint");
+    if (hint) setPendingHint(hint);
+  }, [searchParams]);
+
+  useEffect(() => {
     fetchProjects()
       .then((data: Project[]) => {
         const list = Array.isArray(data) ? data : [];
@@ -427,6 +435,13 @@ export default function ContentPage() {
   useEffect(() => {
     loadContent();
   }, [loadContent]);
+
+  // Auto-open generate modal with hint from ?hint= query param
+  useEffect(() => {
+    if (pendingHint && selectedProjectSlug && !loadingProjects) {
+      setShowModal(true);
+    }
+  }, [pendingHint, selectedProjectSlug, loadingProjects]);
 
   useEffect(() => {
     const handler = (e: MouseEvent) => {
@@ -735,8 +750,9 @@ export default function ContentPage() {
         <GenerateContentModal
           projectSlug={selectedProjectSlug}
           project={projects.find((p) => p.slug === selectedProjectSlug)}
-          onClose={() => setShowModal(false)}
-          onSuccess={loadContent}
+          initialHint={pendingHint ?? undefined}
+          onClose={() => { setShowModal(false); setPendingHint(null); }}
+          onSuccess={() => { loadContent(); setPendingHint(null); }}
         />
       )}
       {editPost && selectedProjectSlug && (

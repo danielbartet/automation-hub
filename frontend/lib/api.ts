@@ -623,6 +623,50 @@ export async function fetchCampaignRecommendations(
   return res.json()
 }
 
+export async function recommendToday(
+  projectSlug: string,
+  forceRefresh = false
+): Promise<{
+  recommendation: {
+    format: string;
+    format_reason: string;
+    content_angle: string;
+    angle_reason: string;
+    suggested_topic: string;
+    suggested_hook: string;
+    suggested_cta: string;
+    best_time_to_post: string;
+    best_time_reason: string;
+    what_to_avoid: string;
+  };
+  competitive_insight: {
+    competitors_analyzed: string[];
+    dominant_angle: string | null;
+    opportunity: string | null;
+  };
+  quick_actions: Array<{
+    label: string;
+    action: string;
+    topic_hint?: string;
+  }>;
+  generated_at: string;
+  cached: boolean;
+  should_post_today?: boolean;
+  urgency?: string;
+  urgency_reason?: string;
+}> {
+  const res = await fetch(`${API_BASE}/api/v1/content/recommend-today/${projectSlug}`, {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({ force_refresh: forceRefresh }),
+  });
+  if (!res.ok) {
+    const err = await res.json().catch(() => ({}));
+    throw new Error((err as { detail?: string }).detail || "Failed to get recommendation");
+  }
+  return res.json();
+}
+
 export function buildAutoPrompt(post: any, project: any): string {
   const content = typeof post.content === "string" ? JSON.parse(post.content) : post.content;
   const slide1 = content?.slides?.[0] ?? {};

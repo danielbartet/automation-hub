@@ -97,7 +97,7 @@ RULES:
         if category:
             extras.append(f"Focus on the category: {category}")
         if hint:
-            extras.append(f"Topic hint from the user: {hint}")
+            extras.append(f"IMPORTANT: Generate content specifically about this topic: {hint}. Keep this as the main subject while following all brand guidelines.")
         if extras:
             user_msg += " " + " | ".join(extras)
 
@@ -217,6 +217,137 @@ RULES:
             messages=[{"role": "user", "content": prompt}],
         )
         return response.content[0].text
+
+    async def generate_content_recommendation(
+        self,
+        project,
+        recent_posts: list[dict],
+        competitor_ads: list[dict],
+    ) -> dict:
+        """Generate a 'what to post today' recommendation."""
+        import re
+        from datetime import datetime, timezone
+
+        config = project.content_config or {}
+        language = config.get("language", "es")
+        brand_name = config.get("brand_name", project.name)
+        core_message = config.get("core_message", "")
+        target_audience = config.get("target_audience", "")
+        business_objective = config.get("business_objective", "")
+        content_categories = config.get("content_categories", [])
+        posting_frequency = config.get("posting_frequency", "")
+
+        now = datetime.now(timezone.utc)
+        weekdays_es = ["Lunes", "Martes", "Miércoles", "Jueves", "Viernes", "Sábado", "Domingo"]
+        weekdays_en = ["Monday", "Tuesday", "Wednesday", "Thursday", "Friday", "Saturday", "Sunday"]
+        weekday_idx = now.weekday()
+        weekday = weekdays_es[weekday_idx] if language == "es" else weekdays_en[weekday_idx]
+        date_str = now.strftime("%d/%m/%Y")
+        time_str = now.strftime("%H:%M")
+
+        # Build recent posts summary
+        if recent_posts:
+            posts_lines = []
+            for p in recent_posts:
+                topic = ""
+                if p.get("content") and isinstance(p["content"], dict):
+                    topic = p["content"].get("topic", p["content"].get("category", ""))
+                posts_lines.append(
+                    f"- {p.get('created_at', 'N/A')} | {p.get('format', 'N/A')} | {topic} | {p.get('status', 'N/A')}"
+                )
+            posts_summary = "\n".join(posts_lines)
+        else:
+            posts_summary = "No hay publicaciones recientes."
+
+        # Build competitor ads summary
+        if competitor_ads:
+            comp_lines = []
+            for ad in competitor_ads[:10]:  # limit to top 10 for prompt size
+                body_preview = (ad.get("body", "") or "")[:100]
+                comp_lines.append(
+                    f"- {ad['competitor']} | \"{body_preview}\" | {ad['days_active']} días activo | {', '.join(ad.get('platforms', []))}"
+                )
+            comp_summary = "\n".join(comp_lines)
+        else:
+            comp_summary = "No hay datos de competidores disponibles."
+
+        system_prompt = f"""You are a social media strategist expert for {language} content.
+You specialize in maximizing organic reach on Instagram and Facebook for {brand_name}.
+You always respond with valid JSON only, no markdown, no explanations outside the JSON."""
+
+        user_prompt = f"""Today is {weekday}, {date_str} at {time_str} UTC.
+
+Project context:
+- Brand: {brand_name}
+- Core message: {core_message}
+- Target audience: {target_audience}
+- Objective: {business_objective}
+- Content categories: {', '.join(content_categories)}
+- Posting frequency: {posting_frequency}
+
+Recent posting history (last 10 posts):
+{posts_summary}
+
+Active competitor ads (sorted by days active — longer = likely performing):
+{comp_summary}
+
+Instructions:
+1. Analyze posting gaps — when was the last post? What formats haven't been used recently?
+2. Analyze competitor ads — what angles are they using? What's NOT being covered?
+3. Consider today's day of week and time for optimal engagement:
+   - Monday/Lunes: high engagement, good for bold statements
+   - Tuesday/Miércoles: best for educational content
+   - Thursday/Jueves: aspirational content performs well
+   - Friday/Viernes: lighter content, community building
+   - Weekend/Fin de semana: reflective, identity content
+4. Recommend what to post TODAY with maximum differentiation from competitors.
+
+Return ONLY valid JSON (no markdown, no code blocks):
+{{
+  "should_post_today": true,
+  "urgency": "high",
+  "urgency_reason": "string",
+  "recommendation": {{
+    "format": "carousel_6_slides",
+    "format_reason": "why this format today",
+    "content_angle": "Logical",
+    "angle_reason": "why this angle",
+    "suggested_topic": "specific topic",
+    "suggested_hook": "exact opening line",
+    "suggested_cta": "what action to ask",
+    "best_time_to_post": "HH:MM",
+    "best_time_reason": "why this time",
+    "what_to_avoid": "what NOT to post today"
+  }},
+  "competitive_insight": {{
+    "competitors_analyzed": ["handle1"],
+    "dominant_angle": "what competitors mostly use",
+    "opportunity": "what angle is NOT covered"
+  }},
+  "quick_actions": [
+    {{
+      "label": "Generar este contenido ahora",
+      "action": "generate",
+      "topic_hint": "the suggested_topic value here"
+    }},
+    {{
+      "label": "Ver otra sugerencia",
+      "action": "regenerate"
+    }},
+    {{
+      "label": "Planificar la semana",
+      "action": "plan_week"
+    }}
+  ]
+}}"""
+
+        response_text = await self.generate_content(user_prompt, system_prompt)
+
+        # Strip markdown code blocks if present
+        response_text = re.sub(r'^```(?:json)?\s*', '', response_text.strip())
+        response_text = re.sub(r'\s*```$', '', response_text.strip())
+
+        return json.loads(response_text)
 
     async def generate_caption(self, topic: str, tone: str, language: str = "es") -> str:
         """Generate a social media caption for a topic."""

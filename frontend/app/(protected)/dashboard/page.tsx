@@ -1,9 +1,10 @@
 "use client";
 
 import { useEffect, useState, useCallback } from "react";
-import { useSearchParams } from "next/navigation";
+import { useSearchParams, useRouter } from "next/navigation";
 import { Header } from "@/components/layout/Header";
 import { KPICard } from "@/components/dashboard/KPICard";
+import { WhatToPostTodayCard } from "@/components/dashboard/WhatToPostTodayCard";
 import { fetchDashboard, fetchProjects } from "@/lib/api";
 import { Loader2, FileText } from "lucide-react";
 
@@ -86,6 +87,7 @@ function formatDate(dateStr: string) {
 
 export default function DashboardPage() {
   const searchParams = useSearchParams();
+  const router = useRouter();
   const projectParam = searchParams.get("project");
 
   const [projects, setProjects] = useState<Project[]>([]);
@@ -165,6 +167,20 @@ export default function DashboardPage() {
           <div className="rounded-md p-4 text-sm" style={{ backgroundColor: "#450a0a", border: "1px solid #7f1d1d", color: "#fca5a5" }}>
             Error: {error}
           </div>
+        )}
+
+        {/* What to post today wizard */}
+        {selectedSlug && (
+          <WhatToPostTodayCard
+            projectSlug={selectedSlug}
+            onGenerateContent={(hint) => {
+              const params = new URLSearchParams({ hint });
+              router.push(`/dashboard/content?${params.toString()}`);
+            }}
+            onPlanWeek={() => {
+              router.push("/dashboard/calendar");
+            }}
+          />
         )}
 
         {/* KPI Cards */}
