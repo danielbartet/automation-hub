@@ -493,6 +493,176 @@ async def create_content_manual(
     }
 
 
+async def _publish_post_to_meta(post: ContentPost, project: Project, db: AsyncSession) -> None:
+    """Publish a content post to Meta (Instagram + Facebook). Updates post.status in place."""
+    try:
+        access_token = decrypt_token(project.meta_access_token) if project.meta_access_token else None
+        if not access_token:
+            raise ValueError("No Meta access token configured for this project")
+
+        meta_client = MetaClient(access_token)
+        caption = post.caption or ""
+
+        # Resolve image URLs for publishing
+        publish_image_urls: list[str] = []
+        if post.image_urls:
+            try:
+                publish_image_urls = json.loads(post.image_urls)
+            except (json.JSONDecodeError, TypeError):
+                pass
+        if not publish_image_urls and post.image_url:
+            publish_image_urls = [post.image_url]
+
+        instagram_media_id: str | None = None
+        facebook_post_id: str | None = None
+        ig_error: Exception | None = None
+        fb_error: Exception | None = None
+
+        # Publish to Instagram (independent — errors are captured, not raised)
+        if project.instagram_account_id and publish_image_urls:
+            logger.info(
+                "Post %s: attempting Instagram publish to account %s (%d image(s))",
+                post.id, project.instagram_account_id, len(publish_image_urls),
+            )
+            try:
+                ig_service = InstagramService(meta_client)
+                if len(publish_image_urls) > 1:
+                    instagram_media_id = await ig_service.publish_carousel(
+                        project.instagram_account_id, publish_image_urls, caption
+                    )
+                else:
+                    container = await ig_service.create_media_container(
+                        project.instagram_account_id, publish_image_urls[0], caption
+                    )
+                    creation_id = container.get("id")
+                    if creation_id:
+                        await ig_service.wait_for_container(creation_id)
+                        published = await ig_service.publish_media(project.instagram_account_id, creation_id)
+                        instagram_media_id = published.get("id")
+                    else:
+                        logger.warning("Post %s: Instagram container returned no id", post.id)
+                logger.info("Post %s: Instagram published — media_id=%s", post.id, instagram_media_id)
+            except Exception as exc:
+                ig_error = exc
+                logger.warning(
+                    "Post %s: Instagram publish failed (non-blocking): %s",
+                    post.id, exc, exc_info=True,
+                )
+        else:
+            logger.info(
+                "Post %s: skipping Instagram (account_id=%s, image_count=%d)",
+                post.id, project.instagram_account_id, len(publish_image_urls),
+            )
+
+        # Publish to Facebook Page (independent — 403 is non-blocking)
+        if project.facebook_page_id:
+            logger.info(
+                "Post %s: attempting Facebook publish to page %s (%d image(s))",
+                post.id, project.facebook_page_id, len(publish_image_urls),
+            )
+            try:
+                pages_service = PagesService(meta_client)
+                if len(publish_image_urls) > 1:
+                    fb_result = await pages_service.publish_carousel(
+                        project.facebook_page_id, publish_image_urls, caption
+                    )
+                else:
+                    first_image_url = publish_image_urls[0] if publish_image_urls else None
+                    fb_result = await pages_service.publish_post(
+                        project.facebook_page_id, caption, first_image_url
+                    )
+                facebook_post_id = fb_result.get("id")
+                logger.info("Post %s: Facebook published — post_id=%s", post.id, facebook_post_id)
+            except Exception as exc:
+                fb_error = exc
+                logger.warning(
+                    "Post %s: Facebook publish failed (non-blocking): %s",
+                    post.id, exc, exc_info=True,
+                )
+        else:
+            logger.info("Post %s: skipping Facebook (no facebook_page_id configured)", post.id)
+
+        # Determine outcome: published if at least one platform succeeded
+        at_least_one_success = instagram_media_id is not None or facebook_post_id is not None
+        both_failed = ig_error is not None and fb_error is not None
+
+        if at_least_one_success:
+            post.status = "published"
+            post.published_at = datetime.utcnow()
+            if instagram_media_id:
+                post.instagram_media_id = instagram_media_id
+            if facebook_post_id:
+                post.facebook_post_id = facebook_post_id
+            await db.commit()
+            await db.refresh(post)
+            logger.info(
+                "Post %s published to Meta — instagram=%s facebook=%s",
+                post.id, instagram_media_id, facebook_post_id,
+            )
+            # If one platform succeeded but the other failed, log a softer warning
+            if ig_error or fb_error:
+                failed_platforms = []
+                if ig_error:
+                    failed_platforms.append(f"Instagram: {ig_error}")
+                if fb_error:
+                    failed_platforms.append(f"Facebook: {fb_error}")
+                logger.warning(
+                    "Post %s: partial publish — some platforms failed: %s",
+                    post.id, "; ".join(failed_platforms),
+                )
+        elif both_failed:
+            logger.error(
+                "Post %s: all platforms failed — instagram_error=%s, facebook_error=%s",
+                post.id, ig_error, fb_error,
+            )
+            # Keep status as "approved" so the operator can retry
+            combined_error = f"Instagram: {ig_error} | Facebook: {fb_error}"
+            try:
+                from app.services.notifications import NotificationService
+                from app.core.database import AsyncSessionLocal
+                async with AsyncSessionLocal() as notif_db:
+                    notif_svc = NotificationService(notif_db)
+                    await notif_svc.create(
+                        type="post_failed",
+                        title="Error al publicar en Meta",
+                        message=f"Post #{post.id}: {combined_error}",
+                        project_id=post.project_id,
+                        action_url=f"/dashboard/content?id={post.id}",
+                        action_label="Revisar",
+                    )
+            except Exception as notif_exc:
+                logger.error("Failed to create publish-failure notification: %s", notif_exc)
+        else:
+            # No platforms configured or no images — mark published anyway
+            logger.info(
+                "Post %s: no platforms attempted (no account IDs or no image), marking published",
+                post.id,
+            )
+            post.status = "published"
+            post.published_at = datetime.utcnow()
+            await db.commit()
+            await db.refresh(post)
+
+    except Exception as exc:
+        logger.error("Failed to publish post %s to Meta: %s", post.id, exc, exc_info=True)
+        # Keep status as "approved" so the operator can retry; create a notification
+        try:
+            from app.services.notifications import NotificationService
+            from app.core.database import AsyncSessionLocal
+            async with AsyncSessionLocal() as notif_db:
+                notif_svc = NotificationService(notif_db)
+                await notif_svc.create(
+                    type="post_failed",
+                    title="Error al publicar en Meta",
+                    message=f"Post #{post.id}: {exc}",
+                    project_id=post.project_id,
+                    action_url=f"/dashboard/content?id={post.id}",
+                    action_label="Revisar",
+                )
+        except Exception as notif_exc:
+            logger.error("Failed to create publish-failure notification: %s", notif_exc)
+
+
 @router.put("/{content_id}")
 async def update_content(
     content_id: int,
@@ -549,172 +719,13 @@ async def update_content(
         proj_result = await db.execute(select(Project).where(Project.id == post.project_id))
         project = proj_result.scalar_one_or_none()
         if project:
-            try:
-                access_token = decrypt_token(project.meta_access_token) if project.meta_access_token else None
-                if not access_token:
-                    raise ValueError("No Meta access token configured for this project")
-
-                meta_client = MetaClient(access_token)
-                caption = post.caption or ""
-
-                # Resolve image URLs for publishing
-                publish_image_urls: list[str] = []
-                if post.image_urls:
-                    try:
-                        publish_image_urls = json.loads(post.image_urls)
-                    except (json.JSONDecodeError, TypeError):
-                        pass
-                if not publish_image_urls and post.image_url:
-                    publish_image_urls = [post.image_url]
-
-                instagram_media_id: str | None = None
-                facebook_post_id: str | None = None
-                ig_error: Exception | None = None
-                fb_error: Exception | None = None
-
-                # Publish to Instagram (independent — errors are captured, not raised)
-                if project.instagram_account_id and publish_image_urls:
-                    logger.info(
-                        "Post %s: attempting Instagram publish to account %s (%d image(s))",
-                        post.id, project.instagram_account_id, len(publish_image_urls),
-                    )
-                    try:
-                        ig_service = InstagramService(meta_client)
-                        if len(publish_image_urls) > 1:
-                            instagram_media_id = await ig_service.publish_carousel(
-                                project.instagram_account_id, publish_image_urls, caption
-                            )
-                        else:
-                            container = await ig_service.create_media_container(
-                                project.instagram_account_id, publish_image_urls[0], caption
-                            )
-                            creation_id = container.get("id")
-                            if creation_id:
-                                await ig_service.wait_for_container(creation_id)
-                                published = await ig_service.publish_media(project.instagram_account_id, creation_id)
-                                instagram_media_id = published.get("id")
-                            else:
-                                logger.warning("Post %s: Instagram container returned no id", post.id)
-                        logger.info("Post %s: Instagram published — media_id=%s", post.id, instagram_media_id)
-                    except Exception as exc:
-                        ig_error = exc
-                        logger.warning(
-                            "Post %s: Instagram publish failed (non-blocking): %s",
-                            post.id, exc, exc_info=True,
-                        )
-                else:
-                    logger.info(
-                        "Post %s: skipping Instagram (account_id=%s, image_count=%d)",
-                        post.id, project.instagram_account_id, len(publish_image_urls),
-                    )
-
-                # Publish to Facebook Page (independent — 403 is non-blocking)
-                if project.facebook_page_id:
-                    logger.info(
-                        "Post %s: attempting Facebook publish to page %s (%d image(s))",
-                        post.id, project.facebook_page_id, len(publish_image_urls),
-                    )
-                    try:
-                        pages_service = PagesService(meta_client)
-                        if len(publish_image_urls) > 1:
-                            fb_result = await pages_service.publish_carousel(
-                                project.facebook_page_id, publish_image_urls, caption
-                            )
-                        else:
-                            first_image_url = publish_image_urls[0] if publish_image_urls else None
-                            fb_result = await pages_service.publish_post(
-                                project.facebook_page_id, caption, first_image_url
-                            )
-                        facebook_post_id = fb_result.get("id")
-                        logger.info("Post %s: Facebook published — post_id=%s", post.id, facebook_post_id)
-                    except Exception as exc:
-                        fb_error = exc
-                        logger.warning(
-                            "Post %s: Facebook publish failed (non-blocking): %s",
-                            post.id, exc, exc_info=True,
-                        )
-                else:
-                    logger.info("Post %s: skipping Facebook (no facebook_page_id configured)", post.id)
-
-                # Determine outcome: published if at least one platform succeeded
-                at_least_one_success = instagram_media_id is not None or facebook_post_id is not None
-                both_failed = ig_error is not None and fb_error is not None
-
-                if at_least_one_success:
-                    post.status = "published"
-                    post.published_at = datetime.utcnow()
-                    if instagram_media_id:
-                        post.instagram_media_id = instagram_media_id
-                    if facebook_post_id:
-                        post.facebook_post_id = facebook_post_id
-                    await db.commit()
-                    await db.refresh(post)
-                    logger.info(
-                        "Post %s published to Meta — instagram=%s facebook=%s",
-                        post.id, instagram_media_id, facebook_post_id,
-                    )
-                    # If one platform succeeded but the other failed, log a softer warning
-                    if ig_error or fb_error:
-                        failed_platforms = []
-                        if ig_error:
-                            failed_platforms.append(f"Instagram: {ig_error}")
-                        if fb_error:
-                            failed_platforms.append(f"Facebook: {fb_error}")
-                        logger.warning(
-                            "Post %s: partial publish — some platforms failed: %s",
-                            post.id, "; ".join(failed_platforms),
-                        )
-                elif both_failed:
-                    logger.error(
-                        "Post %s: all platforms failed — instagram_error=%s, facebook_error=%s",
-                        post.id, ig_error, fb_error,
-                    )
-                    # Keep status as "approved" so the operator can retry
-                    combined_error = f"Instagram: {ig_error} | Facebook: {fb_error}"
-                    try:
-                        from app.services.notifications import NotificationService
-                        from app.core.database import AsyncSessionLocal
-                        async with AsyncSessionLocal() as notif_db:
-                            notif_svc = NotificationService(notif_db)
-                            await notif_svc.create(
-                                type="post_failed",
-                                title="Error al publicar en Meta",
-                                message=f"Post #{post.id}: {combined_error}",
-                                project_id=post.project_id,
-                                action_url=f"/dashboard/content?id={post.id}",
-                                action_label="Revisar",
-                            )
-                    except Exception as notif_exc:
-                        logger.error("Failed to create publish-failure notification: %s", notif_exc)
-                else:
-                    # No platforms configured or no images — mark published anyway
-                    logger.info(
-                        "Post %s: no platforms attempted (no account IDs or no image), marking published",
-                        post.id,
-                    )
-                    post.status = "published"
-                    post.published_at = datetime.utcnow()
-                    await db.commit()
-                    await db.refresh(post)
-
-            except Exception as exc:
-                logger.error("Failed to publish post %s to Meta: %s", post.id, exc, exc_info=True)
-                # Keep status as "approved" so the operator can retry; create a notification
-                try:
-                    from app.services.notifications import NotificationService
-                    from app.core.database import AsyncSessionLocal
-                    async with AsyncSessionLocal() as notif_db:
-                        notif_svc = NotificationService(notif_db)
-                        await notif_svc.create(
-                            type="post_failed",
-                            title="Error al publicar en Meta",
-                            message=f"Post #{post.id}: {exc}",
-                            project_id=post.project_id,
-                            action_url=f"/dashboard/content?id={post.id}",
-                            action_label="Revisar",
-                        )
-                except Exception as notif_exc:
-                    logger.error("Failed to create publish-failure notification: %s", notif_exc)
+            # If scheduled_at is in the future, don't publish yet — scheduler will handle it
+            if post.scheduled_at and post.scheduled_at > datetime.utcnow():
+                # Just save approved status, scheduler will publish at the right time
+                pass
+            else:
+                # Publish immediately (no schedule, or schedule is in the past)
+                await _publish_post_to_meta(post, project, db)
 
     # Parse image_urls JSON string back to a list for the response
     parsed_image_urls: list[str] = []

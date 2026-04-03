@@ -1,5 +1,6 @@
 """Automation Hub — FastAPI application entry point."""
 from contextlib import asynccontextmanager
+from datetime import datetime
 from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
 from app.core.config import settings
@@ -37,8 +38,52 @@ async def lifespan(app: FastAPI):
         id="campaign_optimizer",
         replace_existing=True,
     )
+
+    async def scheduled_posts_job():
+        """Publish posts that are approved and whose scheduled_at has passed."""
+        from app.models.content import ContentPost
+        from app.models.project import Project
+        from app.api.v1.content import _publish_post_to_meta
+        from sqlalchemy import select, and_
+
+        async with AsyncSessionLocal() as db:
+            try:
+                now = datetime.utcnow()
+                # Find approved posts with scheduled_at <= now
+                result = await db.execute(
+                    select(ContentPost).where(
+                        and_(
+                            ContentPost.status == "approved",
+                            ContentPost.scheduled_at != None,  # noqa: E711
+                            ContentPost.scheduled_at <= now,
+                        )
+                    )
+                )
+                posts = result.scalars().all()
+
+                for post in posts:
+                    try:
+                        proj_result = await db.execute(
+                            select(Project).where(Project.id == post.project_id)
+                        )
+                        project = proj_result.scalar_one_or_none()
+                        if project:
+                            print(f"[Scheduler] Publishing scheduled post {post.id}")
+                            await _publish_post_to_meta(post, project, db)
+                    except Exception as e:
+                        print(f"[Scheduler] Failed to publish post {post.id}: {e}")
+            except Exception as e:
+                print(f"[Scheduler] Scheduled posts job error: {e}")
+
+    scheduler.add_job(
+        scheduled_posts_job,
+        IntervalTrigger(minutes=5),
+        id="scheduled_posts",
+        replace_existing=True,
+    )
     scheduler.start()
     print("[Scheduler] Campaign optimizer started — runs every 3 days")
+    print("[Scheduler] Scheduled posts publisher started — runs every 5 minutes")
 
     yield
 

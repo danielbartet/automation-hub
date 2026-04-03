@@ -53,6 +53,7 @@ function parseImageUrls(raw: string | string[] | undefined, fallbackUrl?: string
 }
 
 export function EditContentModal({ post, projectSlug, project, onClose, onSaved }: EditContentModalProps) {
+  const isPublished = post.status === "published";
   const [caption, setCaption] = useState(post.caption || "");
   const [imageUrl, setImageUrl] = useState(post.image_url || "");
   // Parsed per-slide image URLs; length determines how many thumbnails to show
@@ -412,6 +413,13 @@ export function EditContentModal({ post, projectSlug, project, onClose, onSaved 
             </div>
           )}
 
+          {/* Published notice */}
+          {isPublished && (
+            <div className="px-3 py-2 rounded-md text-xs text-green-400" style={{ backgroundColor: "#052e16", border: "1px solid #166534" }}>
+              Este contenido ya fue publicado en Meta. No se puede editar.
+            </div>
+          )}
+
           {/* Actions */}
           <div className="flex gap-3 pt-2">
             <button
@@ -421,19 +429,21 @@ export function EditContentModal({ post, projectSlug, project, onClose, onSaved 
               onMouseEnter={e => { (e.currentTarget as HTMLButtonElement).style.color = "#ffffff"; (e.currentTarget as HTMLButtonElement).style.backgroundColor = "#1a1a1a"; }}
               onMouseLeave={e => { (e.currentTarget as HTMLButtonElement).style.color = "#9ca3af"; (e.currentTarget as HTMLButtonElement).style.backgroundColor = "transparent"; }}
             >
-              Cancelar
+              {isPublished ? "Cerrar" : "Cancelar"}
             </button>
-            <button
-              onClick={handleSave}
-              disabled={loading}
-              className="flex-1 flex items-center justify-center gap-2 px-4 py-2 text-white text-sm font-medium rounded-lg disabled:opacity-50 transition-colors"
-              style={{ backgroundColor: "#7c3aed" }}
-              onMouseEnter={e => (e.currentTarget.style.backgroundColor = "#6d28d9")}
-              onMouseLeave={e => (e.currentTarget.style.backgroundColor = "#7c3aed")}
-            >
-              {loading ? <Loader2 className="h-4 w-4 animate-spin" /> : <Save className="h-4 w-4" />}
-              Guardar cambios
-            </button>
+            {!isPublished && (
+              <button
+                onClick={handleSave}
+                disabled={loading}
+                className="flex-1 flex items-center justify-center gap-2 px-4 py-2 text-white text-sm font-medium rounded-lg disabled:opacity-50 transition-colors"
+                style={{ backgroundColor: "#7c3aed" }}
+                onMouseEnter={e => (e.currentTarget.style.backgroundColor = "#6d28d9")}
+                onMouseLeave={e => (e.currentTarget.style.backgroundColor = "#7c3aed")}
+              >
+                {loading ? <Loader2 className="h-4 w-4 animate-spin" /> : <Save className="h-4 w-4" />}
+                Guardar cambios
+              </button>
+            )}
           </div>
         </div>
         )}
