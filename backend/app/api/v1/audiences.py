@@ -228,7 +228,10 @@ async def create_website_audience(
     )
 
     if "error" in meta_resp:
-        raise HTTPException(status_code=400, detail=meta_resp["error"].get("message", "Meta API error"))
+        err = meta_resp["error"]
+        detail = err.get("error_user_msg") or err.get("message") or "Meta API error"
+        print(f"[audiences] Meta error creating website audience: {json.dumps(err)}")
+        raise HTTPException(status_code=400, detail=detail)
 
     audience = Audience(
         id=str(uuid4()),
