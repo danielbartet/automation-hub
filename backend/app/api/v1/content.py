@@ -599,24 +599,42 @@ async def _publish_post_to_meta(post: ContentPost, project: Project, db: AsyncSe
                 "Post %s published to Meta — instagram=%s facebook=%s",
                 post.id, instagram_media_id, facebook_post_id,
             )
-            # If one platform succeeded but the other failed, log a softer warning
+            # If one platform succeeded but the other failed, log a softer warning + notify
             if ig_error or fb_error:
-                failed_platforms = []
+                failed_platforms_log = []
                 if ig_error:
-                    failed_platforms.append(f"Instagram: {ig_error}")
+                    failed_platforms_log.append(f"Instagram: {ig_error}")
                 if fb_error:
-                    failed_platforms.append(f"Facebook: {fb_error}")
+                    failed_platforms_log.append(f"Facebook: {fb_error}")
                 logger.warning(
                     "Post %s: partial publish — some platforms failed: %s",
-                    post.id, "; ".join(failed_platforms),
+                    post.id, "; ".join(failed_platforms_log),
                 )
+                if ig_error and not fb_error:
+                    partial_fail_message = "Error en publicación en Instagram"
+                else:
+                    partial_fail_message = "Error en publicación en Facebook"
+                try:
+                    from app.services.notifications import NotificationService
+                    from app.core.database import AsyncSessionLocal
+                    async with AsyncSessionLocal() as notif_db:
+                        notif_svc = NotificationService(notif_db)
+                        await notif_svc.create(
+                            type="post_failed",
+                            title="Error al publicar en Meta",
+                            message=partial_fail_message,
+                            project_id=post.project_id,
+                            action_url=f"/dashboard/content?id={post.id}",
+                            action_label="Revisar",
+                        )
+                except Exception as notif_exc:
+                    logger.error("Failed to create partial publish-failure notification: %s", notif_exc)
         elif both_failed:
             logger.error(
                 "Post %s: all platforms failed — instagram_error=%s, facebook_error=%s",
                 post.id, ig_error, fb_error,
             )
             # Keep status as "approved" so the operator can retry
-            combined_error = f"Instagram: {ig_error} | Facebook: {fb_error}"
             try:
                 from app.services.notifications import NotificationService
                 from app.core.database import AsyncSessionLocal
@@ -625,7 +643,7 @@ async def _publish_post_to_meta(post: ContentPost, project: Project, db: AsyncSe
                     await notif_svc.create(
                         type="post_failed",
                         title="Error al publicar en Meta",
-                        message=f"Post #{post.id}: {combined_error}",
+                        message="Error en publicación en Instagram y Facebook",
                         project_id=post.project_id,
                         action_url=f"/dashboard/content?id={post.id}",
                         action_label="Revisar",
@@ -654,7 +672,7 @@ async def _publish_post_to_meta(post: ContentPost, project: Project, db: AsyncSe
                 await notif_svc.create(
                     type="post_failed",
                     title="Error al publicar en Meta",
-                    message=f"Post #{post.id}: {exc}",
+                    message="Error en publicación en Instagram y Facebook",
                     project_id=post.project_id,
                     action_url=f"/dashboard/content?id={post.id}",
                     action_label="Revisar",
