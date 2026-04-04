@@ -25,11 +25,11 @@ async def lifespan(app: FastAPI):
 
     async def optimization_job():
         from app.services.ads.optimizer import run_optimization_cycle
+        print("[Optimizer] Job triggered")
         async with AsyncSessionLocal() as db:
             try:
                 results = await run_optimization_cycle(db)
-                if results:
-                    print(f"[Optimizer] Processed {len(results)} campaigns: {[r.get('decision') for r in results]}")
+                print(f"[Optimizer] Done — {len(results)} campaigns processed: {[r.get('decision') for r in results]}")
             except Exception as e:
                 print(f"[Optimizer] Error: {e}")
 

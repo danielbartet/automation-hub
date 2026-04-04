@@ -445,9 +445,11 @@ async def run_optimization_cycle(db: AsyncSession) -> list[dict]:
         )
     )
     campaigns = result.scalars().all()
+    print(f"[Optimizer] Found {len(campaigns)} eligible campaigns (cutoff: {cutoff})")
 
     results = []
     for campaign in campaigns:
+        print(f"[Optimizer] Processing campaign {campaign.id} — {campaign.name}")
         proj_result = await db.execute(select(Project).where(Project.id == campaign.project_id))
         project = proj_result.scalar_one_or_none()
         if project:
