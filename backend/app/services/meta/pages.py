@@ -1,4 +1,5 @@
 """Facebook Pages service."""
+import json
 import logging
 
 from app.services.meta.client import MetaClient
@@ -76,7 +77,7 @@ class PagesService:
 
         # Step 2: create a feed post with all photos attached
         logger.info("Facebook carousel: creating post with %d attached photos", len(media_fbids))
-        attached_media = [{"media_fbid": fbid} for fbid in media_fbids]
+        attached_media = json.dumps([{"media_fbid": fbid} for fbid in media_fbids])
         post_result = await page_client.post(f"/{page_id}/feed", {
             "message": caption,
             "attached_media": attached_media,
