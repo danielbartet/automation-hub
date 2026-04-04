@@ -434,45 +434,71 @@ async def create_lookalike_audience(
     _current_user=Depends(get_current_user),
 ) -> list[dict]:
     """Create lookalike audiences (one per country) from a source audience."""
+    print(f"[LOOKALIKE DEBUG] START — project={project_slug} name={body.name!r} source_id={body.source_audience_id!r} ratio={body.ratio} countries={body.countries}")
+
     project = await _get_project(project_slug, db)
     token, ad_account_id = _project_meta_creds(project)
+    print(f"[LOOKALIKE DEBUG] project resolved: id={project.id} ad_account_id={ad_account_id!r}")
 
     # Load source audience from DB
     src_result = await db.execute(select(Audience).where(Audience.id == body.source_audience_id))
     source = src_result.scalar_one_or_none()
+    print(f"[LOOKALIKE DEBUG] source audience lookup: {source!r}")
     if not source:
+        print(f"[LOOKALIKE DEBUG] ABORT — source audience not found for id={body.source_audience_id!r}")
         raise HTTPException(status_code=404, detail="Source audience not found")
+    print(f"[LOOKALIKE DEBUG] source.meta_audience_id={source.meta_audience_id!r}")
     if not source.meta_audience_id:
+        print(f"[LOOKALIKE DEBUG] ABORT — source audience has no meta_audience_id")
         raise HTTPException(status_code=400, detail="Source audience has no Meta audience ID")
 
     created: list[dict] = []
     for country in body.countries:
-        meta_resp = await _meta_post_json(
-            token,
-            f"/act_{ad_account_id}/customaudiences",
-            {
-                "name": f"{body.name} — {country}",
-                "subtype": "LOOKALIKE",
-                "origin_audience_id": source.meta_audience_id,
-                "lookalike_spec": {
-                    "type": "similarity",
-                    "ratio": body.ratio,
-                    "country": country,
-                },
+        payload = {
+            "name": f"{body.name} — {country}",
+            "subtype": "LOOKALIKE",
+            "origin_audience_id": source.meta_audience_id,
+            "lookalike_spec": {
+                "type": "similarity",
+                "ratio": body.ratio,
+                "country": country,
             },
-        )
+        }
+        print(f"[LOOKALIKE DEBUG] calling Meta API for country={country!r} payload={payload}")
+        try:
+            meta_resp = await _meta_post_json(
+                token,
+                f"/act_{ad_account_id}/customaudiences",
+                payload,
+            )
+        except Exception as exc:
+            print(f"[LOOKALIKE DEBUG] EXCEPTION calling Meta API for country={country!r}: {exc!r}")
+            created.append({"country": country, "error": f"Meta API exception: {exc}"})
+            continue
+
+        print(f"[LOOKALIKE DEBUG] Meta API raw response for country={country!r}: {meta_resp}")
+
         if "error" in meta_resp:
             # Record error but continue with remaining countries
+            err_detail = meta_resp["error"].get("message", "Meta API error")
+            print(f"[LOOKALIKE DEBUG] Meta returned error for country={country!r}: {meta_resp['error']}")
             created.append({
                 "country": country,
-                "error": meta_resp["error"].get("message", "Meta API error"),
+                "error": err_detail,
             })
             continue
 
+        meta_id = meta_resp.get("id")
+        print(f"[LOOKALIKE DEBUG] meta_id from response={meta_id!r}")
+        if not meta_id:
+            print(f"[LOOKALIKE DEBUG] WARNING — Meta response has no 'id' field, full response: {meta_resp}")
+
+        new_id = str(uuid4())
+        print(f"[LOOKALIKE DEBUG] creating DB Audience row: local_id={new_id!r} meta_id={meta_id!r} project_id={project.id}")
         audience = Audience(
-            id=str(uuid4()),
+            id=new_id,
             project_id=project.id,
-            meta_audience_id=meta_resp.get("id"),
+            meta_audience_id=meta_id,
             name=f"{body.name} — {country}",
             type="lookalike",
             subtype="LOOKALIKE",
@@ -482,10 +508,20 @@ async def create_lookalike_audience(
             lookalike_countries=[country],
         )
         db.add(audience)
-        await db.commit()
+        print(f"[LOOKALIKE DEBUG] db.add() called — attempting db.commit()")
+        try:
+            await db.commit()
+            print(f"[LOOKALIKE DEBUG] db.commit() SUCCESS for country={country!r} local_id={new_id!r}")
+        except Exception as exc:
+            print(f"[LOOKALIKE DEBUG] db.commit() FAILED for country={country!r}: {exc!r}")
+            await db.rollback()
+            created.append({"country": country, "error": f"DB commit failed: {exc}"})
+            continue
         await db.refresh(audience)
+        print(f"[LOOKALIKE DEBUG] db.refresh() done — audience.id={audience.id!r} audience.meta_audience_id={audience.meta_audience_id!r}")
         created.append(_audience_to_dict(audience))
 
+    print(f"[LOOKALIKE DEBUG] END — returning {len(created)} items: {created}")
     return created
 
 
