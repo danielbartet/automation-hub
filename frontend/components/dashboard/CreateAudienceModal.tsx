@@ -223,8 +223,8 @@ export function CreateAudienceModal({
           },
           body: JSON.stringify({
             name,
-            source_audience_id: Number(baseAudienceId),
-            similarity_pct: lookalikePct,
+            source_audience_id: String(baseAudienceId),
+            ratio: lookalikePct,
             countries: lookalikeCountries,
           }),
         });
