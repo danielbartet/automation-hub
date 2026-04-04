@@ -482,10 +482,10 @@ async def create_lookalike_audience(
             lookalike_countries=[country],
         )
         db.add(audience)
-        await db.flush()
+        await db.commit()
+        await db.refresh(audience)
         created.append(_audience_to_dict(audience))
 
-    await db.commit()
     return created
 
 
