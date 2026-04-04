@@ -13,13 +13,14 @@ scheduler = None
 async def lifespan(app: FastAPI):
     from app.core.database import init_db, seed_db, AsyncSessionLocal
     from apscheduler.schedulers.asyncio import AsyncIOScheduler
+    from apscheduler.triggers.cron import CronTrigger
     from apscheduler.triggers.interval import IntervalTrigger
 
     global scheduler
     await init_db()
     await seed_db()
 
-    # Start optimization scheduler — runs every 3 days
+    # Start optimization scheduler — runs daily at 08:00 UTC, per-campaign cooldown: 3 days
     scheduler = AsyncIOScheduler()
 
     async def optimization_job():
@@ -34,7 +35,7 @@ async def lifespan(app: FastAPI):
 
     scheduler.add_job(
         optimization_job,
-        IntervalTrigger(days=3),
+        CronTrigger(hour=8, minute=0),
         id="campaign_optimizer",
         replace_existing=True,
     )
@@ -82,7 +83,7 @@ async def lifespan(app: FastAPI):
         replace_existing=True,
     )
     scheduler.start()
-    print("[Scheduler] Campaign optimizer started — runs every 3 days")
+    print("[Scheduler] Campaign optimizer started — runs daily at 08:00 UTC, per-campaign cooldown: 3 days")
     print("[Scheduler] Scheduled posts publisher started — runs every 5 minutes")
 
     yield
