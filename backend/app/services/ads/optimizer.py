@@ -236,7 +236,7 @@ Apply Andromeda rules and return your JSON decision."""
             approval_token = str(uuid_module.uuid4())[:16]
             await notification_svc.create(
                 type="optimizer_scale",
-                title=f"SCALE recomendado — {campaign.name}",
+                title=f"Escalar presupuesto recomendado — {campaign.name}",
                 message=f"Presupuesto: ${old_budget}/día → ${new_budget}/día. {analysis.get('rationale', '')}",
                 project_id=campaign.project_id,
                 action_url=f"/dashboard/ads?campaign={campaign.id}",
@@ -255,7 +255,7 @@ Apply Andromeda rules and return your JSON decision."""
             spend = float(metrics.get("spend", 0))
             await notification_svc.create(
                 type="optimizer_pause",
-                title=f"PAUSE recomendado — {campaign.name}",
+                title=f"Pausar campaña recomendado — {campaign.name}",
                 message=f"{analysis.get('rationale', '')} Gasto: ${spend:.2f}",
                 project_id=campaign.project_id,
                 action_url=f"/dashboard/ads?campaign={campaign.id}",
