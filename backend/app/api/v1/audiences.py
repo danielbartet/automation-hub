@@ -141,7 +141,7 @@ def _operation_status_to_status(operation_status: dict | None) -> str:
     if not operation_status:
         return "processing"
     code = operation_status.get("code")
-    if code == 200:
+    if code in (200, 441):
         return "ready"
     if code in (400, 500):
         return "error"
