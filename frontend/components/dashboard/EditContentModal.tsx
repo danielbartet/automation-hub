@@ -371,20 +371,6 @@ export function EditContentModal({ post, projectSlug, project, onClose, onSaved 
                       {rerenderingSlides.has(idx) ? <Loader2 className="h-3 w-3 animate-spin" /> : <RefreshCw className="h-3 w-3" />}
                       Re-renderizar
                     </button>
-                    {/* Change button */}
-                    {project && (
-                      <button
-                        type="button"
-                        onClick={() => openImageGen(idx)}
-                        className="inline-flex items-center justify-center gap-1 px-2 py-1 text-xs font-medium rounded-md transition-colors"
-                        style={{ color: "#a78bfa", border: "1px solid #5b21b6" }}
-                        onMouseEnter={e => (e.currentTarget.style.backgroundColor = "#1e1b4b")}
-                        onMouseLeave={e => (e.currentTarget.style.backgroundColor = "transparent")}
-                      >
-                        <Sparkles className="h-3 w-3" />
-                        Cambiar imagen
-                      </button>
-                    )}
                   </div>
                 ))}
               </div>

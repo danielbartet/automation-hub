@@ -968,9 +968,12 @@ async def rerender_slide(
     slide = slides[body.slide_index]
     slide_data = {
         "headline": slide.get("headline", ""),
-        "subtext": slide.get("body", slide.get("subtext", "")),
+        # "body" is used by content slides, "subtext" by hook slides, "cta" by close slides
+        "subtext": slide.get("body", slide.get("subtext", slide.get("cta", ""))),
         "slide_number": body.slide_index + 1,
         "total_slides": len(slides),
+        # Pass slide type so Claude-generated HTML can apply the correct layout
+        "type": slide.get("type", "content"),
     }
 
     # 5. Build effective media_config (same as carousel generation)
