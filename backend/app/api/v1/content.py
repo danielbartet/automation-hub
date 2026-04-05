@@ -918,6 +918,96 @@ async def generate_image_for_post(
     }
 
 
+class RerenderSlideRequest(BaseModel):
+    slide_index: int  # 0-based
+
+
+@router.post("/{content_id}/rerender-slide")
+async def rerender_slide(
+    content_id: int,
+    body: RerenderSlideRequest,
+    db: AsyncSession = Depends(get_session),
+) -> dict:
+    """Re-render a single carousel slide using the HTML renderer.
+
+    Uses the existing slide content (headline/body) from the ContentPost and the
+    project's media_config (colors, fonts). Uploads the new PNG to S3 and updates
+    post.image_urls[slide_index] in place.
+
+    Returns: { "image_url": "<new_url>", "slide_index": <index> }
+    """
+    # 1. Load content post
+    result = await db.execute(select(ContentPost).where(ContentPost.id == content_id))
+    post = result.scalar_one_or_none()
+    if not post:
+        raise HTTPException(status_code=404, detail=f"ContentPost {content_id} not found")
+
+    # 2. Load project
+    proj_result = await db.execute(select(Project).where(Project.id == post.project_id))
+    project = proj_result.scalar_one_or_none()
+    if not project:
+        raise HTTPException(status_code=404, detail="Project not found")
+
+    # 3. Validate slide_index
+    post_content = post.content or {}
+    if isinstance(post_content, str):
+        try:
+            post_content = json.loads(post_content)
+        except Exception:
+            post_content = {}
+    slides = post_content.get("slides", []) if isinstance(post_content, dict) else []
+    if not slides:
+        raise HTTPException(status_code=400, detail="ContentPost has no slides")
+    if body.slide_index < 0 or body.slide_index >= len(slides):
+        raise HTTPException(
+            status_code=422,
+            detail=f"slide_index {body.slide_index} out of range (0–{len(slides) - 1})",
+        )
+
+    # 4. Build slide_data for the renderer
+    slide = slides[body.slide_index]
+    slide_data = {
+        "headline": slide.get("headline", ""),
+        "subtext": slide.get("body", slide.get("subtext", "")),
+        "slide_number": body.slide_index + 1,
+        "total_slides": len(slides),
+    }
+
+    # 5. Build effective media_config (same as carousel generation)
+    media_config = project.media_config or {}
+    effective_media_config = dict(media_config)
+    if not effective_media_config.get("brand_handle"):
+        effective_media_config["brand_handle"] = project.slug.replace("-", "")
+
+    # 6. Render via HTMLSlideRenderer
+    from app.services.media.html_renderer import HTMLSlideRenderer
+    renderer = HTMLSlideRenderer()
+    try:
+        new_url = await renderer.render_slide(slide_data, effective_media_config)
+    except Exception as e:
+        raise HTTPException(status_code=503, detail=f"Slide render failed: {str(e)}")
+
+    # 7. Update post.image_urls[slide_index]
+    existing_urls: list[str] = []
+    if post.image_urls:
+        try:
+            existing_urls = json.loads(post.image_urls) if isinstance(post.image_urls, str) else list(post.image_urls)
+        except Exception:
+            existing_urls = []
+    # Ensure list is long enough
+    while len(existing_urls) <= body.slide_index:
+        existing_urls.append("")
+    existing_urls[body.slide_index] = new_url
+    post.image_urls = json.dumps(existing_urls)
+    # Keep image_url in sync with slide 0
+    if body.slide_index == 0:
+        post.image_url = new_url
+
+    await db.commit()
+
+    return {"image_url": new_url, "slide_index": body.slide_index}
+
+
 @router.post("/import-from-meta/{project_slug}")
 async def import_from_meta(
     project_slug: str,

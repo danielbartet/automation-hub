@@ -455,6 +455,22 @@ export async function importFromMeta(projectSlug: string): Promise<{ imported: n
   return res.json();
 }
 
+export async function rerenderSlide(
+  contentId: number,
+  slideIndex: number
+): Promise<{ image_url: string; slide_index: number }> {
+  const res = await fetch(`${API_BASE}/api/v1/content/${contentId}/rerender-slide`, {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({ slide_index: slideIndex }),
+  });
+  if (!res.ok) {
+    const err = await res.json().catch(() => ({}));
+    throw new Error((err as { detail?: string }).detail || "Failed to re-render slide");
+  }
+  return res.json();
+}
+
 export async function generateImage(
   contentId: number,
   body: {

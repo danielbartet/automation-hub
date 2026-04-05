@@ -1,8 +1,8 @@
 "use client";
 import { useState } from "react";
-import { X, Loader2, Save, CheckCircle, XCircle, Sparkles } from "lucide-react";
+import { X, Loader2, Save, CheckCircle, XCircle, Sparkles, RefreshCw } from "lucide-react";
 import { ImageUploadZone } from "./ImageUploadZone";
-import { updateContent } from "@/lib/api";
+import { updateContent, rerenderSlide } from "@/lib/api";
 import { ImageGeneratorModal } from "./ImageGeneratorModal";
 import { InstagramPostPreview } from "./InstagramPostPreview";
 
@@ -67,6 +67,7 @@ export function EditContentModal({ post, projectSlug, project, onClose, onSaved 
   const [slides, setSlides] = useState<Slide[]>((post.content?.slides as Slide[]) || []);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  const [rerenderingSlides, setRerenderingSlides] = useState<Set<number>>(new Set());
   const [showImageGen, setShowImageGen] = useState(false);
   const [activeImageGenSlide, setActiveImageGenSlide] = useState<number | undefined>(undefined);
   const [activeTab, setActiveTab] = useState<"edit" | "preview">("edit");
@@ -118,6 +119,29 @@ export function EditContentModal({ post, projectSlug, project, onClose, onSaved 
 
   const updateSlide = (idx: number, field: keyof Slide, value: string) => {
     setSlides((prev) => prev.map((s, i) => (i === idx ? { ...s, [field]: value } : s)));
+  };
+
+  const handleRerender = async (slideIdx: number) => {
+    setRerenderingSlides((prev) => new Set(prev).add(slideIdx));
+    setError(null);
+    try {
+      const result = await rerenderSlide(post.id, slideIdx);
+      setSlideImageUrls((prev) => {
+        const next = [...prev];
+        while (next.length <= slideIdx) next.push("");
+        next[slideIdx] = result.image_url;
+        return next;
+      });
+      if (slideIdx === 0) setImageUrl(result.image_url);
+    } catch (e) {
+      setError(e instanceof Error ? e.message : "Error al re-renderizar el slide");
+    } finally {
+      setRerenderingSlides((prev) => {
+        const next = new Set(prev);
+        next.delete(slideIdx);
+        return next;
+      });
+    }
   };
 
   // Open the image generator for a specific slide (or for the single image when undefined)
@@ -317,6 +341,11 @@ export function EditContentModal({ post, projectSlug, project, onClose, onSaved 
                   <div key={idx} className="flex flex-col gap-1.5">
                     {/* Thumbnail */}
                     <div className="relative aspect-square rounded-lg overflow-hidden" style={{ border: "1px solid #333333", backgroundColor: "#1a1a1a" }}>
+                      {rerenderingSlides.has(idx) && (
+                        <div className="absolute inset-0 flex items-center justify-center z-10" style={{ backgroundColor: "rgba(0,0,0,0.6)" }}>
+                          <Loader2 className="h-6 w-6 animate-spin" style={{ color: "#a78bfa" }} />
+                        </div>
+                      )}
                       {url ? (
                         // eslint-disable-next-line @next/next/no-img-element
                         <img src={url} alt={`Slide ${idx + 1}`} className="w-full h-full object-cover" />
@@ -328,6 +357,20 @@ export function EditContentModal({ post, projectSlug, project, onClose, onSaved 
                     </div>
                     {/* Label */}
                     <span className="text-xs text-center font-medium" style={{ color: "#9ca3af" }}>Slide {idx + 1}</span>
+                    {/* Re-render button */}
+                    <button
+                      type="button"
+                      onClick={() => handleRerender(idx)}
+                      disabled={rerenderingSlides.has(idx)}
+                      className="inline-flex items-center justify-center gap-1 px-2 py-1 text-xs font-medium rounded-md transition-colors disabled:opacity-50"
+                      style={{ color: "#6ee7b7", border: "1px solid #065f46" }}
+                      onMouseEnter={e => { if (!rerenderingSlides.has(idx)) (e.currentTarget.style.backgroundColor = "#064e3b"); }}
+                      onMouseLeave={e => (e.currentTarget.style.backgroundColor = "transparent")}
+                      title="Re-renderizar con el mismo contenido usando el renderer HTML"
+                    >
+                      {rerenderingSlides.has(idx) ? <Loader2 className="h-3 w-3 animate-spin" /> : <RefreshCw className="h-3 w-3" />}
+                      Re-renderizar
+                    </button>
                     {/* Change button */}
                     {project && (
                       <button
