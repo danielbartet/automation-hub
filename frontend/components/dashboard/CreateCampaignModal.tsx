@@ -116,6 +116,20 @@ export function CreateCampaignModal({ projectSlug, projectId, onClose, onSuccess
       .catch(() => {});
   }, [projectId]);
 
+  // Restore concepts draft from localStorage on mount
+  useEffect(() => {
+    try {
+      const raw = localStorage.getItem(`ad_concepts_draft_${projectSlug}`);
+      if (raw) {
+        const parsed = JSON.parse(raw);
+        if (parsed.concepts && Array.isArray(parsed.concepts) && parsed.concepts.length > 0) {
+          setConcepts(parsed.concepts);
+          setApprovedIds(new Set(parsed.approvedConcepts ?? []));
+        }
+      }
+    } catch {}
+  }, [projectSlug]);
+
   const toggleCountry = (code: string) => {
     setCountries(prev => prev.includes(code) ? prev.filter(c => c !== code) : [...prev, code]);
   };
@@ -128,6 +142,17 @@ export function CreateCampaignModal({ projectSlug, projectId, onClose, onSuccess
       return next;
     });
   };
+
+  // Persist concepts draft to localStorage whenever concepts or approvedIds change
+  useEffect(() => {
+    if (concepts.length === 0) return;
+    try {
+      localStorage.setItem(
+        `ad_concepts_draft_${projectSlug}`,
+        JSON.stringify({ concepts, approvedConcepts: [...approvedIds] })
+      );
+    } catch {}
+  }, [concepts, approvedIds, projectSlug]);
 
   // Fetch audiences when audience type changes away from "broad"
   useEffect(() => {
@@ -243,6 +268,7 @@ export function CreateCampaignModal({ projectSlug, projectId, onClose, onSuccess
           advantage_placements: advantagePlacements,
         });
       }
+      localStorage.removeItem(`ad_concepts_draft_${projectSlug}`);
       onSuccess();
       onClose();
     } catch (e) {
@@ -724,9 +750,28 @@ export function CreateCampaignModal({ projectSlug, projectId, onClose, onSuccess
           {step === 2 && (
             <div className="space-y-5">
               <div>
-                <h3 className="text-sm font-semibold text-white mb-1">
-                  Conceptos Andromeda
-                </h3>
+                <div className="flex items-center justify-between mb-1">
+                  <h3 className="text-sm font-semibold text-white">
+                    Conceptos Andromeda
+                  </h3>
+                  {concepts.length > 0 && (
+                    <button
+                      type="button"
+                      onClick={() => {
+                        localStorage.removeItem(`ad_concepts_draft_${projectSlug}`);
+                        setConcepts([]);
+                        setApprovedIds(new Set());
+                        setDiversityAudit(null);
+                      }}
+                      className="text-xs transition-colors"
+                      style={{ color: "#6b7280" }}
+                      onMouseEnter={e => (e.currentTarget.style.color = "#ef4444")}
+                      onMouseLeave={e => (e.currentTarget.style.color = "#6b7280")}
+                    >
+                      Limpiar borrador
+                    </button>
+                  )}
+                </div>
                 <p className="text-xs mb-4" style={{ color: "#9ca3af" }}>
                   Genera 12 conceptos únicos con diversidad de ángulos, formatos y P.D.A. para maximizar el alcance del algoritmo.
                 </p>
