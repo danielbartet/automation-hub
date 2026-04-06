@@ -73,7 +73,7 @@ class MetaCampaignService:
             image_resp = await client.post(
                 f"{META_BASE}/act_{ad_account_id}/adimages",
                 params={"access_token": token},
-                json={"url": image_url}
+                data={"url": image_url}
             )
             image_data = image_resp.json()
             # image hash is nested under images > url > hash
@@ -152,7 +152,7 @@ class MetaCampaignService:
         image_resp = await client.post(
             f"{META_BASE}/act_{ad_account_id}/adimages",
             params={"access_token": token},
-            json={"url": image_url},
+            data={"url": image_url},
         )
         image_data = image_resp.json()
         images_dict = image_data.get("images", {})
