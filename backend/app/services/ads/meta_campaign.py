@@ -65,8 +65,8 @@ class MetaCampaignService:
             )
             adset_data = adset_resp.json()
             if "error" in adset_data:
-                logger.error("Meta adset creation error: %s", json.dumps(adset_data["error"]))
-                raise ValueError(f"Ad set creation failed: {adset_data['error']['message']}")
+                err = adset_data["error"]
+                raise ValueError(f"Ad set creation failed: {err.get('message')} | subcode={err.get('error_subcode')} | {err.get('error_user_msg')}")
             adset_id = adset_data["id"]
 
             # 3. Upload image to get hash
@@ -287,7 +287,8 @@ class MetaCampaignService:
         )
         adset_data = adset_resp.json()
         if "error" in adset_data:
-            raise ValueError(f"Ad set creation failed: {adset_data['error']['message']}")
+            err = adset_data["error"]
+            raise ValueError(f"Ad set creation failed: {err.get('message')} | subcode={err.get('error_subcode')} | {err.get('error_user_msg')}")
         return adset_data["id"]
 
     async def create_campaign_with_concepts(
