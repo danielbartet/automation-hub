@@ -88,8 +88,13 @@ class MetaCampaignService:
             )
             creative_data = creative_resp.json()
             if "error" in creative_data:
-                logger.error("Meta creative creation error: %s", json.dumps(creative_data["error"]))
-                raise ValueError(f"Creative creation failed: {creative_data['error']['message']}")
+                err = creative_data["error"]
+                logger.error("Meta creative creation error: %s", json.dumps(err))
+                raise ValueError(
+                    f"Creative creation failed: {err.get('message')} "
+                    f"| code={err.get('code')} | subcode={err.get('error_subcode')} "
+                    f"| user_msg={err.get('error_user_msg')}"
+                )
             creative_id = creative_data["id"]
 
             # 5. Create Ad
@@ -161,8 +166,13 @@ class MetaCampaignService:
         )
         creative_data = creative_resp.json()
         if "error" in creative_data:
-            logger.error("Meta creative error concept %s: %s", concept_id, json.dumps(creative_data["error"]))
-            raise ValueError(f"Creative creation failed for concept {concept_id}: {creative_data['error']['message']}")
+            err = creative_data["error"]
+            logger.error("Meta creative error concept %s: %s", concept_id, json.dumps(err))
+            raise ValueError(
+                f"Creative creation failed for concept {concept_id}: {err.get('message')} "
+                f"| code={err.get('code')} | subcode={err.get('error_subcode')} "
+                f"| user_msg={err.get('error_user_msg')} | type={err.get('type')}"
+            )
         creative_id = creative_data["id"]
 
         # Create Ad
