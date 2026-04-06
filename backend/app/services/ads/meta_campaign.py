@@ -54,7 +54,7 @@ class MetaCampaignService:
                     "campaign_id": campaign_id,
                     "daily_budget": daily_budget_cents,
                     "billing_event": "IMPRESSIONS",
-                    "optimization_goal": "LEAD_GENERATION" if "LEADS" in objective else "OFFSITE_CONVERSIONS" if "SALES" in objective else "LINK_CLICKS",
+                    "optimization_goal": "LINK_CLICKS" if "LEADS" in objective else "OFFSITE_CONVERSIONS" if "SALES" in objective else "LINK_CLICKS",
                     "bid_strategy": "LOWEST_COST_WITHOUT_CAP",
                     "is_adset_budget_sharing_enabled": False,
                     "targeting": {
@@ -341,14 +341,7 @@ class MetaCampaignService:
 
             # Determine optimization goal and promoted_object based on objective
             promoted_object: dict | None = None
-            if "LEADS" in objective and pixel_id:
-                # Website leads: use pixel LEAD event (not native lead forms)
-                opt_goal = "OFFSITE_CONVERSIONS"
-                promoted_object = {
-                    "pixel_id": pixel_id,
-                    "custom_event_type": "LEAD",
-                }
-            elif "SALES" in objective and pixel_event and pixel_id:
+            if "SALES" in objective and pixel_event and pixel_id:
                 opt_goal = "OFFSITE_CONVERSIONS"
                 promoted_object = {
                     "pixel_id": pixel_id,
@@ -356,6 +349,8 @@ class MetaCampaignService:
                 }
             elif "AWARENESS" in objective:
                 opt_goal = "REACH"
+            elif "LEADS" in objective:
+                opt_goal = "LINK_CLICKS"
             else:
                 opt_goal = "LINK_CLICKS"
 
