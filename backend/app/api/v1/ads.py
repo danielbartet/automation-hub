@@ -250,11 +250,34 @@ async def create_campaign(
             raise HTTPException(400, "destination_url is required when using concepts")
 
         from app.services.storage.s3 import S3Service
+        from app.services.media.html_renderer import HTMLSlideRenderer
 
         s3_service = S3Service()
+        renderer = HTMLSlideRenderer()
+        media_config = project.media_config or {}
 
         async def upload_placeholder(slug: str) -> str:
             return await s3_service.upload_placeholder_image(slug)
+
+        # Generate images for concepts that don't have one using HTMLSlideRenderer
+        concepts_with_images = []
+        for c in body.concepts:
+            concept_dict = c.model_dump()
+            if not concept_dict.get("image_url"):
+                try:
+                    url = await renderer.render_slide(
+                        slide_data={
+                            "headline": concept_dict.get("hook_3s", ""),
+                            "subtext": concept_dict.get("body", "")[:120],
+                            "slide_number": 1,
+                            "total_slides": 1,
+                        },
+                        media_config=media_config,
+                    )
+                    concept_dict["image_url"] = url
+                except Exception:
+                    concept_dict["image_url"] = await upload_placeholder(project_slug)
+            concepts_with_images.append(concept_dict)
 
         # Resolve pixel_id from project config for conversion tracking (SALES and LEADS)
         pixel_id: str | None = (project.content_config or {}).get("meta_pixel_id")
@@ -269,7 +292,7 @@ async def create_campaign(
                 daily_budget_dollars=body.daily_budget,
                 countries=body.countries,
                 destination_url=body.destination_url,
-                concepts=[c.model_dump() for c in body.concepts],
+                concepts=concepts_with_images,
                 placeholder_image_fn=upload_placeholder,
                 project_slug=project_slug,
                 audience_type=body.audience_type,
