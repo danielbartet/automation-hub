@@ -1,7 +1,10 @@
 """Meta Ads campaign management — Graph API v19.0 via httpx."""
 import httpx
 import json
+import logging
 from typing import Optional
+
+logger = logging.getLogger(__name__)
 
 META_BASE = "https://graph.facebook.com/v19.0"
 
@@ -36,6 +39,7 @@ class MetaCampaignService:
             )
             campaign_data = campaign_resp.json()
             if "error" in campaign_data:
+                logger.error("Meta campaign creation error: %s", json.dumps(campaign_data["error"]))
                 raise ValueError(f"Campaign creation failed: {campaign_data['error']['message']}")
             campaign_id = campaign_data["id"]
 
@@ -59,6 +63,7 @@ class MetaCampaignService:
             )
             adset_data = adset_resp.json()
             if "error" in adset_data:
+                logger.error("Meta adset creation error: %s", json.dumps(adset_data["error"]))
                 raise ValueError(f"Ad set creation failed: {adset_data['error']['message']}")
             adset_id = adset_data["id"]
 
@@ -97,6 +102,7 @@ class MetaCampaignService:
             )
             creative_data = creative_resp.json()
             if "error" in creative_data:
+                logger.error("Meta creative creation error: %s", json.dumps(creative_data["error"]))
                 raise ValueError(f"Creative creation failed: {creative_data['error']['message']}")
             creative_id = creative_data["id"]
 
@@ -113,6 +119,7 @@ class MetaCampaignService:
             )
             ad_data = ad_resp.json()
             if "error" in ad_data:
+                logger.error("Meta ad creation error: %s", json.dumps(ad_data["error"]))
                 raise ValueError(f"Ad creation failed: {ad_data['error']['message']}")
             ad_id = ad_data["id"]
 
@@ -183,6 +190,7 @@ class MetaCampaignService:
         )
         creative_data = creative_resp.json()
         if "error" in creative_data:
+            logger.error("Meta creative error concept %s: %s", concept_id, json.dumps(creative_data["error"]))
             raise ValueError(f"Creative creation failed for concept {concept_id}: {creative_data['error']['message']}")
         creative_id = creative_data["id"]
 
@@ -199,6 +207,7 @@ class MetaCampaignService:
         )
         ad_data = ad_resp.json()
         if "error" in ad_data:
+            logger.error("Meta ad error concept %s: %s", concept_id, json.dumps(ad_data["error"]))
             raise ValueError(f"Ad creation failed for concept {concept_id}: {ad_data['error']['message']}")
 
         return {"creative_id": creative_id, "ad_id": ad_data["id"]}
@@ -318,6 +327,7 @@ class MetaCampaignService:
             )
             campaign_data = campaign_resp.json()
             if "error" in campaign_data:
+                logger.error("Meta campaign creation error: %s", json.dumps(campaign_data["error"]))
                 raise ValueError(f"Campaign creation failed: {campaign_data['error']['message']}")
             campaign_id = campaign_data["id"]
 
