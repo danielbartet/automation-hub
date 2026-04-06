@@ -149,7 +149,7 @@ export function CreateCampaignModal({ projectSlug, projectId, onClose, onSuccess
     try {
       localStorage.setItem(
         `ad_concepts_draft_${projectSlug}`,
-        JSON.stringify({ concepts, approvedConcepts: [...approvedIds] })
+        JSON.stringify({ concepts, approvedConcepts: Array.from(approvedIds) })
       );
     } catch {}
   }, [concepts, approvedIds, projectSlug]);
