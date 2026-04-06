@@ -69,23 +69,7 @@ class MetaCampaignService:
                 raise ValueError(f"Ad set creation failed: {err.get('message')} | subcode={err.get('error_subcode')} | {err.get('error_user_msg')}")
             adset_id = adset_data["id"]
 
-            # 3. Upload image to get hash
-            image_resp = await client.post(
-                f"{META_BASE}/act_{ad_account_id}/adimages",
-                params={"access_token": token},
-                data={"url": image_url}
-            )
-            image_data = image_resp.json()
-            # image hash is nested under images > url > hash
-            images_dict = image_data.get("images", {})
-            image_hash = None
-            for _url, img_info in images_dict.items():
-                image_hash = img_info.get("hash")
-                break
-            if not image_hash:
-                raise ValueError(f"Image upload failed: {image_data}")
-
-            # 4. Create Ad Creative
+            # 3. Create Ad Creative (use picture URL directly — no adimages upload needed)
             creative_resp = await client.post(
                 f"{META_BASE}/act_{ad_account_id}/adcreatives",
                 params={"access_token": token},
@@ -94,7 +78,7 @@ class MetaCampaignService:
                     "object_story_spec": {
                         "page_id": facebook_page_id,
                         "link_data": {
-                            "image_hash": image_hash,
+                            "picture": image_url,
                             "link": destination_url,
                             "message": ad_copy,
                             "call_to_action": {"type": "LEARN_MORE"},
@@ -148,21 +132,6 @@ class MetaCampaignService:
         destination_url: str,
     ) -> dict:
         """Create an Ad Creative and Ad for a single concept under an existing Ad Set."""
-        # Upload image to get hash
-        image_resp = await client.post(
-            f"{META_BASE}/act_{ad_account_id}/adimages",
-            params={"access_token": token},
-            data={"url": image_url},
-        )
-        image_data = image_resp.json()
-        images_dict = image_data.get("images", {})
-        image_hash = None
-        for _url, img_info in images_dict.items():
-            image_hash = img_info.get("hash")
-            break
-        if not image_hash:
-            raise ValueError(f"Image upload failed for concept {concept_id}: {image_data}")
-
         # Map CTA string to Meta enum
         cta_map = {
             "Learn More": "LEARN_MORE",
@@ -172,7 +141,7 @@ class MetaCampaignService:
         }
         cta_type = cta_map.get(cta, "LEARN_MORE")
 
-        # Create Ad Creative
+        # Create Ad Creative using picture URL directly (avoids adimages permission requirement)
         creative_resp = await client.post(
             f"{META_BASE}/act_{ad_account_id}/adcreatives",
             params={"access_token": token},
@@ -181,7 +150,7 @@ class MetaCampaignService:
                 "object_story_spec": {
                     "page_id": facebook_page_id,
                     "link_data": {
-                        "image_hash": image_hash,
+                        "picture": image_url,
                         "link": destination_url,
                         "message": body,
                         "name": hook_3s,
