@@ -499,7 +499,7 @@ export function CreateCampaignModal({ projectSlug, projectId, onClose, onSuccess
                                     {audienceType === "retargeting_lookalike" ? "Audiencia de retargeting" : "Seleccionar audiencias"}
                                   </p>
                                   <div className="space-y-1 max-h-40 overflow-y-auto">
-                                    {audiences.filter((a: any) => a.audience_type === "custom" || !a.audience_type).map((a: any) => {
+                                    {audiences.filter((a: any) => a.type !== "lookalike").map((a: any) => {
                                       const isReady = a.status === "ready";
                                       const isProcessing = a.status === "processing";
                                       const isError = a.status === "error";
@@ -552,7 +552,7 @@ export function CreateCampaignModal({ projectSlug, projectId, onClose, onSuccess
                                     {audienceType === "retargeting_lookalike" ? "Audiencia lookalike" : "Seleccionar audiencia lookalike"}
                                   </p>
                                   <div className="space-y-1 max-h-40 overflow-y-auto">
-                                    {audiences.filter((a: any) => a.audience_type === "lookalike").map((a: any) => {
+                                    {audiences.filter((a: any) => a.type === "lookalike").map((a: any) => {
                                       const isReady = a.status === "ready";
                                       const isProcessing = a.status === "processing";
                                       const isError = a.status === "error";
