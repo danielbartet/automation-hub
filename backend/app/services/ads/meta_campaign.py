@@ -343,7 +343,7 @@ class MetaCampaignService:
                 opt_goal = "OFFSITE_CONVERSIONS"
                 promoted_object: dict | None = {
                     "pixel_id": pixel_id,
-                    "custom_event_type": pixel_event,
+                    "custom_event_type": pixel_event.upper(),
                 }
             else:
                 opt_goal = (
