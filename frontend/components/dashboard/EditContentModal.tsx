@@ -2,7 +2,7 @@
 import { useState } from "react";
 import { X, Loader2, Save, CheckCircle, XCircle, Sparkles, RefreshCw, Instagram } from "lucide-react";
 import { ImageUploadZone } from "./ImageUploadZone";
-import { updateContent, rerenderSlide, retryInstagram } from "@/lib/api";
+import { updateContent, rerenderSlide, retryInstagram, retryFacebook } from "@/lib/api";
 import { ImageGeneratorModal } from "./ImageGeneratorModal";
 import { InstagramPostPreview } from "./InstagramPostPreview";
 
@@ -27,6 +27,8 @@ interface ContentPost {
   title?: string;
   platform?: string;
   published_at?: string;
+  instagram_media_id?: string | null;
+  facebook_post_id?: string | null;
 }
 
 interface EditContentModalProps {
@@ -72,7 +74,9 @@ export function EditContentModal({ post, projectSlug, project, onClose, onSaved 
   const [activeImageGenSlide, setActiveImageGenSlide] = useState<number | undefined>(undefined);
   const [activeTab, setActiveTab] = useState<"edit" | "preview">("edit");
   const [retryLoading, setRetryLoading] = useState(false);
-  const [retrySuccess, setRetrySuccess] = useState(false);
+  const [retrySuccess, setRetrySuccess] = useState(!!post?.instagram_media_id);
+  const [retryFbLoading, setRetryFbLoading] = useState(false);
+  const [retryFbSuccess, setRetryFbSuccess] = useState(!!post?.facebook_post_id);
 
   // Preview uses the live slideImageUrls state
   const previewImageUrls = slideImageUrls.length > 0 ? slideImageUrls : (imageUrl ? [imageUrl] : []);
@@ -114,6 +118,21 @@ export function EditContentModal({ post, projectSlug, project, onClose, onSaved 
       setError(e instanceof Error ? e.message : "Error al reintentar Instagram");
     } finally {
       setRetryLoading(false);
+    }
+  };
+
+  const handleRetryFacebook = async () => {
+    setRetryFbLoading(true);
+    setError(null);
+    setRetryFbSuccess(false);
+    try {
+      await retryFacebook(post.id);
+      setRetryFbSuccess(true);
+      onSaved();
+    } catch (e) {
+      setError(e instanceof Error ? e.message : "Error al reintentar Facebook");
+    } finally {
+      setRetryFbLoading(false);
     }
   };
 
@@ -459,12 +478,16 @@ export function EditContentModal({ post, projectSlug, project, onClose, onSaved 
             </div>
           )}
 
-          {/* Published notice + Instagram retry */}
+          {/* Published notice + retry buttons */}
           {isPublished && (
             <div className="space-y-2">
               <div className="px-3 py-2 rounded-md text-xs text-green-400" style={{ backgroundColor: "#052e16", border: "1px solid #166534" }}>
-                {retrySuccess
+                {retrySuccess && retryFbSuccess
+                  ? "Instagram y Facebook publicados correctamente."
+                  : retrySuccess
                   ? "Instagram publicado correctamente."
+                  : retryFbSuccess
+                  ? "Facebook publicado correctamente."
                   : "Este contenido ya fue publicado en Meta. No se puede editar."}
               </div>
               {!retrySuccess && (
@@ -479,6 +502,20 @@ export function EditContentModal({ post, projectSlug, project, onClose, onSaved 
                 >
                   {retryLoading ? <Loader2 className="h-4 w-4 animate-spin" /> : <Instagram className="h-4 w-4" />}
                   Reintentar Instagram
+                </button>
+              )}
+              {!retryFbSuccess && (
+                <button
+                  type="button"
+                  onClick={handleRetryFacebook}
+                  disabled={retryFbLoading}
+                  className="w-full flex items-center justify-center gap-2 px-4 py-2 text-white text-sm font-medium rounded-lg disabled:opacity-50 transition-colors"
+                  style={{ backgroundColor: "#1877f2" }}
+                  onMouseEnter={e => { if (!retryFbLoading) (e.currentTarget.style.backgroundColor = "#1558b0"); }}
+                  onMouseLeave={e => (e.currentTarget.style.backgroundColor = "#1877f2")}
+                >
+                  {retryFbLoading ? <Loader2 className="h-4 w-4 animate-spin" /> : <svg className="h-4 w-4" viewBox="0 0 24 24" fill="currentColor"><path d="M24 12.073c0-6.627-5.373-12-12-12s-12 5.373-12 12c0 5.99 4.388 10.954 10.125 11.854v-8.385H7.078v-3.47h3.047V9.43c0-3.007 1.792-4.669 4.533-4.669 1.312 0 2.686.235 2.686.235v2.953H15.83c-1.491 0-1.956.925-1.956 1.874v2.25h3.328l-.532 3.47h-2.796v8.385C19.612 23.027 24 18.062 24 12.073z"/></svg>}
+                  Reintentar Facebook
                 </button>
               )}
             </div>

@@ -466,6 +466,17 @@ export async function retryInstagram(contentId: number): Promise<{ success: bool
   return res.json();
 }
 
+export async function retryFacebook(contentId: number): Promise<{ success: boolean; facebook_post_id: string }> {
+  const res = await fetch(`${API_BASE}/api/v1/content/${contentId}/retry-facebook`, {
+    method: "POST",
+  });
+  if (!res.ok) {
+    const err = await res.json().catch(() => ({}));
+    throw new Error((err as { detail?: string }).detail || "Failed to retry Facebook publish");
+  }
+  return res.json();
+}
+
 export async function rerenderSlide(
   contentId: number,
   slideIndex: number

@@ -166,6 +166,8 @@ async def list_content_by_slug(
                 "batch_id": p.batch_id,
                 "published_at": str(p.published_at) if p.published_at else None,
                 "created_at": str(p.created_at),
+                "instagram_media_id": p.instagram_media_id,
+                "facebook_post_id": p.facebook_post_id,
             }
             for p in posts
         ],
@@ -762,6 +764,8 @@ async def update_content(
         "image_urls": parsed_image_urls,
         "scheduled_at": str(post.scheduled_at) if post.scheduled_at else None,
         "content": post.content,
+        "instagram_media_id": post.instagram_media_id,
+        "facebook_post_id": post.facebook_post_id,
     }
 
 
@@ -863,6 +867,100 @@ async def retry_instagram(
         except Exception as notif_exc:
             logger.error("Failed to create retry-instagram notification: %s", notif_exc)
         raise HTTPException(status_code=500, detail=f"Instagram publish failed: {exc}")
+
+
+@router.post("/{content_id}/retry-facebook")
+async def retry_facebook(
+    content_id: int,
+    db: AsyncSession = Depends(get_session),
+) -> dict:
+    """Retry publishing a post to Facebook only.
+
+    Useful when a post was published to Instagram successfully but the Facebook
+    page publish failed. Does not re-publish to Instagram.
+    """
+    result = await db.execute(select(ContentPost).where(ContentPost.id == content_id))
+    post = result.scalar_one_or_none()
+    if not post:
+        raise HTTPException(status_code=404, detail=f"ContentPost {content_id} not found")
+
+    if post.status not in ("published", "approved", "failed"):
+        raise HTTPException(
+            status_code=400,
+            detail=f"Post is in status '{post.status}'. Only published/approved/failed posts can be retried.",
+        )
+
+    proj_result = await db.execute(select(Project).where(Project.id == post.project_id))
+    project = proj_result.scalar_one_or_none()
+    if not project:
+        raise HTTPException(status_code=404, detail="Project not found")
+
+    access_token = decrypt_token(project.meta_access_token) if project.meta_access_token else None
+    if not access_token:
+        raise HTTPException(status_code=400, detail="No Meta access token configured for this project")
+
+    if not project.facebook_page_id:
+        raise HTTPException(status_code=400, detail="No Facebook page ID configured for this project")
+
+    # Resolve image URLs
+    publish_image_urls: list[str] = []
+    if post.image_urls:
+        try:
+            publish_image_urls = json.loads(post.image_urls)
+        except (json.JSONDecodeError, TypeError):
+            pass
+    if not publish_image_urls and post.image_url:
+        publish_image_urls = [post.image_url]
+
+    if not publish_image_urls:
+        raise HTTPException(status_code=400, detail="Post has no images to publish")
+
+    caption = post.caption or ""
+
+    try:
+        meta_client = MetaClient(access_token)
+        pages_service = PagesService(meta_client)
+
+        if len(publish_image_urls) > 1:
+            fb_result = await pages_service.publish_carousel(
+                project.facebook_page_id, publish_image_urls, caption
+            )
+        else:
+            fb_result = await pages_service.publish_post(
+                project.facebook_page_id, caption, publish_image_urls[0]
+            )
+
+        facebook_post_id = fb_result.get("id")
+        if not facebook_post_id:
+            raise ValueError("Facebook publish returned no post id")
+
+        if post.status != "published":
+            post.status = "published"
+            post.published_at = datetime.utcnow()
+        await db.commit()
+        await db.refresh(post)
+
+        logger.info("Post %s: Facebook retry successful — post_id=%s", post.id, facebook_post_id)
+        return {"success": True, "facebook_post_id": facebook_post_id}
+
+    except Exception as exc:
+        logger.error("Post %s: Facebook retry failed: %s", post.id, exc, exc_info=True)
+        try:
+            from app.services.notifications import NotificationService
+            from app.core.database import AsyncSessionLocal
+            async with AsyncSessionLocal() as notif_db:
+                notif_svc = NotificationService(notif_db)
+                await notif_svc.create(
+                    type="post_failed",
+                    title="Error al reintentar Facebook",
+                    message=f"No se pudo publicar el post {content_id} en Facebook: {exc}",
+                    project_id=post.project_id,
+                    action_url=f"/dashboard/content?id={content_id}",
+                    action_label="Revisar",
+                )
+        except Exception as notif_exc:
+            logger.error("Failed to create retry-facebook notification: %s", notif_exc)
+        raise HTTPException(status_code=500, detail=f"Facebook publish failed: {exc}")
 
 
 @router.post("/batch/{project_slug}")
