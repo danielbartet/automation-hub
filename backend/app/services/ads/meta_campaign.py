@@ -224,13 +224,13 @@ class MetaCampaignService:
             return {
                 "publisher_platforms": ["facebook", "instagram", "audience_network"],
                 "facebook_positions": ["feed", "right_hand_column", "marketplace", "video_feeds"],
-                "instagram_positions": ["stream", "reels", "stories", "explore"],
+                "instagram_positions": ["stream", "reels", "story", "explore"],
             }
 
         placement_map = {
             "instagram_feed": ("instagram", "stream"),
             "instagram_reels": ("instagram", "reels"),
-            "instagram_stories": ("instagram", "stories"),
+            "instagram_stories": ("instagram", "story"),
             "facebook_feed": ("facebook", "feed"),
             "audience_network": ("audience_network", "classic"),
         }
