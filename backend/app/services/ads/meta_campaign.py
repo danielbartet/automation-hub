@@ -223,7 +223,7 @@ class MetaCampaignService:
         if advantage_placements or not placements:
             return {
                 "publisher_platforms": ["facebook", "instagram", "audience_network"],
-                "facebook_positions": ["feed", "right_hand_column", "marketplace", "video_feeds"],
+                "facebook_positions": ["feed", "right_hand_column", "marketplace"],
                 "instagram_positions": ["stream", "reels", "story", "explore"],
             }
 
@@ -280,7 +280,6 @@ class MetaCampaignService:
         if promoted_object:
             payload["promoted_object"] = promoted_object
 
-        print(f"[META ADSET] payload={json.dumps(payload)}", flush=True)
         adset_resp = await client.post(
             f"{META_BASE}/act_{ad_account_id}/adsets",
             params={"access_token": token},
@@ -289,7 +288,6 @@ class MetaCampaignService:
         adset_data = adset_resp.json()
         if "error" in adset_data:
             err = adset_data["error"]
-            print(f"[META ADSET ERROR] {json.dumps(err)}", flush=True)
             raise ValueError(f"Ad set creation failed: {err.get('message')} | subcode={err.get('error_subcode')} | {err.get('error_user_msg')}")
         return adset_data["id"]
 
