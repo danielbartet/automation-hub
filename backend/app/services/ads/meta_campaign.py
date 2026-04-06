@@ -280,7 +280,6 @@ class MetaCampaignService:
         if promoted_object:
             payload["promoted_object"] = promoted_object
 
-        print(f"[META ADSET] payload={json.dumps(payload)}", flush=True)
         adset_resp = await client.post(
             f"{META_BASE}/act_{ad_account_id}/adsets",
             params={"access_token": token},
@@ -341,8 +340,9 @@ class MetaCampaignService:
             daily_budget_cents = int(daily_budget_dollars * 100)
 
             # Determine optimization goal and promoted_object based on objective
+            SALES_EVENTS = {"PURCHASE", "ADD_TO_CART", "INITIATED_CHECKOUT", "ADD_PAYMENT_INFO", "CONTENT_VIEW"}
             promoted_object: dict | None = None
-            if "SALES" in objective and pixel_event and pixel_id:
+            if "SALES" in objective and pixel_event and pixel_id and pixel_event.upper() in SALES_EVENTS:
                 opt_goal = "OFFSITE_CONVERSIONS"
                 promoted_object = {
                     "pixel_id": pixel_id,
@@ -350,8 +350,6 @@ class MetaCampaignService:
                 }
             elif "AWARENESS" in objective:
                 opt_goal = "REACH"
-            elif "LEADS" in objective:
-                opt_goal = "LINK_CLICKS"
             else:
                 opt_goal = "LINK_CLICKS"
 
