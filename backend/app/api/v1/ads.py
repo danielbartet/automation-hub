@@ -68,6 +68,7 @@ class GenerateConceptsRequest(BaseModel):
     destination_url: str | None = None
     audience_type: str = "broad"
     pixel_event: str | None = None
+    excluded_hooks: list[str] | None = None
 
 
 class RefreshCreativesRequest(BaseModel):
@@ -161,6 +162,7 @@ async def generate_concepts(
             campaign_objective=body.campaign_objective,
             count=body.count,
             product_description=body.product_description,
+            existing_hooks=body.excluded_hooks,
             destination_url=body.destination_url,
             audience_type=body.audience_type,
             pixel_event=body.pixel_event,

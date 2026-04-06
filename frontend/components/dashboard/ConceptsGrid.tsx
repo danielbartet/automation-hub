@@ -1,13 +1,15 @@
 "use client";
 
+import { useState } from "react";
 import { AdConcept, DiversityAudit } from "@/lib/api";
-import { AlertTriangle, Check, X } from "lucide-react";
+import { AlertTriangle, Check, Loader2, RefreshCw, X } from "lucide-react";
 
 interface ConceptsGridProps {
   concepts: AdConcept[];
   diversityAudit: DiversityAudit;
   approvedIds: Set<number>;
   onToggle: (id: number) => void;
+  onRegenerateConcept?: (conceptId: number, excludedHooks: string[]) => Promise<void>;
 }
 
 const ANGLE_BADGE_CLASSES: Record<string, string> = {
@@ -22,7 +24,8 @@ const RISK_BADGE_CLASSES: Record<string, string> = {
   MEDIUM: "bg-yellow-900/50 text-yellow-400",
 };
 
-export function ConceptsGrid({ concepts, diversityAudit, approvedIds, onToggle }: ConceptsGridProps) {
+export function ConceptsGrid({ concepts, diversityAudit, approvedIds, onToggle, onRegenerateConcept }: ConceptsGridProps) {
+  const [regeneratingId, setRegeneratingId] = useState<number | null>(null);
   const approvedCount = approvedIds.size;
   const needsMoreApprovals = approvedCount < 6;
 
@@ -62,6 +65,7 @@ export function ConceptsGrid({ concepts, diversityAudit, approvedIds, onToggle }
       <div className="grid grid-cols-1 md:grid-cols-3 gap-3 max-h-[60vh] overflow-y-auto pr-1">
         {concepts.map((concept) => {
           const isApproved = approvedIds.has(concept.id);
+          const isRegenerating = regeneratingId === concept.id;
           return (
             <div
               key={concept.id}
@@ -121,6 +125,35 @@ export function ConceptsGrid({ concepts, diversityAudit, approvedIds, onToggle }
                   {concept.cta}
                 </span>
               </div>
+
+              {/* Regenerar button */}
+              {onRegenerateConcept && (
+                <button
+                  onClick={async (e) => {
+                    e.stopPropagation();
+                    if (isRegenerating) return;
+                    setRegeneratingId(concept.id);
+                    try {
+                      const excludedHooks = concepts.map(c => c.hook_3s);
+                      await onRegenerateConcept(concept.id, excludedHooks);
+                    } finally {
+                      setRegeneratingId(null);
+                    }
+                  }}
+                  disabled={isRegenerating || regeneratingId !== null}
+                  className="mt-2 flex items-center gap-1 text-xs transition-colors disabled:opacity-40"
+                  style={{ color: "#6b7280" }}
+                  onMouseEnter={e => { if (!isRegenerating && regeneratingId === null) (e.currentTarget as HTMLButtonElement).style.color = "#d1d5db"; }}
+                  onMouseLeave={e => { (e.currentTarget as HTMLButtonElement).style.color = "#6b7280"; }}
+                >
+                  {isRegenerating ? (
+                    <Loader2 className="h-3 w-3 animate-spin" />
+                  ) : (
+                    <RefreshCw className="h-3 w-3" />
+                  )}
+                  Regenerar este concepto
+                </button>
+              )}
             </div>
           );
         })}

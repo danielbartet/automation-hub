@@ -340,6 +340,7 @@ export async function generateAdConcepts(
     destination_url?: string;
     audience_type?: string;
     pixel_event?: string;
+    excluded_hooks?: string[];
   }
 ): Promise<{
   project_slug: string;

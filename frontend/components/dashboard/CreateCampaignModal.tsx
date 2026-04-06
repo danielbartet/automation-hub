@@ -173,6 +173,29 @@ export function CreateCampaignModal({ projectSlug, projectId, onClose, onSuccess
     }
   };
 
+  const handleRegenerateConcept = async (conceptId: number, excludedHooks: string[]) => {
+    const result = await generateAdConcepts(projectSlug, {
+      campaign_objective: objective,
+      count: 1,
+      excluded_hooks: excludedHooks,
+      destination_url: destinationUrlStep1 || undefined,
+      audience_type: audienceType,
+      pixel_event: objective === "OUTCOME_SALES" ? pixelEvent : undefined,
+    });
+    const newConcept = result.concepts[0];
+    if (!newConcept) return;
+    const wasApproved = approvedIds.has(conceptId);
+    // Replace the old concept in-place, keeping its position stable by reusing the old id
+    setConcepts(prev => prev.map(c => c.id === conceptId ? { ...newConcept, id: conceptId } : c));
+    if (wasApproved) {
+      setApprovedIds(prev => {
+        const next = new Set(prev);
+        next.add(conceptId);
+        return next;
+      });
+    }
+  };
+
   const approvedConcepts = concepts.filter(c => approvedIds.has(c.id));
 
   const handleCreate = async () => {
@@ -736,6 +759,7 @@ export function CreateCampaignModal({ projectSlug, projectId, onClose, onSuccess
                       diversityAudit={diversityAudit!}
                       approvedIds={approvedIds}
                       onToggle={toggleConcept}
+                      onRegenerateConcept={handleRegenerateConcept}
                     />
                     <button
                       onClick={handleGenerateConcepts}
