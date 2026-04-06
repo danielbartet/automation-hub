@@ -280,6 +280,7 @@ class MetaCampaignService:
         if promoted_object:
             payload["promoted_object"] = promoted_object
 
+        print(f"[META ADSET] payload={json.dumps(payload)}", flush=True)
         adset_resp = await client.post(
             f"{META_BASE}/act_{ad_account_id}/adsets",
             params={"access_token": token},
