@@ -55,6 +55,7 @@ class MetaCampaignService:
                     "billing_event": "IMPRESSIONS",
                     "optimization_goal": "LEAD_GENERATION" if "LEADS" in objective else "OFFSITE_CONVERSIONS" if "SALES" in objective else "LINK_CLICKS",
                     "bid_strategy": "LOWEST_COST_WITHOUT_CAP",
+                    "is_adset_budget_sharing_enabled": False,
                     "targeting": {
                         "geo_locations": {"countries": countries},
                     },
@@ -271,6 +272,7 @@ class MetaCampaignService:
             "billing_event": "IMPRESSIONS",
             "optimization_goal": opt_goal,
             "bid_strategy": "LOWEST_COST_WITHOUT_CAP",
+            "is_adset_budget_sharing_enabled": False,
             "targeting": targeting,
             "status": "PAUSED",
         }
