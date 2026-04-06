@@ -210,6 +210,7 @@ export default function CampaignDetailPage() {
   const [budgetModalOpen, setBudgetModalOpen] = useState(false)
   const [newBudget, setNewBudget] = useState(0)
   const [toast, setToast] = useState<string | null>(null)
+  const [statusChanging, setStatusChanging] = useState(false)
   const [chartMetric, setChartMetric] = useState<"ctr" | "cpc" | "frequency">("ctr")
   const [dateRange, setDateRange] = useState("last_30d")
   const [expandedRationale, setExpandedRationale] = useState<Record<number, boolean>>({})
@@ -257,8 +258,7 @@ export default function CampaignDetailPage() {
   }
 
   const handleStatusChange = async (status: string) => {
-    const label = status === "paused" ? "Pausar" : "Activar"
-    if (!confirm(`¿${label} la campaña?`)) return
+    setStatusChanging(true)
     try {
       await updateCampaignStatus(localId, status as "active" | "paused")
       const fresh = await fetchCampaignDetail(token, campaignId)
@@ -266,6 +266,8 @@ export default function CampaignDetailPage() {
       showToast(`Campaña ${status === "paused" ? "pausada" : "activada"}`)
     } catch {
       showToast("Error al cambiar estado")
+    } finally {
+      setStatusChanging(false)
     }
   }
 
@@ -759,16 +761,26 @@ export default function CampaignDetailPage() {
             {detail.campaign.status === "ACTIVE" ? (
               <button
                 onClick={() => handleStatusChange("paused")}
-                className="px-3 py-1.5 text-white text-sm rounded" style={{ backgroundColor: "#1a1a1a" }}
+                disabled={statusChanging}
+                className="px-3 py-1.5 text-yellow-400 text-sm rounded border border-yellow-800 disabled:opacity-50 flex items-center gap-1.5"
+                style={{ backgroundColor: "rgba(113,63,18,0.3)" }}
               >
-                Pausar
+                {statusChanging ? (
+                  <Loader2 className="h-3.5 w-3.5 animate-spin" />
+                ) : null}
+                Pausar campaña
               </button>
             ) : (
               <button
                 onClick={() => handleStatusChange("active")}
-                className="px-3 py-1.5 bg-green-700 hover:bg-green-600 text-white text-sm rounded"
+                disabled={statusChanging}
+                className="px-3 py-1.5 text-green-400 text-sm rounded border border-green-800 disabled:opacity-50 flex items-center gap-1.5"
+                style={{ backgroundColor: "rgba(5,46,22,0.5)" }}
               >
-                Activar
+                {statusChanging ? (
+                  <Loader2 className="h-3.5 w-3.5 animate-spin" />
+                ) : null}
+                Activar campaña
               </button>
             )}
             <button
