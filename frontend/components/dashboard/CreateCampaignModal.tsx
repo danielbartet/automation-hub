@@ -157,7 +157,7 @@ export function CreateCampaignModal({ projectSlug, projectId, onClose, onSuccess
         campaign_objective: objective,
         count: 12,
         destination_url: destinationUrlStep1 || undefined,
-        type: audienceType,
+        audience_type: audienceType,
         pixel_event: objective === "OUTCOME_SALES" ? pixelEvent : undefined,
       });
       setConcepts(result.concepts);
@@ -186,7 +186,7 @@ export function CreateCampaignModal({ projectSlug, projectId, onClose, onSuccess
           countries,
           destination_url: destinationUrl || destinationUrlStep1 || undefined,
           pixel_event: objective === "OUTCOME_SALES" ? pixelEvent : undefined,
-          type: audienceType,
+          audience_type: audienceType,
           custom_audience_ids: customAudienceIds,
           lookalike_audience_ids: lookalikeAudienceIds,
           placements,
@@ -211,7 +211,7 @@ export function CreateCampaignModal({ projectSlug, projectId, onClose, onSuccess
           ad_copy: adCopy,
           destination_url: destinationUrl || destinationUrlStep1 || undefined,
           pixel_event: objective === "OUTCOME_SALES" ? pixelEvent : undefined,
-          type: audienceType,
+          audience_type: audienceType,
           custom_audience_ids: customAudienceIds,
           lookalike_audience_ids: lookalikeAudienceIds,
           placements,
