@@ -455,6 +455,17 @@ export async function importFromMeta(projectSlug: string): Promise<{ imported: n
   return res.json();
 }
 
+export async function retryInstagram(contentId: number): Promise<{ success: boolean; instagram_media_id: string }> {
+  const res = await fetch(`${API_BASE}/api/v1/content/${contentId}/retry-instagram`, {
+    method: "POST",
+  });
+  if (!res.ok) {
+    const err = await res.json().catch(() => ({}));
+    throw new Error((err as { detail?: string }).detail || "Failed to retry Instagram publish");
+  }
+  return res.json();
+}
+
 export async function rerenderSlide(
   contentId: number,
   slideIndex: number

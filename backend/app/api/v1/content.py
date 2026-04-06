@@ -765,6 +765,106 @@ async def update_content(
     }
 
 
+@router.post("/{content_id}/retry-instagram")
+async def retry_instagram(
+    content_id: int,
+    db: AsyncSession = Depends(get_session),
+) -> dict:
+    """Retry publishing a post to Instagram only.
+
+    Useful when a post was published to Facebook successfully but Instagram
+    returned a 500 or similar transient error. Does not re-publish to Facebook.
+    """
+    result = await db.execute(select(ContentPost).where(ContentPost.id == content_id))
+    post = result.scalar_one_or_none()
+    if not post:
+        raise HTTPException(status_code=404, detail=f"ContentPost {content_id} not found")
+
+    if post.status not in ("published", "approved", "failed"):
+        raise HTTPException(
+            status_code=400,
+            detail=f"Post is in status '{post.status}'. Only published/approved/failed posts can be retried.",
+        )
+
+    proj_result = await db.execute(select(Project).where(Project.id == post.project_id))
+    project = proj_result.scalar_one_or_none()
+    if not project:
+        raise HTTPException(status_code=404, detail="Project not found")
+
+    access_token = decrypt_token(project.meta_access_token) if project.meta_access_token else None
+    if not access_token:
+        raise HTTPException(status_code=400, detail="No Meta access token configured for this project")
+
+    if not project.instagram_account_id:
+        raise HTTPException(status_code=400, detail="No Instagram account ID configured for this project")
+
+    # Resolve image URLs
+    publish_image_urls: list[str] = []
+    if post.image_urls:
+        try:
+            publish_image_urls = json.loads(post.image_urls)
+        except (json.JSONDecodeError, TypeError):
+            pass
+    if not publish_image_urls and post.image_url:
+        publish_image_urls = [post.image_url]
+
+    if not publish_image_urls:
+        raise HTTPException(status_code=400, detail="Post has no images to publish")
+
+    caption = post.caption or ""
+
+    try:
+        meta_client = MetaClient(access_token)
+        ig_service = InstagramService(meta_client)
+
+        if len(publish_image_urls) > 1:
+            instagram_media_id = await ig_service.publish_carousel(
+                project.instagram_account_id, publish_image_urls, caption
+            )
+        else:
+            container = await ig_service.create_media_container(
+                project.instagram_account_id, publish_image_urls[0], caption
+            )
+            creation_id = container.get("id")
+            if not creation_id:
+                raise ValueError("Instagram container returned no id")
+            await ig_service.wait_for_container(creation_id)
+            published = await ig_service.publish_media(project.instagram_account_id, creation_id)
+            instagram_media_id = published.get("id")
+
+        if not instagram_media_id:
+            raise ValueError("Instagram publish returned no media id")
+
+        post.instagram_media_id = instagram_media_id
+        if post.status != "published":
+            post.status = "published"
+            post.published_at = datetime.utcnow()
+        await db.commit()
+        await db.refresh(post)
+
+        logger.info("Post %s: Instagram retry successful — media_id=%s", post.id, instagram_media_id)
+        return {"success": True, "instagram_media_id": instagram_media_id}
+
+    except Exception as exc:
+        logger.error("Post %s: Instagram retry failed: %s", post.id, exc, exc_info=True)
+        try:
+            from app.services.notifications import NotificationService
+            from app.core.database import AsyncSessionLocal
+            async with AsyncSessionLocal() as notif_db:
+                notif_svc = NotificationService(notif_db)
+                await notif_svc.create(
+                    type="post_failed",
+                    title="Error al reintentar Instagram",
+                    message=f"No se pudo publicar el post {content_id} en Instagram: {exc}",
+                    project_id=post.project_id,
+                    action_url=f"/dashboard/content?id={content_id}",
+                    action_label="Revisar",
+                )
+        except Exception as notif_exc:
+            logger.error("Failed to create retry-instagram notification: %s", notif_exc)
+        raise HTTPException(status_code=500, detail=f"Instagram publish failed: {exc}")
+
+
 @router.post("/batch/{project_slug}")
 async def batch_generate_content(
     project_slug: str,

@@ -1,8 +1,8 @@
 "use client";
 import { useState } from "react";
-import { X, Loader2, Save, CheckCircle, XCircle, Sparkles, RefreshCw } from "lucide-react";
+import { X, Loader2, Save, CheckCircle, XCircle, Sparkles, RefreshCw, Instagram } from "lucide-react";
 import { ImageUploadZone } from "./ImageUploadZone";
-import { updateContent, rerenderSlide } from "@/lib/api";
+import { updateContent, rerenderSlide, retryInstagram } from "@/lib/api";
 import { ImageGeneratorModal } from "./ImageGeneratorModal";
 import { InstagramPostPreview } from "./InstagramPostPreview";
 
@@ -71,6 +71,8 @@ export function EditContentModal({ post, projectSlug, project, onClose, onSaved 
   const [showImageGen, setShowImageGen] = useState(false);
   const [activeImageGenSlide, setActiveImageGenSlide] = useState<number | undefined>(undefined);
   const [activeTab, setActiveTab] = useState<"edit" | "preview">("edit");
+  const [retryLoading, setRetryLoading] = useState(false);
+  const [retrySuccess, setRetrySuccess] = useState(false);
 
   // Preview uses the live slideImageUrls state
   const previewImageUrls = slideImageUrls.length > 0 ? slideImageUrls : (imageUrl ? [imageUrl] : []);
@@ -97,6 +99,21 @@ export function EditContentModal({ post, projectSlug, project, onClose, onSaved 
       setError(e instanceof Error ? e.message : "Failed to save");
     } finally {
       setLoading(false);
+    }
+  };
+
+  const handleRetryInstagram = async () => {
+    setRetryLoading(true);
+    setError(null);
+    setRetrySuccess(false);
+    try {
+      await retryInstagram(post.id);
+      setRetrySuccess(true);
+      onSaved();
+    } catch (e) {
+      setError(e instanceof Error ? e.message : "Error al reintentar Instagram");
+    } finally {
+      setRetryLoading(false);
     }
   };
 
@@ -442,10 +459,28 @@ export function EditContentModal({ post, projectSlug, project, onClose, onSaved 
             </div>
           )}
 
-          {/* Published notice */}
+          {/* Published notice + Instagram retry */}
           {isPublished && (
-            <div className="px-3 py-2 rounded-md text-xs text-green-400" style={{ backgroundColor: "#052e16", border: "1px solid #166534" }}>
-              Este contenido ya fue publicado en Meta. No se puede editar.
+            <div className="space-y-2">
+              <div className="px-3 py-2 rounded-md text-xs text-green-400" style={{ backgroundColor: "#052e16", border: "1px solid #166534" }}>
+                {retrySuccess
+                  ? "Instagram publicado correctamente."
+                  : "Este contenido ya fue publicado en Meta. No se puede editar."}
+              </div>
+              {!retrySuccess && (
+                <button
+                  type="button"
+                  onClick={handleRetryInstagram}
+                  disabled={retryLoading}
+                  className="w-full flex items-center justify-center gap-2 px-4 py-2 text-white text-sm font-medium rounded-lg disabled:opacity-50 transition-colors"
+                  style={{ backgroundColor: "#1d4ed8" }}
+                  onMouseEnter={e => { if (!retryLoading) (e.currentTarget.style.backgroundColor = "#1e40af"); }}
+                  onMouseLeave={e => (e.currentTarget.style.backgroundColor = "#1d4ed8")}
+                >
+                  {retryLoading ? <Loader2 className="h-4 w-4 animate-spin" /> : <Instagram className="h-4 w-4" />}
+                  Reintentar Instagram
+                </button>
+              )}
             </div>
           )}
 
