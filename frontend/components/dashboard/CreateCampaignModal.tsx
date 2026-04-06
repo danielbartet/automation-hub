@@ -130,7 +130,7 @@ export function CreateCampaignModal({ projectSlug, projectId, onClose, onSuccess
   useEffect(() => {
     if (audienceType === "broad") return;
     setAudiencesLoading(true);
-    fetch(`${process.env.NEXT_PUBLIC_API_URL}/api/v1/ads/audiences/${projectSlug}`)
+    fetch(`${process.env.NEXT_PUBLIC_API_URL}/api/v1/audiences/${projectSlug}`)
       .then(r => r.json())
       .then(data => setAudiences(Array.isArray(data) ? data : []))
       .catch(() => setAudiences([]))
@@ -157,7 +157,7 @@ export function CreateCampaignModal({ projectSlug, projectId, onClose, onSuccess
         campaign_objective: objective,
         count: 12,
         destination_url: destinationUrlStep1 || undefined,
-        audience_type: audienceType,
+        type: audienceType,
         pixel_event: objective === "OUTCOME_SALES" ? pixelEvent : undefined,
       });
       setConcepts(result.concepts);
@@ -186,7 +186,7 @@ export function CreateCampaignModal({ projectSlug, projectId, onClose, onSuccess
           countries,
           destination_url: destinationUrl || destinationUrlStep1 || undefined,
           pixel_event: objective === "OUTCOME_SALES" ? pixelEvent : undefined,
-          audience_type: audienceType,
+          type: audienceType,
           custom_audience_ids: customAudienceIds,
           lookalike_audience_ids: lookalikeAudienceIds,
           placements,
@@ -211,7 +211,7 @@ export function CreateCampaignModal({ projectSlug, projectId, onClose, onSuccess
           ad_copy: adCopy,
           destination_url: destinationUrl || destinationUrlStep1 || undefined,
           pixel_event: objective === "OUTCOME_SALES" ? pixelEvent : undefined,
-          audience_type: audienceType,
+          type: audienceType,
           custom_audience_ids: customAudienceIds,
           lookalike_audience_ids: lookalikeAudienceIds,
           placements,
@@ -584,7 +584,7 @@ export function CreateCampaignModal({ projectSlug, projectId, onClose, onSuccess
                                         </button>
                                       );
                                     })}
-                                    {audiences.filter((a: any) => a.audience_type === "lookalike").length === 0 && (
+                                    {audiences.filter((a: any) => a.type === "lookalike").length === 0 && (
                                       <p className="text-xs py-2" style={{ color: "#9ca3af" }}>No hay audiencias lookalike disponibles.</p>
                                     )}
                                   </div>
