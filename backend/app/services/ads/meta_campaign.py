@@ -339,21 +339,25 @@ class MetaCampaignService:
             # 2. Determine optimization goal
             daily_budget_cents = int(daily_budget_dollars * 100)
 
-            # Override opt_goal for SALES + pixel_event
-            if "SALES" in objective and pixel_event and pixel_id:
+            # Determine optimization goal and promoted_object based on objective
+            promoted_object: dict | None = None
+            if "LEADS" in objective and pixel_id:
+                # Website leads: use pixel LEAD event (not native lead forms)
                 opt_goal = "OFFSITE_CONVERSIONS"
-                promoted_object: dict | None = {
+                promoted_object = {
+                    "pixel_id": pixel_id,
+                    "custom_event_type": "LEAD",
+                }
+            elif "SALES" in objective and pixel_event and pixel_id:
+                opt_goal = "OFFSITE_CONVERSIONS"
+                promoted_object = {
                     "pixel_id": pixel_id,
                     "custom_event_type": pixel_event.upper(),
                 }
+            elif "AWARENESS" in objective:
+                opt_goal = "REACH"
             else:
-                opt_goal = (
-                    "LEAD_GENERATION" if "LEADS" in objective
-                    else "OFFSITE_CONVERSIONS" if "SALES" in objective
-                    else "REACH" if "AWARENESS" in objective
-                    else "LINK_CLICKS"
-                )
-                promoted_object = None
+                opt_goal = "LINK_CLICKS"
 
             # 3. Build placement targeting
             placement_targeting = self._build_placement_targeting(placements, advantage_placements)

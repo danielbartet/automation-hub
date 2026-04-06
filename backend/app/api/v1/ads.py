@@ -256,10 +256,8 @@ async def create_campaign(
         async def upload_placeholder(slug: str) -> str:
             return await s3_service.upload_placeholder_image(slug)
 
-        # Resolve pixel_id from project config for SALES conversion tracking
-        pixel_id: str | None = None
-        if body.objective == "OUTCOME_SALES" and body.pixel_event:
-            pixel_id = (project.content_config or {}).get("meta_pixel_id")
+        # Resolve pixel_id from project config for conversion tracking (SALES and LEADS)
+        pixel_id: str | None = (project.content_config or {}).get("meta_pixel_id")
 
         try:
             meta_ids = await meta_service.create_campaign_with_concepts(
