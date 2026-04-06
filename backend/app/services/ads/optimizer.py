@@ -162,6 +162,23 @@ def _detect_fatigue(metrics: dict, days_since_created: int) -> dict | None:
     }
 
 
+def _can_optimize(metrics: dict) -> tuple[bool, str]:
+    """
+    Hard guards that prevent optimization regardless of what Claude says.
+    These are non-negotiable Andromeda rules.
+    """
+    days_running = int(metrics.get("days_running", 0))
+    total_spend = float(metrics.get("total_spend", 0.0))
+
+    if days_running < 7:
+        return False, f"Learning phase active ({days_running}/7 days). No changes until day 7."
+
+    if total_spend < 50.0:
+        return False, f"Insufficient spend (${total_spend:.2f}/$50.00 minimum). Wait for more data."
+
+    return True, "OK"
+
+
 async def analyze_campaign(
     campaign: AdCampaign,
     project: Project,
@@ -181,6 +198,41 @@ async def analyze_campaign(
 
     # 2. Build prompt for Claude
     days_since_created = (datetime.utcnow() - campaign.created_at).days
+
+    # Hard guards — check before calling Claude
+    guard_metrics = {
+        "days_running": days_since_created,
+        "total_spend": float(metrics.get("spend", 0.0)),
+    }
+    can_optimize, reason = _can_optimize(guard_metrics)
+    if not can_optimize:
+        import logging
+        logger = logging.getLogger(__name__)
+        logger.info(f"Optimization blocked for campaign {campaign.id}: {reason}")
+        log = CampaignOptimizationLog(
+            campaign_id=campaign.id,
+            project_id=campaign.project_id,
+            metrics_snapshot=json.dumps(metrics),
+            decision="KEEP",
+            rationale=reason,
+            action_taken="BLOCKED_BY_GUARD",
+            old_budget=campaign.daily_budget or 0.0,
+            new_budget=None,
+        )
+        db.add(log)
+        campaign.last_optimized_at = datetime.utcnow()
+        await db.commit()
+        return {
+            "campaign_id": campaign.id,
+            "campaign_name": campaign.name,
+            "decision": "KEEP",
+            "rationale": reason,
+            "action_taken": "BLOCKED_BY_GUARD",
+            "old_budget": campaign.daily_budget or 0.0,
+            "new_budget": campaign.daily_budget or 0.0,
+            "recommendations": [],
+            "fatigue_detected": False,
+        }
 
     prompt = f"""Analyze this Meta Ads campaign and decide what action to take.
 

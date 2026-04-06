@@ -603,4 +603,59 @@ Return ONLY valid JSON:
             if content.startswith("json"):
                 content = content[4:]
             content = content.rsplit("```", 1)[0].strip()
-        return json.loads(content)
+        result = json.loads(content)
+        concepts = result.get("concepts", [])
+        concepts = self._validate_entity_diversity(concepts)
+        result["concepts"] = concepts
+        return result
+
+    def _validate_entity_diversity(self, concepts: list[dict]) -> list[dict]:
+        """
+        Removes concepts that are too semantically similar to each other.
+        Uses simple keyword overlap as a proxy for Entity ID similarity.
+        If two concepts share more than 60% of significant words in their
+        hook_3s + body combined, remove the one with higher entity_id_risk.
+        Returns the filtered list with a minimum of 6 concepts.
+        """
+        import re
+
+        def significant_words(text: str) -> set:
+            stop_words = {'el', 'la', 'los', 'las', 'de', 'del', 'que', 'en',
+                          'un', 'una', 'y', 'o', 'a', 'es', 'se', 'no', 'tu',
+                          'te', 'para', 'por', 'con', 'su', 'si', 'al', 'lo'}
+            words = re.findall(r'\b\w+\b', text.lower())
+            return {w for w in words if w not in stop_words and len(w) > 3}
+
+        def similarity(c1: dict, c2: dict) -> float:
+            text1 = f"{c1.get('hook_3s', '')} {c1.get('body', '')}"
+            text2 = f"{c2.get('hook_3s', '')} {c2.get('body', '')}"
+            words1 = significant_words(text1)
+            words2 = significant_words(text2)
+            if not words1 or not words2:
+                return 0.0
+            intersection = len(words1 & words2)
+            union = len(words1 | words2)
+            return intersection / union if union > 0 else 0.0
+
+        validated = []
+        for concept in concepts:
+            too_similar = False
+            for existing in validated:
+                if similarity(concept, existing) > 0.60:
+                    if concept.get('entity_id_risk') == 'LOW':
+                        validated.remove(existing)
+                    else:
+                        too_similar = True
+                    break
+            if not too_similar:
+                validated.append(concept)
+
+        # Never return fewer than 6 concepts
+        if len(validated) < 6:
+            for c in concepts:
+                if c not in validated:
+                    validated.append(c)
+                if len(validated) >= 6:
+                    break
+
+        return validated
