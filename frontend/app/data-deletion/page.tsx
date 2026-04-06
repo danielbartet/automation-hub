@@ -1,8 +1,8 @@
 export default function DataDeletionPage() {
   return (
-    <div style={{ maxWidth: 720, margin: "0 auto", padding: "48px 24px", fontFamily: "sans-serif", color: "#1a1a1a", lineHeight: 1.7 }}>
+    <div style={{ maxWidth: 720, margin: "0 auto", padding: "48px 24px", fontFamily: "sans-serif", color: "#f9fafb", lineHeight: 1.7 }}>
       <h1 style={{ fontSize: 28, fontWeight: 700, marginBottom: 8 }}>Data Deletion Instructions</h1>
-      <p style={{ color: "#6b7280", marginBottom: 32 }}>Last updated: April 6, 2025</p>
+      <p style={{ color: "#9ca3af", marginBottom: 32 }}>Last updated: April 6, 2025</p>
 
       <p>
         If you have connected your Facebook or Instagram account to Quantoria Labs via our Meta app integration
@@ -21,7 +21,7 @@ export default function DataDeletionPage() {
         </li>
         <li style={{ marginBottom: 12 }}>
           <strong>Request full data deletion:</strong> Send an email to{" "}
-          <a href="mailto:hola@quantorialabs.com" style={{ color: "#2563eb" }}>hola@quantorialabs.com</a>{" "}
+          <a href="mailto:daniel@quantorialabs.com" style={{ color: "#2563eb" }}>daniel@quantorialabs.com</a>{" "}
           with the subject line <em>"Data Deletion Request"</em>. Include the Facebook account email or Page name
           associated with the integration. We will delete all associated data from our systems within 30 days
           and send you a confirmation.
@@ -35,7 +35,7 @@ export default function DataDeletionPage() {
         <li>Your dashboard account and all associated content posts</li>
       </ul>
 
-      <p style={{ marginTop: 32, color: "#6b7280" }}>
+      <p style={{ marginTop: 32, color: "#9ca3af" }}>
         Note: Revoking access via Facebook or deleting your data from our systems does not affect any campaigns
         or posts already created on your Meta ad account. Those remain under your direct control in Meta Ads Manager.
       </p>
@@ -43,7 +43,7 @@ export default function DataDeletionPage() {
       <h2 style={{ fontSize: 18, fontWeight: 600, marginTop: 32 }}>Contact</h2>
       <p>
         Quantoria Labs<br />
-        <a href="mailto:hola@quantorialabs.com" style={{ color: "#2563eb" }}>hola@quantorialabs.com</a>
+        <a href="mailto:daniel@quantorialabs.com" style={{ color: "#2563eb" }}>daniel@quantorialabs.com</a>
       </p>
     </div>
   );

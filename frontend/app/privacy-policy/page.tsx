@@ -1,8 +1,8 @@
 export default function PrivacyPolicyPage() {
   return (
-    <div style={{ maxWidth: 720, margin: "0 auto", padding: "48px 24px", fontFamily: "sans-serif", color: "#1a1a1a", lineHeight: 1.7 }}>
+    <div style={{ maxWidth: 720, margin: "0 auto", padding: "48px 24px", fontFamily: "sans-serif", color: "#f9fafb", lineHeight: 1.7 }}>
       <h1 style={{ fontSize: 28, fontWeight: 700, marginBottom: 8 }}>Privacy Policy</h1>
-      <p style={{ color: "#6b7280", marginBottom: 32 }}>Last updated: April 6, 2025</p>
+      <p style={{ color: "#9ca3af", marginBottom: 32 }}>Last updated: April 6, 2025</p>
 
       <h2 style={{ fontSize: 18, fontWeight: 600, marginTop: 32 }}>1. Who we are</h2>
       <p>
@@ -52,13 +52,13 @@ export default function PrivacyPolicyPage() {
       <p>
         You have the right to access, correct, or delete your personal data at any time. To request data deletion,
         visit our <a href="/data-deletion" style={{ color: "#2563eb" }}>Data Deletion page</a> or contact us at{" "}
-        <a href="mailto:hola@quantorialabs.com" style={{ color: "#2563eb" }}>hola@quantorialabs.com</a>.
+        <a href="mailto:daniel@quantorialabs.com" style={{ color: "#2563eb" }}>daniel@quantorialabs.com</a>.
       </p>
 
       <h2 style={{ fontSize: 18, fontWeight: 600, marginTop: 32 }}>8. Contact</h2>
       <p>
         Quantoria Labs<br />
-        <a href="mailto:hola@quantorialabs.com" style={{ color: "#2563eb" }}>hola@quantorialabs.com</a><br />
+        <a href="mailto:daniel@quantorialabs.com" style={{ color: "#2563eb" }}>daniel@quantorialabs.com</a><br />
         <a href="https://hub.quantorialabs.com" style={{ color: "#2563eb" }}>hub.quantorialabs.com</a>
       </p>
     </div>
