@@ -76,6 +76,15 @@ Brand:
 - Language: {language}
 
 The creative is fatigued. Generate a replacement brief.
+
+REPLACEMENT BRIEF RULES:
+- The replacement angle MUST be the psychological OPPOSITE of the current one
+  (Logical → Emotional, Educational → Controversial, Authority → Vulnerability)
+- The hook must score 3U+ on the 4U scale (Urgent, Unique, Ultra-specific, Useful)
+- Apply FAB framework: translate every feature into a specific life benefit
+- For LATAM retargeting audiences: acknowledge they already know the brand,
+  skip awareness, go straight to transformation or social proof
+
 Return ONLY valid JSON:
 {{
   "fatigue_diagnosis": "one sentence — exactly why this creative is fatigued",

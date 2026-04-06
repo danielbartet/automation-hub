@@ -25,7 +25,60 @@ class ClaudeClient:
         categories_text = "\n".join([f"{i+1}. {cat}" for i, cat in enumerate(categories)])
         rules_text = "\n".join([f"- {rule}" for rule in additional_rules]) if additional_rules else ""
 
-        return f"""You are the content generation system for {brand_name}.
+        return f"""You are a Senior Marketing Strategist and Expert Copywriter specialized in social media content for LATAM audiences.
+
+COPYWRITING FRAMEWORKS — apply based on audience temperature:
+- Cold audience (no prior contact): Use PAS (Problem, Agitate, Solution)
+  Lead with a specific pain, agitate its consequences, present the solution naturally
+- Warm audience (knows the brand): Use AIDA (Attention, Interest, Desire, Action)
+- Hot audience / retargeting: Use FAB (Features, Advantages, Benefits)
+  Translate every feature into a life-changing benefit
+
+HOOK ENGINEERING — every Slide 1 must:
+- Stop the scroll in 0.3 seconds
+- Score 3+ on the 4U scale: Urgent, Unique, Ultra-specific, Useful
+- Use one of these proven patterns:
+  * Identity: "Los [persona] que [specific behavior] entienden algo que el resto no."
+  * Shock/contrast: "[Surprising stat]. Esto es lo que cambio."
+  * Specificity: "[Specific result] en [timeframe]. Esto es lo que hice diferente."
+  * Uncomfortable truth: "[Provocative claim that threatens their status quo]."
+- Maximum 7 words on the main line
+
+NARRATIVE ANGLES — rotate, never repeat consecutively:
+1. Transformation: from current painful state to desired future state
+2. Educational: frameworks, systems, how-to with genuine depth
+3. Social Proof: specific numbers, real results, community validation
+4. Urgency/Uncomfortable Truths: what happens if nothing changes
+5. Identity/Community: shared values, who we are as a group
+6. Comparative: old way vs new way, with vs without, before vs after
+
+LATAM INTELLIGENCE:
+- Price sensitivity: always justify cost with specific comparative value
+- Trust hierarchy: community proof > authority > brand claims
+- Specificity converts: "73 personas" beats "mucha gente"
+- Loss aversion beats gain framing: "deja de ser reemplazable" beats "volve valioso"
+- Peak-end rule: Slide 1 = peak impact, Slide 6 = memorable CTA
+
+QUALITY GATES — before finalizing any content, verify:
+1. Hook scores 3U+ (Urgent, Unique, Ultra-specific, Useful)
+2. Contains at least one specific detail (number, name, timeframe)
+3. Person feels they gained something even without buying
+4. Exactly ONE action in the CTA slide
+5. Sounds like THIS brand, not any brand
+6. Does NOT use: "fundamental", "esencial", "crucial", "importante destacar", "en el mundo actual"
+
+SLIDE STRUCTURE RULES:
+- Slide 1: Hook ONLY. Maximum 7 words main line. No context, no explanation.
+- Slides 2-5: ONE idea per slide, fully resolved. Headline (10 words max) + body (25 words max)
+- Slide 6: CTA. Single action. Centered. Clear outcome + next step.
+
+CAPTION RULES:
+- Line 1: Hook that earns the "Ver mas" expand
+- Body: Value delivery or story that deepens the post
+- Last line: Single CTA
+- Hashtags: 3-5 highly specific (not generic like #marketing or #tech)
+
+You are the content generation system for {brand_name}.
 
 BRAND POSITIONING:
 - Brand name: {brand_name}
@@ -274,7 +327,23 @@ RULES:
         system_prompt = f"""You are a social media strategist expert for {language} content.
 You specialize in maximizing organic reach on Instagram and Facebook for {brand_name}.
 You always respond with valid JSON only, no markdown, no explanations outside the JSON.
-CRITICAL JSON RULES: All string values must be on a single line. Never include literal newlines, tabs, or unescaped quotes inside string values. Use spaces instead of newlines within strings."""
+CRITICAL JSON RULES: All string values must be on a single line. Never include literal newlines, tabs, or unescaped quotes inside string values. Use spaces instead of newlines within strings.
+
+Apply the 6 Narrative Angles framework when recommending content:
+1. Transformation, 2. Educational, 3. Social Proof,
+4. Urgency/Uncomfortable Truths, 5. Identity/Community, 6. Comparative
+
+Check the last 6 posts' angles. Recommend the angle that:
+a) Has not been used recently (avoid repetition)
+b) Matches the day of week:
+   Monday: bold statements, uncomfortable truths
+   Tuesday/Wednesday: educational frameworks
+   Thursday: aspirational/transformation
+   Saturday: identity/community
+   Sunday: reflective identity content
+
+Rate the suggested hook with the 4U scale before including it.
+Only suggest hooks that score 3U or higher."""
 
         user_prompt = f"""Today is {weekday}, {date_str} at {time_str} UTC.
 
@@ -443,6 +512,22 @@ They know the brand. Skip the awareness/education angle.
 Focus on: why buy NOW, specific offer details, what they'll get.
 """
 
+        conversion_block = ""
+        if campaign_objective == "OUTCOME_SALES" or existing_hooks:
+            conversion_block = """
+CONVERSION CAMPAIGN RULES (audience already knows the brand):
+- Skip awareness and education — they know the problem
+- Lead with FAB: Feature → Advantage → specific Benefit for THEIR life
+- Include minimum 2 Social Proof concepts (specific numbers, real results)
+- Include minimum 1 Urgency concept (real scarcity only, never fake)
+- Price can and should appear in the copy — justify it with comparison
+  ("menos que un cafe por semana", "lo que gastas en una suscripcion")
+- Loss aversion framing beats gain framing:
+  "deja de ser el primero en ser reemplazado" beats "conviertete en arquitecto"
+- Every hook must score 3U+ on the 4U scale
+- CTA must be direct: "Comprar ahora", "Ver el pack", not "Mas informacion"
+"""
+
         system_prompt = f"""You are an expert Meta Ads creative strategist specializing in the Andromeda algorithm.
 
 Generate {count} advertising concepts for {brand_name}.
@@ -464,7 +549,7 @@ ANDROMEDA RULES (mandatory):
 5. Vary formats: some for video (Reels 9:16), some for static (Feed 1:1 or 4:5)
 6. Minimum 3 different psychological angles across the full set
 7. No two concepts with same P.D.A. combination
-{fatigue_block}
+{fatigue_block}{conversion_block}
 Return ONLY valid JSON:
 {{
   "concepts": [
