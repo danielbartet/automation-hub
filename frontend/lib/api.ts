@@ -419,6 +419,19 @@ export async function createCampaignWithConcepts(
   return res.json();
 }
 
+export async function generateConceptImage(
+  token: string,
+  params: { hook: string; body: string; format?: string; project_slug: string }
+): Promise<{ image_url: string }> {
+  const res = await fetch(`${API_BASE}/api/v1/ads/generate-concept-image`, {
+    method: "POST",
+    headers: { "Content-Type": "application/json", Authorization: `Bearer ${token}` },
+    body: JSON.stringify(params),
+  });
+  if (!res.ok) throw new Error("Image generation failed");
+  return res.json();
+}
+
 export async function generateVideo(contentId: number): Promise<{ video_url: string; credits_remaining: number }> {
   const res = await fetch(`${API_BASE}/api/v1/content/${contentId}/generate-video`, {
     method: "POST",

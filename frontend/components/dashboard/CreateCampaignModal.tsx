@@ -1,11 +1,11 @@
 "use client";
 import { useState, useEffect } from "react";
 import { useSession } from "next-auth/react";
-import { X, Loader2, ChevronRight, ChevronLeft, Check, RefreshCw, Sparkles, AlertTriangle, XCircle } from "lucide-react";
+import { X, Loader2, ChevronRight, ChevronLeft, Check, RefreshCw, Sparkles, AlertTriangle, XCircle, Upload } from "lucide-react";
 import { ImageUploadZone } from "./ImageUploadZone";
 import { ConceptsGrid } from "./ConceptsGrid";
 import { CreateAudienceModal } from "./CreateAudienceModal";
-import { createCampaign, fetchProjectPosts, generateAdConcepts, createCampaignWithConcepts, fetchAudiences, AdConcept, DiversityAudit } from "@/lib/api";
+import { createCampaign, fetchProjectPosts, generateAdConcepts, createCampaignWithConcepts, fetchAudiences, generateConceptImage, AdConcept, DiversityAudit } from "@/lib/api";
 
 interface Post {
   id: number;
@@ -61,7 +61,7 @@ const COUNTRY_OPTIONS = [
   { code: "BR", label: "Brasil" },
 ];
 
-const STEPS = ["Campaña", "Conceptos", "Creativo", "Lanzar"];
+const STEPS = ["Campaña", "Conceptos", "Imágenes", "Creativo", "Lanzar"];
 
 export function CreateCampaignModal({ projectSlug, projectId, onClose, onSuccess }: CreateCampaignModalProps) {
   const { data: session } = useSession();
@@ -100,7 +100,11 @@ export function CreateCampaignModal({ projectSlug, projectId, onClose, onSuccess
   const [adCopy, setAdCopy] = useState("");
   const [destinationUrl, setDestinationUrl] = useState("");
 
-  // Step 3 — Per-concept image upload (Andromeda mode)
+  // Step 3 — Image review (pre-launch image generation)
+  const [conceptImages, setConceptImages] = useState<Record<number, string>>({});
+  const [generatingImageFor, setGeneratingImageFor] = useState<number | null>(null);
+
+  // Step 4 — Per-concept image upload (Andromeda mode, legacy)
   const [conceptImageTabs, setConceptImageTabs] = useState<Record<number, "ai" | "upload">>({});
   const [conceptUploadedImages, setConceptUploadedImages] = useState<Record<number, string>>({});
 
@@ -125,6 +129,9 @@ export function CreateCampaignModal({ projectSlug, projectId, onClose, onSuccess
         if (parsed.concepts && Array.isArray(parsed.concepts) && parsed.concepts.length > 0) {
           setConcepts(parsed.concepts);
           setApprovedIds(new Set(parsed.approvedConcepts ?? []));
+          if (parsed.conceptImages && typeof parsed.conceptImages === "object") {
+            setConceptImages(parsed.conceptImages);
+          }
         }
       }
     } catch {}
@@ -143,16 +150,16 @@ export function CreateCampaignModal({ projectSlug, projectId, onClose, onSuccess
     });
   };
 
-  // Persist concepts draft to localStorage whenever concepts or approvedIds change
+  // Persist concepts draft to localStorage whenever concepts, approvedIds, or conceptImages change
   useEffect(() => {
     if (concepts.length === 0) return;
     try {
       localStorage.setItem(
         `ad_concepts_draft_${projectSlug}`,
-        JSON.stringify({ concepts, approvedConcepts: Array.from(approvedIds) })
+        JSON.stringify({ concepts, approvedConcepts: Array.from(approvedIds), conceptImages })
       );
     } catch {}
-  }, [concepts, approvedIds, projectSlug]);
+  }, [concepts, approvedIds, conceptImages, projectSlug]);
 
   // Fetch audiences when audience type changes away from "broad"
   useEffect(() => {
@@ -223,6 +230,24 @@ export function CreateCampaignModal({ projectSlug, projectId, onClose, onSuccess
 
   const approvedConcepts = concepts.filter(c => approvedIds.has(c.id));
 
+  const handleGenerateConceptImage = async (concept: AdConcept) => {
+    if (!token) return;
+    setGeneratingImageFor(concept.id);
+    try {
+      const result = await generateConceptImage(token, {
+        hook: concept.hook_3s,
+        body: concept.body,
+        format: concept.format,
+        project_slug: projectSlug,
+      });
+      setConceptImages(prev => ({ ...prev, [concept.id]: result.image_url }));
+    } catch {
+      // silently fail — user can retry
+    } finally {
+      setGeneratingImageFor(null);
+    }
+  };
+
   const handleCreate = async () => {
     setLoading(true);
     setError(null);
@@ -247,7 +272,7 @@ export function CreateCampaignModal({ projectSlug, projectId, onClose, onSuccess
             body: c.body,
             cta: c.cta,
             format: c.format,
-            image_url: conceptUploadedImages[c.id] || undefined,
+            image_url: conceptImages[c.id] || conceptUploadedImages[c.id] || undefined,
           })),
         });
       } else {
@@ -287,16 +312,21 @@ export function CreateCampaignModal({ projectSlug, projectId, onClose, onSuccess
     (audienceType === "retargeting_lookalike" && customAudienceIds.length > 0 && lookalikeAudienceIds.length > 0);
   const canProceedStep1 = name.trim() && budget >= 10 && countries.length > 0 && destinationUrlValid && audienceValid;
   const canProceedStep2 = concepts.length === 0 || approvedConcepts.length >= 6;
+  // Step 3 (image review): all approved concepts must have images (minimum 6)
   const canProceedStep3 = approvedConcepts.length >= 6
+    ? approvedConcepts.filter(c => conceptImages[c.id]).length >= 6
+    : true; // if not in Andromeda mode, skip this requirement
+  const canProceedStep4 = approvedConcepts.length >= 6
     ? destinationUrl.trim().length > 0
     : imageUrl && adCopy.trim() && destinationUrl.trim();
 
   const selectedObjective = OBJECTIVES.find(o => o.value === objective);
 
-  // Andromeda checklist for step 4
+  // Andromeda checklist for step 5
   const uniqueAngles = new Set(approvedConcepts.map(c => c.psychological_angle));
   const uniqueFormats = new Set(approvedConcepts.map(c => c.format));
   const effectiveDestUrl = destinationUrl || destinationUrlStep1;
+  const conceptsWithImages = approvedConcepts.filter(c => conceptImages[c.id]).length;
   const checklist = [
     {
       label: `Mínimo 6 creativos aprobados (${approvedConcepts.length} aprobados)`,
@@ -318,6 +348,10 @@ export function CreateCampaignModal({ projectSlug, projectId, onClose, onSuccess
       label: `URL de destino${needsDestinationUrl ? " (requerida para este objetivo)" : ""}`,
       ok: !needsDestinationUrl || (effectiveDestUrl.startsWith("https://") && effectiveDestUrl.length > 8),
     },
+    ...(approvedConcepts.length >= 6 ? [{
+      label: `Imágenes generadas (${conceptsWithImages} / ${approvedConcepts.length})`,
+      ok: conceptsWithImages >= 6,
+    }] : []),
   ];
   const allChecklistOk = checklist.every(c => c.ok);
 
@@ -842,7 +876,7 @@ export function CreateCampaignModal({ projectSlug, projectId, onClose, onSuccess
                   <ChevronLeft className="h-4 w-4" /> Atrás
                 </button>
                 <button
-                  onClick={() => setStep(3)}
+                  onClick={() => approvedConcepts.length >= 6 ? setStep(3) : setStep(4)}
                   disabled={!canProceedStep2}
                   className="flex items-center gap-2 px-5 py-2 text-white text-sm font-medium rounded-lg disabled:opacity-50 transition-colors"
                   style={{ backgroundColor: "#7c3aed" }}
@@ -855,8 +889,134 @@ export function CreateCampaignModal({ projectSlug, projectId, onClose, onSuccess
             </div>
           )}
 
-          {/* ── PASO 3: Creativo ── */}
-          {step === 3 && (
+          {/* ── PASO 3: Revisión de imágenes ── */}
+          {step === 3 && approvedConcepts.length >= 6 && (
+            <div className="space-y-5">
+              <div>
+                <h3 className="text-sm font-semibold text-white mb-1">Revisión de imágenes</h3>
+                <p className="text-xs mb-4" style={{ color: "#9ca3af" }}>
+                  Generá o subí una imagen para cada concepto aprobado. Se necesitan mínimo 6 imágenes para continuar.
+                </p>
+                <div className="grid grid-cols-2 gap-3 max-h-[55vh] overflow-y-auto pr-1">
+                  {approvedConcepts.map(concept => {
+                    const hasImage = !!conceptImages[concept.id];
+                    const isGenerating = generatingImageFor === concept.id;
+                    return (
+                      <div key={concept.id} className="rounded-xl p-3 flex flex-col gap-2" style={{ border: "1px solid #222222", backgroundColor: "#111111" }}>
+                        <p className="text-xs font-semibold text-white line-clamp-2">{concept.hook_3s}</p>
+                        <p className="text-xs line-clamp-2" style={{ color: "#9ca3af" }}>{concept.body.slice(0, 80)}{concept.body.length > 80 ? "…" : ""}</p>
+                        {hasImage ? (
+                          /* eslint-disable-next-line @next/next/no-img-element */
+                          <img src={conceptImages[concept.id]} className="w-full rounded-lg aspect-square object-cover" alt="concept preview" />
+                        ) : (
+                          <div
+                            className="w-full aspect-square rounded-lg flex items-center justify-center"
+                            style={{ border: "2px dashed #333333", backgroundColor: "#1a1a1a" }}
+                          >
+                            <span className="text-xs" style={{ color: "#6b7280" }}>Sin imagen</span>
+                          </div>
+                        )}
+                        <div className="flex gap-2 flex-wrap">
+                          {!hasImage ? (
+                            <button
+                              type="button"
+                              disabled={isGenerating || generatingImageFor !== null}
+                              onClick={() => handleGenerateConceptImage(concept)}
+                              className="flex-1 flex items-center justify-center gap-1 px-2 py-1.5 text-xs font-medium rounded-lg disabled:opacity-50 transition-colors"
+                              style={{ backgroundColor: "#7c3aed", color: "#ffffff" }}
+                              onMouseEnter={e => { if (!(e.currentTarget as HTMLButtonElement).disabled) (e.currentTarget as HTMLButtonElement).style.backgroundColor = "#6d28d9"; }}
+                              onMouseLeave={e => (e.currentTarget.style.backgroundColor = "#7c3aed")}
+                            >
+                              {isGenerating ? (
+                                <><Loader2 className="h-3 w-3 animate-spin" /> Generando...</>
+                              ) : (
+                                <><Sparkles className="h-3 w-3" /> Generar imagen</>
+                              )}
+                            </button>
+                          ) : (
+                            <button
+                              type="button"
+                              disabled={isGenerating || generatingImageFor !== null}
+                              onClick={() => handleGenerateConceptImage(concept)}
+                              className="flex-1 flex items-center justify-center gap-1 px-2 py-1.5 text-xs font-medium rounded-lg disabled:opacity-50 transition-colors"
+                              style={{ border: "1px solid #333333", color: "#9ca3af" }}
+                              onMouseEnter={e => { if (!(e.currentTarget as HTMLButtonElement).disabled) { (e.currentTarget as HTMLButtonElement).style.color = "#ffffff"; (e.currentTarget as HTMLButtonElement).style.backgroundColor = "#1a1a1a"; } }}
+                              onMouseLeave={e => { (e.currentTarget as HTMLButtonElement).style.color = "#9ca3af"; (e.currentTarget as HTMLButtonElement).style.backgroundColor = "transparent"; }}
+                            >
+                              {isGenerating ? (
+                                <><Loader2 className="h-3 w-3 animate-spin" /> Generando...</>
+                              ) : (
+                                <><RefreshCw className="h-3 w-3" /> Regenerar</>
+                              )}
+                            </button>
+                          )}
+                          <label
+                            className="flex items-center justify-center gap-1 px-2 py-1.5 text-xs font-medium rounded-lg cursor-pointer transition-colors"
+                            style={{ border: "1px solid #333333", color: "#9ca3af" }}
+                            onMouseEnter={e => { (e.currentTarget as HTMLLabelElement).style.color = "#ffffff"; (e.currentTarget as HTMLLabelElement).style.backgroundColor = "#1a1a1a"; }}
+                            onMouseLeave={e => { (e.currentTarget as HTMLLabelElement).style.color = "#9ca3af"; (e.currentTarget as HTMLLabelElement).style.backgroundColor = "transparent"; }}
+                          >
+                            <input
+                              type="file"
+                              className="hidden"
+                              accept="image/jpeg,image/png,image/webp"
+                              onChange={async (e) => {
+                                const file = e.target.files?.[0];
+                                if (!file) return;
+                                const formData = new FormData();
+                                formData.append("file", file);
+                                try {
+                                  const res = await fetch(
+                                    `${process.env.NEXT_PUBLIC_API_URL || "http://localhost:8000"}/api/v1/upload/${projectSlug}`,
+                                    { method: "POST", body: formData }
+                                  );
+                                  if (res.ok) {
+                                    const data = await res.json();
+                                    setConceptImages(prev => ({ ...prev, [concept.id]: data.url }));
+                                  }
+                                } catch {}
+                              }}
+                            />
+                            <Upload className="h-3 w-3" /> Subir imagen
+                          </label>
+                        </div>
+                      </div>
+                    );
+                  })}
+                </div>
+                {approvedConcepts.filter(c => conceptImages[c.id]).length < 6 && (
+                  <p className="text-xs mt-3" style={{ color: "#9ca3af" }}>
+                    {approvedConcepts.filter(c => conceptImages[c.id]).length} / {approvedConcepts.length} imágenes generadas (mínimo 6)
+                  </p>
+                )}
+              </div>
+
+              <div className="flex gap-3 justify-between pt-2">
+                <button
+                  onClick={() => setStep(2)}
+                  className="flex items-center gap-1 px-4 py-2 text-sm rounded-lg transition-colors"
+                  style={{ border: "1px solid #333333", color: "#9ca3af" }}
+                  onMouseEnter={e => { (e.currentTarget as HTMLButtonElement).style.color = "#ffffff"; (e.currentTarget as HTMLButtonElement).style.backgroundColor = "#1a1a1a"; }}
+                  onMouseLeave={e => { (e.currentTarget as HTMLButtonElement).style.color = "#9ca3af"; (e.currentTarget as HTMLButtonElement).style.backgroundColor = "transparent"; }}
+                >
+                  <ChevronLeft className="h-4 w-4" /> Atrás
+                </button>
+                <button
+                  onClick={() => setStep(4)}
+                  disabled={!canProceedStep3}
+                  className="flex items-center gap-2 px-5 py-2 text-white text-sm font-medium rounded-lg disabled:opacity-50 transition-colors"
+                  style={{ backgroundColor: "#7c3aed" }}
+                  onMouseEnter={e => (e.currentTarget.style.backgroundColor = "#6d28d9")}
+                  onMouseLeave={e => (e.currentTarget.style.backgroundColor = "#7c3aed")}
+                >
+                  Siguiente <ChevronRight className="h-4 w-4" />
+                </button>
+              </div>
+            </div>
+          )}
+
+          {/* ── PASO 4: Creativo ── */}
+          {step === 4 && (
             <div className="space-y-5">
               {approvedConcepts.length >= 6 ? (
                 /* Andromeda mode: per-concept image upload + destination URL */
@@ -1067,7 +1227,7 @@ export function CreateCampaignModal({ projectSlug, projectId, onClose, onSuccess
 
               <div className="flex gap-3 justify-between pt-2">
                 <button
-                  onClick={() => setStep(2)}
+                  onClick={() => approvedConcepts.length >= 6 ? setStep(3) : setStep(2)}
                   className="flex items-center gap-1 px-4 py-2 text-sm rounded-lg transition-colors"
                   style={{ border: "1px solid #333333", color: "#9ca3af" }}
                   onMouseEnter={e => { (e.currentTarget as HTMLButtonElement).style.color = "#ffffff"; (e.currentTarget as HTMLButtonElement).style.backgroundColor = "#1a1a1a"; }}
@@ -1076,8 +1236,8 @@ export function CreateCampaignModal({ projectSlug, projectId, onClose, onSuccess
                   <ChevronLeft className="h-4 w-4" /> Atrás
                 </button>
                 <button
-                  onClick={() => setStep(4)}
-                  disabled={!canProceedStep3}
+                  onClick={() => setStep(5)}
+                  disabled={!canProceedStep4}
                   className="flex items-center gap-2 px-5 py-2 text-white text-sm font-medium rounded-lg disabled:opacity-50 transition-colors"
                   style={{ backgroundColor: "#7c3aed" }}
                   onMouseEnter={e => (e.currentTarget.style.backgroundColor = "#6d28d9")}
@@ -1089,8 +1249,8 @@ export function CreateCampaignModal({ projectSlug, projectId, onClose, onSuccess
             </div>
           )}
 
-          {/* ── PASO 4: Revisar y lanzar ── */}
-          {step === 4 && (
+          {/* ── PASO 5: Revisar y lanzar ── */}
+          {step === 5 && (
             <div className="space-y-4">
               {/* Campaign summary */}
               <div className="rounded-xl p-4 space-y-3 text-sm" style={{ backgroundColor: "#1a1a1a", border: "1px solid #222222" }}>
@@ -1189,7 +1349,7 @@ export function CreateCampaignModal({ projectSlug, projectId, onClose, onSuccess
 
               <div className="flex gap-3 justify-between pt-2">
                 <button
-                  onClick={() => setStep(3)}
+                  onClick={() => setStep(4)}
                   className="flex items-center gap-1 px-4 py-2 text-sm rounded-lg transition-colors"
                   style={{ border: "1px solid #333333", color: "#9ca3af" }}
                   onMouseEnter={e => { (e.currentTarget as HTMLButtonElement).style.color = "#ffffff"; (e.currentTarget as HTMLButtonElement).style.borderColor = "#555555"; }}

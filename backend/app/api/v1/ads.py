@@ -216,6 +216,39 @@ async def refresh_creatives(
     }
 
 
+class GenerateConceptImageRequest(BaseModel):
+    hook: str
+    body: str
+    format: str = "Feed 1:1"
+    project_slug: str
+
+
+@router.post("/generate-concept-image")
+async def generate_concept_image(
+    body: GenerateConceptImageRequest,
+    db: AsyncSession = Depends(get_session),
+    _current_user=Depends(get_current_user),
+) -> dict:
+    from app.services.media.html_renderer import HTMLSlideRenderer
+    proj_result = await db.execute(select(Project).where(Project.slug == body.project_slug))
+    project = proj_result.scalar_one_or_none()
+    if not project:
+        raise HTTPException(404, "Project not found")
+    media_config = project.media_config or {}
+    renderer = HTMLSlideRenderer()
+    slide_data = {
+        "headline": body.hook,
+        "subtext": body.body[:120],
+        "slide_number": 1,
+        "total_slides": 1,
+    }
+    try:
+        url = await renderer.render_slide(slide_data, media_config)
+        return {"image_url": url}
+    except Exception as e:
+        raise HTTPException(500, f"Image generation failed: {str(e)}")
+
+
 @router.post("/create/{project_slug}")
 async def create_campaign(
     project_slug: str,
