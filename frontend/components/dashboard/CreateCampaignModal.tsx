@@ -1,10 +1,11 @@
 "use client";
 import { useState, useEffect } from "react";
+import { useSession } from "next-auth/react";
 import { X, Loader2, ChevronRight, ChevronLeft, Check, RefreshCw, Sparkles, AlertTriangle, XCircle } from "lucide-react";
 import { ImageUploadZone } from "./ImageUploadZone";
 import { ConceptsGrid } from "./ConceptsGrid";
 import { CreateAudienceModal } from "./CreateAudienceModal";
-import { createCampaign, fetchProjectPosts, generateAdConcepts, createCampaignWithConcepts, AdConcept, DiversityAudit } from "@/lib/api";
+import { createCampaign, fetchProjectPosts, generateAdConcepts, createCampaignWithConcepts, fetchAudiences, AdConcept, DiversityAudit } from "@/lib/api";
 
 interface Post {
   id: number;
@@ -63,6 +64,8 @@ const COUNTRY_OPTIONS = [
 const STEPS = ["Campaña", "Conceptos", "Creativo", "Lanzar"];
 
 export function CreateCampaignModal({ projectSlug, projectId, onClose, onSuccess }: CreateCampaignModalProps) {
+  const { data: session } = useSession();
+  const token = (session as any)?.accessToken as string | undefined;
   const [step, setStep] = useState(1);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
@@ -128,14 +131,13 @@ export function CreateCampaignModal({ projectSlug, projectId, onClose, onSuccess
 
   // Fetch audiences when audience type changes away from "broad"
   useEffect(() => {
-    if (audienceType === "broad") return;
+    if (audienceType === "broad" || !token) return;
     setAudiencesLoading(true);
-    fetch(`${process.env.NEXT_PUBLIC_API_URL}/api/v1/audiences/${projectSlug}`)
-      .then(r => r.json())
-      .then(data => setAudiences(Array.isArray(data) ? data : []))
+    fetchAudiences(token, projectSlug)
+      .then(data => setAudiences(data))
       .catch(() => setAudiences([]))
       .finally(() => setAudiencesLoading(false));
-  }, [audienceType, projectSlug]);
+  }, [audienceType, projectSlug, token]);
 
   const togglePlacement = (value: string) => {
     setPlacements(prev => prev.includes(value) ? prev.filter(p => p !== value) : [...prev, value]);

@@ -211,6 +211,16 @@ export function authHeaders(token: string): HeadersInit {
   return { "Content-Type": "application/json", Authorization: `Bearer ${token}` };
 }
 
+export async function fetchAudiences(token: string, projectSlug: string) {
+  const res = await fetch(`${API_BASE}/api/v1/audiences/${projectSlug}`, {
+    headers: { Authorization: `Bearer ${token}` },
+    cache: "no-store",
+  });
+  if (!res.ok) throw new Error("Failed to fetch audiences");
+  const data = await res.json();
+  return Array.isArray(data) ? data : (data.items ?? []);
+}
+
 // Notifications
 export async function fetchNotifications(token: string, page = 1, unreadOnly = false) {
   const params = new URLSearchParams({ page: String(page), unread_only: String(unreadOnly) });
