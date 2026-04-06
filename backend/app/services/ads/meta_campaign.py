@@ -35,6 +35,7 @@ class MetaCampaignService:
                     "objective": objective,
                     "status": "PAUSED",
                     "special_ad_categories": [],
+                    "is_adset_budget_sharing_enabled": False,
                 }
             )
             campaign_data = campaign_resp.json()
@@ -325,6 +326,7 @@ class MetaCampaignService:
                     "objective": objective,
                     "status": "PAUSED",
                     "special_ad_categories": [],
+                    "is_adset_budget_sharing_enabled": False,
                 },
             )
             campaign_data = campaign_resp.json()
