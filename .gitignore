@@ -30,8 +30,8 @@ backend/data/*.db-wal
 .DS_Store
 Thumbs.db
 
-# Claude Code project settings
-.claude/
+# Claude Code project settings — commit CLAUDE.md and skills, not local settings
+.claude/settings.local.json
 
 # IDE
 .vscode/
