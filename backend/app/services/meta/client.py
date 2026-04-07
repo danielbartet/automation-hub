@@ -1,6 +1,8 @@
 """Meta Graph API base client."""
+import logging
 import httpx
-from app.core.config import settings
+
+logger = logging.getLogger(__name__)
 
 
 class MetaClient:
@@ -19,6 +21,8 @@ class MetaClient:
             all_params.update(params)
         async with httpx.AsyncClient(timeout=30.0) as client:
             resp = await client.get(url, params=all_params)
+            if not resp.is_success:
+                logger.error("Meta API GET %s → %s: %s", path, resp.status_code, resp.text)
             resp.raise_for_status()
             return resp.json()
 
@@ -30,5 +34,7 @@ class MetaClient:
             payload.update(data)
         async with httpx.AsyncClient(timeout=30.0) as client:
             resp = await client.post(url, data=payload)
+            if not resp.is_success:
+                logger.error("Meta API POST %s → %s: %s", path, resp.status_code, resp.text)
             resp.raise_for_status()
             return resp.json()
