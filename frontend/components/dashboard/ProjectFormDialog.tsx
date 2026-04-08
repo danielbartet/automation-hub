@@ -122,7 +122,7 @@ export function ProjectFormDialog({ project, onClose, onSuccess }: ProjectFormDi
   // Tab 3 — Plataformas (basic info)
   const [facebookPageId, setFacebookPageId] = useState((project as unknown as Record<string, string>).facebook_page_id ?? "");
   const [instagramAccountId, setInstagramAccountId] = useState((project as unknown as Record<string, string>).instagram_account_id ?? "");
-  const [n8nWebhookUrl, setN8nWebhookUrl] = useState((project as unknown as Record<string, string>).n8n_webhook_base_url ?? "");
+  const [adAccountId, setAdAccountId] = useState(project.ad_account_id ?? "");
 
   // Tab 4 — Marca y Visual
   const [brandPrimaryColor, setBrandPrimaryColor] = useState((cc.brand_primary_color as string) ?? "#7c3aed");
@@ -190,7 +190,7 @@ export function ProjectFormDialog({ project, onClose, onSuccess }: ProjectFormDi
         media_config: updatedMediaConfig,
         facebook_page_id: facebookPageId || undefined,
         instagram_account_id: instagramAccountId || undefined,
-        n8n_webhook_base_url: n8nWebhookUrl || undefined,
+        ad_account_id: adAccountId || undefined,
       });
 
       onSuccess(result);
@@ -351,14 +351,15 @@ export function ProjectFormDialog({ project, onClose, onSuccess }: ProjectFormDi
                 />
               </div>
               <div>
-                <label className="block text-sm font-medium text-white mb-1">n8n Webhook Base URL</label>
+                <label className="block text-sm font-medium text-white mb-1">Ad Account ID</label>
                 <input
-                  value={n8nWebhookUrl}
-                  onChange={(e) => setN8nWebhookUrl(e.target.value)}
+                  value={adAccountId}
+                  onChange={(e) => setAdAccountId(e.target.value)}
                   className="w-full rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-[#7c3aed]"
                   style={inputStyle}
-                  placeholder="Ej: https://n8n.example.com/webhook/abc123/webhook"
+                  placeholder="Ej: act_1337773745049119"
                 />
+                <p className="text-xs mt-1" style={{ color: "#6b7280" }}>Se completa automáticamente al conectar Meta Account</p>
               </div>
 
               {/* Meta Account OAuth */}
@@ -366,13 +367,18 @@ export function ProjectFormDialog({ project, onClose, onSuccess }: ProjectFormDi
                 <label className="block text-sm font-medium text-white mb-3">Meta Account</label>
                 {project.facebook_page_id ? (
                   <div className="flex items-center justify-between gap-3 flex-wrap">
-                    <div className="flex items-center gap-2">
+                    <div className="flex items-center gap-2 flex-wrap">
                       <span className="inline-flex items-center px-2.5 py-1 rounded-full text-xs font-medium" style={{ backgroundColor: "#052e16", color: "#4ade80", border: "1px solid #166534" }}>
                         Conectado
                       </span>
                       <span className="text-xs font-mono" style={{ color: "#9ca3af" }}>
                         Page ID: {project.facebook_page_id}
                       </span>
+                      {project.meta_token_expires_at && (
+                        <span className="text-xs" style={{ color: "#6b7280" }}>
+                          · Token expira: {new Date(project.meta_token_expires_at).toLocaleDateString("es-ES", { day: "2-digit", month: "2-digit", year: "numeric" })}
+                        </span>
+                      )}
                     </div>
                     <button
                       type="button"
