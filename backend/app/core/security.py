@@ -30,3 +30,15 @@ def decrypt_token(ciphertext: str) -> str:
         except Exception:
             return ciphertext
     return ciphertext
+
+
+def get_project_token(project) -> str:
+    """Return the Meta access token for a project.
+
+    If the project has its own token stored (Fernet-encrypted), decrypt and
+    return it. Otherwise fall back to the global META_ACCESS_TOKEN from
+    settings.  decrypt_token() handles plaintext tokens gracefully.
+    """
+    if project.meta_access_token:
+        return decrypt_token(project.meta_access_token)
+    return settings.META_ACCESS_TOKEN

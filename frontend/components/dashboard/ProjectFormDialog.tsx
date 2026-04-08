@@ -1,7 +1,7 @@
 "use client";
 import { useState } from "react";
 import { X, Loader2 } from "lucide-react";
-import { updateProject } from "@/lib/api";
+import { updateProject, connectMetaOAuth } from "@/lib/api";
 
 interface Project {
   id: string;
@@ -10,6 +10,8 @@ interface Project {
   is_active: boolean;
   content_config?: Record<string, unknown>;
   media_config?: Record<string, unknown>;
+  facebook_page_id?: string | null;
+  meta_token_expires_at?: string | null;
 }
 
 interface ProjectFormDialogProps {
@@ -357,6 +359,48 @@ export function ProjectFormDialog({ project, onClose, onSuccess }: ProjectFormDi
                   style={inputStyle}
                   placeholder="Ej: https://n8n.example.com/webhook/abc123/webhook"
                 />
+              </div>
+
+              {/* Meta Account OAuth */}
+              <div style={{ borderTop: "1px solid #222222", paddingTop: "1.25rem" }}>
+                <label className="block text-sm font-medium text-white mb-3">Meta Account</label>
+                {project.facebook_page_id ? (
+                  <div className="flex items-center justify-between gap-3 flex-wrap">
+                    <div className="flex items-center gap-2">
+                      <span className="inline-flex items-center px-2.5 py-1 rounded-full text-xs font-medium" style={{ backgroundColor: "#052e16", color: "#4ade80", border: "1px solid #166534" }}>
+                        Conectado
+                      </span>
+                      <span className="text-xs font-mono" style={{ color: "#9ca3af" }}>
+                        Page ID: {project.facebook_page_id}
+                      </span>
+                    </div>
+                    <button
+                      type="button"
+                      onClick={() => { window.location.href = connectMetaOAuth(project.slug); }}
+                      className="px-4 py-2 text-white text-xs font-medium rounded-lg transition-opacity hover:opacity-90"
+                      style={{ backgroundColor: "#1877f2" }}
+                    >
+                      Reconectar
+                    </button>
+                  </div>
+                ) : (
+                  <div className="space-y-3">
+                    <p className="text-xs" style={{ color: "#9ca3af" }}>
+                      Conectá tu cuenta de Meta para publicar en Instagram y Facebook directamente desde el dashboard.
+                    </p>
+                    <button
+                      type="button"
+                      onClick={() => { window.location.href = connectMetaOAuth(project.slug); }}
+                      className="inline-flex items-center gap-2 px-4 py-2 text-white text-sm font-medium rounded-lg transition-opacity hover:opacity-90"
+                      style={{ backgroundColor: "#1877f2" }}
+                    >
+                      <svg className="h-4 w-4" viewBox="0 0 24 24" fill="currentColor">
+                        <path d="M22 12c0-5.523-4.477-10-10-10S2 6.477 2 12c0 4.991 3.657 9.128 8.438 9.878v-6.987h-2.54V12h2.54V9.797c0-2.506 1.492-3.89 3.777-3.89 1.094 0 2.238.195 2.238.195v2.46h-1.26c-1.243 0-1.63.771-1.63 1.562V12h2.773l-.443 2.89h-2.33v6.988C18.343 21.128 22 16.991 22 12z"/>
+                      </svg>
+                      Conectar Meta Account
+                    </button>
+                  </div>
+                )}
               </div>
             </div>
           )}

@@ -7,6 +7,7 @@ from app.models.ad_campaign import AdCampaign
 from app.models.notification import Notification
 from app.models.project import Project
 from app.core.config import settings
+from app.core.security import get_project_token
 from app.services.ads.meta_campaign import MetaCampaignService
 from pydantic import BaseModel
 from datetime import datetime, timedelta, timezone
@@ -81,7 +82,7 @@ class UpdateStatusRequest(BaseModel):
 
 async def fetch_live_campaign_statuses(project: Project) -> dict[str, str]:
     """Fetch live campaign statuses from Meta API keyed by meta_campaign_id."""
-    token = project.meta_access_token or getattr(settings, "META_ACCESS_TOKEN", "")
+    token = get_project_token(project)
     ad_account_id = (project.ad_account_id or "").removeprefix("act_")
     if not token or not ad_account_id:
         return {}
@@ -261,7 +262,7 @@ async def create_campaign(
     if not project:
         raise HTTPException(404, f"Project '{project_slug}' not found")
 
-    token = project.meta_access_token or getattr(settings, "META_ACCESS_TOKEN", "")
+    token = get_project_token(project)
     ad_account_id = (project.ad_account_id or "").removeprefix("act_")
     facebook_page_id = project.facebook_page_id or ""
 
@@ -437,7 +438,7 @@ async def update_campaign_status(
 
     proj_result = await db.execute(select(Project).where(Project.id == campaign.project_id))
     project = proj_result.scalar_one_or_none()
-    token = project.meta_access_token or getattr(settings, "META_ACCESS_TOKEN", "") if project else ""
+    token = get_project_token(project) if project else ""
 
     meta_status = "ACTIVE" if body.status == "active" else "PAUSED"
 
@@ -509,7 +510,7 @@ async def get_campaign_detail(
         proj_result = await db.execute(select(Project).limit(1))
         project = proj_result.scalar_one_or_none()
 
-    token = (project.meta_access_token if project else None) or getattr(settings, "META_ACCESS_TOKEN", "")
+    token = get_project_token(project) if project else ""
     ad_account_id = ((project.ad_account_id or "") if project else "").removeprefix("act_")
 
     meta_campaign_id = (campaign.meta_campaign_id if campaign else None) or campaign_id
@@ -881,7 +882,7 @@ async def import_campaigns(
     if not project:
         raise HTTPException(404, f"Project '{project_slug}' not found")
 
-    token = project.meta_access_token or getattr(settings, "META_ACCESS_TOKEN", "")
+    token = get_project_token(project)
     ad_account_id = (project.ad_account_id or "").removeprefix("act_")
 
     if not token:
@@ -1231,7 +1232,7 @@ async def refresh_creative(
     if not project:
         raise HTTPException(404, "Project not found")
 
-    token = project.meta_access_token or getattr(settings, "META_ACCESS_TOKEN", "")
+    token = get_project_token(project)
     ad_account_id = (project.ad_account_id or "").removeprefix("act_")
     facebook_page_id = project.facebook_page_id or ""
 
@@ -1320,7 +1321,7 @@ async def update_campaign_budget(
 
     proj_result = await db.execute(select(Project).where(Project.id == campaign.project_id))
     project = proj_result.scalar_one_or_none()
-    token = project.meta_access_token or getattr(settings, "META_ACCESS_TOKEN", "") if project else ""
+    token = get_project_token(project) if project else ""
 
     if token and campaign.meta_adset_id:
         await meta_service.update_adset_budget(token, campaign.meta_adset_id, body.daily_budget)
@@ -1371,7 +1372,7 @@ async def optimizer_approve(
 
     proj_result = await db.execute(select(Project).where(Project.id == campaign.project_id))
     project = proj_result.scalar_one_or_none()
-    token = project.meta_access_token or getattr(settings, "META_ACCESS_TOKEN", "") if project else ""
+    token = get_project_token(project) if project else ""
 
     meta_svc = MetaCampaignService()
     result_msg = ""

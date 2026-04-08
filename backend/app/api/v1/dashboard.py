@@ -6,6 +6,7 @@ from app.api.deps import get_session
 from app.models.project import Project
 from app.models.content import ContentPost
 from app.core.config import settings
+from app.core.security import get_project_token
 import httpx
 import json
 from datetime import datetime, timedelta
@@ -105,7 +106,7 @@ async def fetch_campaign_insights(client: httpx.AsyncClient, campaign_id: str, t
 
 
 async def fetch_meta_ads_data(project: Project) -> dict:
-    token = project.meta_access_token or getattr(settings, "META_ACCESS_TOKEN", "")
+    token = get_project_token(project)
     ad_account_id = (project.ad_account_id or "").removeprefix("act_")
 
     if not token or not ad_account_id:

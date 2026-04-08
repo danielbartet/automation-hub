@@ -13,6 +13,7 @@ from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.api.deps import get_current_user, get_session
 from app.core.config import settings
+from app.core.security import get_project_token
 from app.models.audience import Audience
 from app.models.project import Project
 
@@ -69,7 +70,7 @@ async def _get_project(slug: str, db: AsyncSession) -> Project:
 
 def _project_meta_creds(project: Project) -> tuple[str, str]:
     """Return (token, ad_account_id_without_prefix). Raises 400 if missing."""
-    token = project.meta_access_token or getattr(settings, "META_ACCESS_TOKEN", "")
+    token = get_project_token(project)
     ad_account_id = (project.ad_account_id or "").removeprefix("act_")
     if not token:
         raise HTTPException(status_code=400, detail="Project has no Meta access token configured")
@@ -161,7 +162,7 @@ async def list_audiences(
 ) -> list[dict]:
     """List all audiences for a project, refreshing size/status from Meta."""
     project = await _get_project(project_slug, db)
-    token = project.meta_access_token or getattr(settings, "META_ACCESS_TOKEN", "")
+    token = get_project_token(project)
 
     result = await db.execute(
         select(Audience)
@@ -544,7 +545,7 @@ async def add_users_to_audience(
 ) -> dict:
     """Add contacts from a CSV file to an existing customer-list audience."""
     project = await _get_project(project_slug, db)
-    token = project.meta_access_token or getattr(settings, "META_ACCESS_TOKEN", "")
+    token = get_project_token(project)
     if not token:
         raise HTTPException(status_code=400, detail="Project has no Meta access token configured")
 
@@ -620,7 +621,7 @@ async def delete_audience(
 ) -> dict:
     """Delete an audience from DB and from Meta if it exists there."""
     project = await _get_project(project_slug, db)
-    token = project.meta_access_token or getattr(settings, "META_ACCESS_TOKEN", "")
+    token = get_project_token(project)
 
     result = await db.execute(
         select(Audience).where(Audience.id == audience_id, Audience.project_id == project.id)
@@ -646,7 +647,7 @@ async def sync_audiences(
 ) -> list[dict]:
     """Force-sync size and status for all audiences from Meta API."""
     project = await _get_project(project_slug, db)
-    token = project.meta_access_token or getattr(settings, "META_ACCESS_TOKEN", "")
+    token = get_project_token(project)
 
     result = await db.execute(
         select(Audience)

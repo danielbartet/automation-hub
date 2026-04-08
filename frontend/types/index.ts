@@ -7,6 +7,7 @@ export interface Project {
   facebook_page_id: string | null;
   instagram_account_id: string | null;
   ad_account_id: string | null;
+  meta_token_expires_at?: string | null;
 }
 
 export interface MetaAdsTotals {

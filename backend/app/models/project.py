@@ -15,6 +15,7 @@ class Project(Base):
     slug: Mapped[str] = mapped_column(String(100), unique=True, index=True, nullable=False)
     description: Mapped[str | None] = mapped_column(Text, nullable=True)
     meta_access_token: Mapped[str | None] = mapped_column(Text, nullable=True)  # Fernet encrypted
+    meta_token_expires_at: Mapped[datetime | None] = mapped_column(DateTime, nullable=True)
     facebook_page_id: Mapped[str | None] = mapped_column(String(50), nullable=True)
     instagram_account_id: Mapped[str | None] = mapped_column(String(50), nullable=True)
     ad_account_id: Mapped[str | None] = mapped_column(String(50), nullable=True)

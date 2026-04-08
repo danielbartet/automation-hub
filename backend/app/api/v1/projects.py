@@ -6,6 +6,7 @@ from app.api.deps import get_session, get_current_user_optional
 from app.models.project import Project
 from pydantic import BaseModel
 from typing import Optional
+from datetime import datetime
 
 router = APIRouter()
 
@@ -22,6 +23,7 @@ class ProjectResponse(BaseModel):
     credits_balance: int = 0
     media_config: dict | None = None
     content_config: dict | None = None
+    meta_token_expires_at: datetime | None = None
 
     model_config = {"from_attributes": True}
 

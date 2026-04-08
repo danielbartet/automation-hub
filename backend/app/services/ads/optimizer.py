@@ -11,6 +11,7 @@ from app.models.optimization_log import CampaignOptimizationLog
 from app.services.ads.meta_campaign import MetaCampaignService
 from app.services.claude.client import ClaudeClient
 from app.core.config import settings
+from app.core.security import get_project_token
 
 meta_service = MetaCampaignService()
 claude_client = ClaudeClient()
@@ -185,7 +186,7 @@ async def analyze_campaign(
     db: AsyncSession,
 ) -> dict:
     """Fetch metrics, call Claude, execute decision, log result."""
-    token = project.meta_access_token or getattr(settings, "META_ACCESS_TOKEN", "")
+    token = get_project_token(project)
 
     if not token or not campaign.meta_campaign_id:
         return {"skipped": True, "reason": "no token or meta_campaign_id"}

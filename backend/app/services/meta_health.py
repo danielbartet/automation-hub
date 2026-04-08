@@ -10,6 +10,7 @@ from app.models.project import Project
 from app.models.meta_api_cache import AuditLog
 from app.services.cache_helper import get_or_fetch_cache, CACHE_TTLS
 from app.core.config import settings
+from app.core.security import get_project_token
 
 META_BASE = "https://graph.facebook.com/v19.0"
 
@@ -30,7 +31,7 @@ ACCOUNT_STATUS_MAP: dict[int, tuple[str, str, str]] = {
 
 def _get_token(project: Project) -> str:
     """Return the project Meta access token, fallback to global setting."""
-    return project.meta_access_token or getattr(settings, "META_ACCESS_TOKEN", "")
+    return get_project_token(project)
 
 
 async def _log_audit(

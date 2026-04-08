@@ -1,6 +1,8 @@
 "use client";
 
-import { useEffect, useState } from "react";
+import { useEffect, useState, Suspense } from "react";
+import { useRouter, useSearchParams } from "next/navigation";
+import { useSession } from "next-auth/react";
 import Link from "next/link";
 import { Header } from "@/components/layout/Header";
 import { fetchProjects } from "@/lib/api";
@@ -14,13 +16,76 @@ interface Project {
   is_active: boolean;
   content_config?: Record<string, unknown>;
   media_config?: Record<string, unknown>;
+  facebook_page_id?: string | null;
+  meta_token_expires_at?: string | null;
 }
 
-export default function ProjectsPage() {
+// ── Token expiry badge ────────────────────────────────────────────────────────
+
+function MetaTokenBadge({ expiresAt }: { expiresAt: string }) {
+  const daysRemaining = Math.ceil(
+    (new Date(expiresAt).getTime() - Date.now()) / 86400000
+  );
+
+  if (daysRemaining < 0) {
+    return (
+      <span
+        className="inline-flex items-center px-2 py-0.5 rounded-full text-xs font-medium"
+        style={{ backgroundColor: "#450a0a", color: "#f87171", border: "1px solid #7f1d1d" }}
+      >
+        Token expirado — Reconectar
+      </span>
+    );
+  }
+
+  if (daysRemaining <= 7) {
+    return (
+      <span
+        className="inline-flex items-center px-2 py-0.5 rounded-full text-xs font-medium"
+        style={{ backgroundColor: "#422006", color: "#fbbf24", border: "1px solid #92400e" }}
+      >
+        Token expira en {daysRemaining} día{daysRemaining !== 1 ? "s" : ""}
+      </span>
+    );
+  }
+
+  return null;
+}
+
+// ── Inner page (needs useSearchParams) ───────────────────────────────────────
+
+function ProjectsPageInner() {
+  const router = useRouter();
+  const searchParams = useSearchParams();
+  const { data: session } = useSession();
+  const role = session?.user?.role;
+
   const [projects, setProjects] = useState<Project[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const [editingProject, setEditingProject] = useState<Project | null>(null);
+  const [toast, setToast] = useState<{ type: "success" | "error"; message: string } | null>(null);
+
+  // Handle OAuth callback params
+  useEffect(() => {
+    const connected = searchParams.get("meta_connected");
+    const metaError = searchParams.get("meta_error");
+
+    if (connected === "true") {
+      setToast({ type: "success", message: "Meta account connected successfully" });
+      router.replace("/dashboard/projects");
+    } else if (metaError) {
+      setToast({ type: "error", message: metaError });
+      router.replace("/dashboard/projects");
+    }
+  }, [searchParams, router]);
+
+  // Auto-dismiss toast after 5 seconds
+  useEffect(() => {
+    if (!toast) return;
+    const t = setTimeout(() => setToast(null), 5000);
+    return () => clearTimeout(t);
+  }, [toast]);
 
   useEffect(() => {
     fetchProjects()
@@ -33,10 +98,33 @@ export default function ProjectsPage() {
     setProjects((prev) => prev.map((p) => (p.id === updated.id ? updated : p)));
   };
 
+  const canSeeTokenWarning = role === "admin" || role === "operator";
+
   return (
     <div>
       <Header title="Projects" />
       <div className="p-6 space-y-6">
+
+        {/* Toast banner */}
+        {toast && (
+          <div
+            className="rounded-md p-4 text-sm flex items-center justify-between gap-3"
+            style={
+              toast.type === "success"
+                ? { backgroundColor: "#052e16", border: "1px solid #166534", color: "#4ade80" }
+                : { backgroundColor: "#450a0a", border: "1px solid #7f1d1d", color: "#f87171" }
+            }
+          >
+            <span>{toast.message}</span>
+            <button
+              onClick={() => setToast(null)}
+              className="text-xs opacity-70 hover:opacity-100 transition-opacity"
+            >
+              &times;
+            </button>
+          </div>
+        )}
+
         <div className="flex items-center justify-between">
           <p className="text-sm" style={{ color: "#9ca3af" }}>
             {loading ? "Loading projects..." : `${projects.length} project${projects.length !== 1 ? "s" : ""}`}
@@ -113,6 +201,13 @@ export default function ProjectsPage() {
                   </span>
                 </div>
 
+                {/* Meta token expiry warning — admin/operator only */}
+                {canSeeTokenWarning && project.meta_token_expires_at && (
+                  <div>
+                    <MetaTokenBadge expiresAt={project.meta_token_expires_at} />
+                  </div>
+                )}
+
                 <div className="flex items-center gap-2 mt-auto">
                   <Link
                     href={`/dashboard?project=${project.slug}`}
@@ -149,5 +244,15 @@ export default function ProjectsPage() {
         />
       )}
     </div>
+  );
+}
+
+// ── Page export (wrapped in Suspense for useSearchParams) ─────────────────────
+
+export default function ProjectsPage() {
+  return (
+    <Suspense fallback={null}>
+      <ProjectsPageInner />
+    </Suspense>
   );
 }

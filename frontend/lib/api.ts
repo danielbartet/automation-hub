@@ -729,6 +729,11 @@ export async function recommendToday(
   return res.json();
 }
 
+export function connectMetaOAuth(slug: string): string {
+  const base = process.env.NEXT_PUBLIC_API_URL ?? "http://localhost:8000";
+  return `${base}/api/v1/auth/meta/start?project_slug=${encodeURIComponent(slug)}`;
+}
+
 export function buildAutoPrompt(post: any, project: any): string {
   const content = typeof post.content === "string" ? JSON.parse(post.content) : post.content;
   const slide1 = content?.slides?.[0] ?? {};

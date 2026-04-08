@@ -28,6 +28,9 @@ class Settings(BaseSettings):
     IDEOGRAM_API_KEY: str = ""
     KLING_API_KEY: str = ""
     TELEGRAM_NOTIFICATIONS_ENABLED: bool = False
+    META_OAUTH_REDIRECT_URI: str = ""
+    META_OAUTH_STATE_SECRET: str = "change-this-in-production"
+    FRONTEND_URL: str = "https://hub.quantorialabs.com"
 
 
 settings = Settings()
