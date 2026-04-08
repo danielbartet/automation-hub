@@ -11,6 +11,8 @@ interface Project {
   content_config?: Record<string, unknown>;
   media_config?: Record<string, unknown>;
   facebook_page_id?: string | null;
+  instagram_account_id?: string | null;
+  ad_account_id?: string | null;
   meta_token_expires_at?: string | null;
 }
 
