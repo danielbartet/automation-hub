@@ -14,6 +14,23 @@ export async function fetchProjects() {
   return res.json();
 }
 
+export async function createProject(data: {
+  name: string;
+  slug: string;
+  content_config?: Record<string, unknown>;
+}) {
+  const res = await fetch(`${API_BASE}/api/v1/projects/`, {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify(data),
+  });
+  if (!res.ok) {
+    const err = await res.json().catch(() => ({}));
+    throw new Error((err as { detail?: string }).detail || "Failed to create project");
+  }
+  return res.json();
+}
+
 export async function updateProject(slug: string, data: {
   name?: string;
   content_config?: Record<string, unknown>;

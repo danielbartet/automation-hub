@@ -8,6 +8,7 @@ import { Header } from "@/components/layout/Header";
 import { fetchProjects } from "@/lib/api";
 import { Settings, PlusCircle, ExternalLink, FolderKanban } from "lucide-react";
 import { ProjectFormDialog } from "@/components/dashboard/ProjectFormDialog";
+import { ProjectCreateDialog } from "@/components/dashboard/ProjectCreateDialog";
 
 interface Project {
   id: string;
@@ -64,6 +65,7 @@ function ProjectsPageInner() {
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const [editingProject, setEditingProject] = useState<Project | null>(null);
+  const [showCreateDialog, setShowCreateDialog] = useState(false);
   const [toast, setToast] = useState<{ type: "success" | "error"; message: string } | null>(null);
 
   // Handle OAuth callback params
@@ -96,6 +98,11 @@ function ProjectsPageInner() {
 
   const handleProjectUpdated = (updated: Project) => {
     setProjects((prev) => prev.map((p) => (p.id === updated.id ? updated : p)));
+  };
+
+  const handleProjectCreated = (created: Project) => {
+    setProjects((prev) => [...prev, created]);
+    setToast({ type: "success", message: `Proyecto "${created.name}" creado correctamente` });
   };
 
   const canSeeTokenWarning = role === "admin" || role === "operator";
@@ -134,7 +141,7 @@ function ProjectsPageInner() {
             style={{ backgroundColor: "#7c3aed" }}
             onMouseEnter={e => (e.currentTarget.style.backgroundColor = "#6d28d9")}
             onMouseLeave={e => (e.currentTarget.style.backgroundColor = "#7c3aed")}
-            onClick={() => alert("New project form coming soon")}
+            onClick={() => setShowCreateDialog(true)}
           >
             <PlusCircle className="h-4 w-4" />
             New Project
@@ -165,7 +172,7 @@ function ProjectsPageInner() {
               style={{ backgroundColor: "#7c3aed" }}
               onMouseEnter={e => (e.currentTarget.style.backgroundColor = "#6d28d9")}
               onMouseLeave={e => (e.currentTarget.style.backgroundColor = "#7c3aed")}
-              onClick={() => alert("New project form coming soon")}
+              onClick={() => setShowCreateDialog(true)}
             >
               <PlusCircle className="h-4 w-4" />
               New Project
@@ -241,6 +248,13 @@ function ProjectsPageInner() {
           project={editingProject}
           onClose={() => setEditingProject(null)}
           onSuccess={handleProjectUpdated}
+        />
+      )}
+
+      {showCreateDialog && (
+        <ProjectCreateDialog
+          onClose={() => setShowCreateDialog(false)}
+          onSuccess={handleProjectCreated}
         />
       )}
     </div>
