@@ -835,7 +835,7 @@ export function CreateCampaignModal({ projectSlug, projectId, onClose, onSuccess
                   <>
                     <ConceptsGrid
                       concepts={concepts}
-                      diversityAudit={diversityAudit!}
+                      diversityAudit={diversityAudit ?? { angles_covered: [], formats_covered: [], pda_combinations: 0, estimated_unique_entity_ids: 0, warnings: [] }}
                       approvedIds={approvedIds}
                       onToggle={toggleConcept}
                       onRegenerateConcept={handleRegenerateConcept}
