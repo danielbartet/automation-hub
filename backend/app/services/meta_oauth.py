@@ -4,7 +4,6 @@ import hashlib
 import hmac
 import json
 import logging
-import secrets
 import time
 from datetime import datetime, timedelta
 
@@ -14,24 +13,21 @@ from app.core.config import settings
 
 logger = logging.getLogger(__name__)
 
-# In-process nonce store: nonce -> timestamp of creation
-_nonce_store: dict[str, float] = {}
-
 META_BASE = "https://graph.facebook.com/v19.0"
+
+# TTL for state parameter (10 minutes — enough for slow OAuth flows)
+_STATE_TTL = 600
 
 
 def generate_state(slug: str) -> str:
     """Generate a signed, base64url-encoded state parameter for the Meta OAuth flow.
 
-    The state encodes the project slug and a one-time nonce so that the
-    callback can verify the round-trip without a session.
+    Security: HMAC-SHA256 signature prevents forgery. TTL prevents stale reuse.
+    No in-memory nonce store — survives server restarts during the OAuth flow.
 
     Returns a string of the form ``<encoded_payload>.<hmac_signature>``.
     """
-    nonce = secrets.token_hex(16)
-    _nonce_store[nonce] = time.time()
-
-    payload = {"slug": slug, "nonce": nonce, "ts": int(time.time())}
+    payload = {"slug": slug, "ts": int(time.time())}
     encoded = base64.urlsafe_b64encode(json.dumps(payload).encode()).decode()
     sig = hmac.new(
         settings.META_OAUTH_STATE_SECRET.encode(),
@@ -72,17 +68,9 @@ def validate_state(state: str) -> str:
     except Exception as exc:
         raise ValueError(f"state payload could not be decoded: {exc}") from exc
 
-    # Check TTL (5 minutes)
-    if time.time() - payload.get("ts", 0) > 300:
+    # Check TTL
+    if time.time() - payload.get("ts", 0) > _STATE_TTL:
         raise ValueError("state has expired (TTL exceeded)")
-
-    # Verify nonce is present (replay protection)
-    nonce = payload.get("nonce")
-    if nonce not in _nonce_store:
-        raise ValueError("state nonce is unknown or already consumed (replay protection)")
-
-    # Consume nonce to prevent replay
-    del _nonce_store[nonce]
 
     slug = payload.get("slug")
     if not slug:
