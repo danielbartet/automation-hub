@@ -9,6 +9,7 @@ import { fetchProjects } from "@/lib/api";
 import { Settings, PlusCircle, ExternalLink, FolderKanban } from "lucide-react";
 import { ProjectFormDialog } from "@/components/dashboard/ProjectFormDialog";
 import { ProjectCreateDialog } from "@/components/dashboard/ProjectCreateDialog";
+import { MetaAssetSelectModal } from "@/components/dashboard/MetaAssetSelectModal";
 
 interface Project {
   id: string;
@@ -18,7 +19,20 @@ interface Project {
   content_config?: Record<string, unknown>;
   media_config?: Record<string, unknown>;
   facebook_page_id?: string | null;
+  instagram_account_id?: string | null;
+  ad_account_id?: string | null;
   meta_token_expires_at?: string | null;
+}
+
+interface MetaAssetsPayload {
+  pages: Array<{ id: string; name?: string }>;
+  ad_accounts: Array<{ id: string; name?: string }>;
+  instagram_accounts: Array<{ id: string; username?: string }>;
+  current: {
+    page_id: string | null;
+    instagram_id: string | null;
+    ad_account_id: string | null;
+  };
 }
 
 // ── Token expiry badge ────────────────────────────────────────────────────────
@@ -67,17 +81,33 @@ function ProjectsPageInner() {
   const [editingProject, setEditingProject] = useState<Project | null>(null);
   const [showCreateDialog, setShowCreateDialog] = useState(false);
   const [toast, setToast] = useState<{ type: "success" | "error"; message: string } | null>(null);
+  const [metaSelectSlug, setMetaSelectSlug] = useState<string | null>(null);
+  const [metaSelectAssets, setMetaSelectAssets] = useState<MetaAssetsPayload | null>(null);
 
   // Handle OAuth callback params
   useEffect(() => {
     const connected = searchParams.get("meta_connected");
     const metaError = searchParams.get("meta_error");
+    const metaSelect = searchParams.get("meta_select");
 
     if (connected === "true") {
       setToast({ type: "success", message: "Meta account connected successfully" });
       router.replace("/dashboard/projects");
     } else if (metaError) {
       setToast({ type: "error", message: metaError });
+      router.replace("/dashboard/projects");
+    } else if (metaSelect === "true") {
+      const slug = searchParams.get("slug");
+      const assetsParam = searchParams.get("assets");
+      if (slug && assetsParam) {
+        try {
+          const decoded = JSON.parse(atob(decodeURIComponent(assetsParam))) as MetaAssetsPayload;
+          setMetaSelectSlug(slug);
+          setMetaSelectAssets(decoded);
+        } catch {
+          setToast({ type: "error", message: "Error al procesar los activos de Meta" });
+        }
+      }
       router.replace("/dashboard/projects");
     }
   }, [searchParams, router]);
@@ -103,6 +133,13 @@ function ProjectsPageInner() {
   const handleProjectCreated = (created: Project) => {
     setProjects((prev) => [...prev, created]);
     setToast({ type: "success", message: `Proyecto "${created.name}" creado correctamente` });
+  };
+
+  const handleMetaAssetSuccess = (updated: Project) => {
+    setProjects((prev) => prev.map((p) => (p.slug === updated.slug ? updated : p)));
+    setMetaSelectSlug(null);
+    setMetaSelectAssets(null);
+    setToast({ type: "success", message: "Activos de Meta guardados correctamente" });
   };
 
   const canSeeTokenWarning = role === "admin" || role === "operator";
@@ -255,6 +292,18 @@ function ProjectsPageInner() {
         <ProjectCreateDialog
           onClose={() => setShowCreateDialog(false)}
           onSuccess={handleProjectCreated}
+        />
+      )}
+
+      {metaSelectSlug && metaSelectAssets && (
+        <MetaAssetSelectModal
+          slug={metaSelectSlug}
+          assets={metaSelectAssets}
+          onClose={() => {
+            setMetaSelectSlug(null);
+            setMetaSelectAssets(null);
+          }}
+          onSuccess={handleMetaAssetSuccess}
         />
       )}
     </div>

@@ -1,5 +1,8 @@
 """Meta OAuth 2.0 endpoints — initiate and handle the OAuth callback."""
+import base64
+import json
 import logging
+from urllib.parse import quote
 
 from fastapi import APIRouter, Depends
 from fastapi.responses import RedirectResponse
@@ -133,11 +136,59 @@ async def meta_oauth_callback(
     # --- Discover linked assets (never raises) ---
     assets = await discover_assets(long_token)
 
-    # --- Persist to DB ---
+    # --- Persist token to DB (always) ---
     encrypted_token = encrypt_token(long_token)
     project.meta_access_token = encrypted_token
     project.meta_token_expires_at = expires_at
 
+    pages = assets.get("pages", [])
+    ad_accounts = assets.get("ad_accounts", [])
+    instagram_accounts = assets.get("instagram_accounts", [])
+
+    # --- Check if user has multiple assets in any category ---
+    needs_selection = (
+        len(pages) > 1 or len(ad_accounts) > 1 or len(instagram_accounts) > 1
+    )
+
+    if needs_selection:
+        # Auto-assign first of each as default, but let the user pick
+        if assets.get("facebook_page_id") is not None:
+            project.facebook_page_id = assets["facebook_page_id"]
+        if assets.get("instagram_account_id") is not None:
+            project.instagram_account_id = assets["instagram_account_id"]
+        if assets.get("ad_account_id") is not None:
+            project.ad_account_id = assets["ad_account_id"]
+
+        await db.commit()
+
+        logger.info(
+            "Meta OAuth: multiple assets for project '%s' — redirecting to selection UI "
+            "(pages=%d, ad_accounts=%d, ig_accounts=%d)",
+            slug,
+            len(pages),
+            len(ad_accounts),
+            len(instagram_accounts),
+        )
+
+        assets_payload = {
+            "pages": pages,
+            "ad_accounts": ad_accounts,
+            "instagram_accounts": instagram_accounts,
+            "current": {
+                "page_id": assets.get("facebook_page_id"),
+                "instagram_id": assets.get("instagram_account_id"),
+                "ad_account_id": assets.get("ad_account_id"),
+            },
+        }
+        encoded = base64.urlsafe_b64encode(
+            json.dumps(assets_payload).encode()
+        ).decode()
+        return RedirectResponse(
+            url=f"{base_projects_url}?meta_select=true&slug={quote(slug)}&assets={quote(encoded)}",
+            status_code=302,
+        )
+
+    # --- Single asset per category — auto-assign and finish ---
     if assets.get("facebook_page_id") is not None:
         project.facebook_page_id = assets["facebook_page_id"]
     if assets.get("instagram_account_id") is not None:

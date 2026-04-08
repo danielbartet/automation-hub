@@ -156,7 +156,7 @@ async def upgrade_to_long_lived(short_token: str) -> tuple[str, datetime]:
 
 
 async def discover_assets(token: str) -> dict:
-    """Discover Meta assets (page, Instagram account, ad account) linked to the token.
+    """Discover Meta assets (pages, Instagram accounts, ad accounts) linked to the token.
 
     Logs warnings for missing assets but never raises — the caller should
     proceed with whatever was discovered and update the project accordingly.
@@ -165,60 +165,90 @@ async def discover_assets(token: str) -> dict:
         token: A long-lived Meta access token.
 
     Returns:
-        A dict with keys ``facebook_page_id``, ``instagram_account_id``, and
-        ``ad_account_id``.  Any value may be ``None`` if not found.
+        A dict with:
+        - ``facebook_page_id``: ID of the first page (or None)
+        - ``instagram_account_id``: ID of the first IG account (or None)
+        - ``ad_account_id``: ID of the first ad account (or None)
+        - ``pages``: list of dicts with ``id`` and ``name`` for all pages
+        - ``ad_accounts``: list of dicts with ``id`` and ``name`` for all ad accounts
+        - ``instagram_accounts``: list of dicts with ``id`` and ``username`` for all IG accounts
     """
     facebook_page_id: str | None = None
     instagram_account_id: str | None = None
     ad_account_id: str | None = None
+    all_pages: list[dict] = []
+    all_ad_accounts: list[dict] = []
+    all_instagram_accounts: list[dict] = []
 
-    # --- Facebook Page ---
+    # --- Facebook Pages ---
     try:
         async with httpx.AsyncClient(timeout=30.0) as client:
             resp = await client.get(
                 f"{META_BASE}/me/accounts",
-                params={"fields": "id,name,instagram_business_account", "access_token": token},
+                params={"fields": "id,name", "access_token": token},
             )
         data = resp.json()
         pages = data.get("data", [])
         if not pages:
             logger.warning("discover_assets: no Facebook Pages found for this token")
         else:
-            page = pages[0]
-            facebook_page_id = page.get("id")
+            all_pages = [{"id": p.get("id"), "name": p.get("name", "")} for p in pages]
+            facebook_page_id = pages[0].get("id")
     except Exception as exc:
         logger.warning("discover_assets: error fetching Facebook Pages: %s", exc)
 
-    # --- Instagram Business Account (requires page ID) ---
-    if facebook_page_id:
+    # --- Instagram Business Accounts (one per page) ---
+    for page_info in all_pages:
+        page_id = page_info["id"]
         try:
             async with httpx.AsyncClient(timeout=30.0) as client:
                 resp = await client.get(
-                    f"{META_BASE}/{facebook_page_id}",
+                    f"{META_BASE}/{page_id}",
                     params={"fields": "instagram_business_account", "access_token": token},
                 )
             result = resp.json()
-            instagram_account_id = result.get("instagram_business_account", {}).get("id")
-            if not instagram_account_id:
-                logger.warning(
-                    "discover_assets: no Instagram Business Account linked to page %s",
-                    facebook_page_id,
-                )
+            ig = result.get("instagram_business_account")
+            if ig and ig.get("id"):
+                # Fetch the username separately
+                ig_id = ig["id"]
+                try:
+                    async with httpx.AsyncClient(timeout=30.0) as client:
+                        ig_resp = await client.get(
+                            f"{META_BASE}/{ig_id}",
+                            params={"fields": "id,username", "access_token": token},
+                        )
+                    ig_data = ig_resp.json()
+                    username = ig_data.get("username", ig_id)
+                except Exception:
+                    username = ig_id
+                all_instagram_accounts.append({"id": ig_id, "username": username})
         except Exception as exc:
-            logger.warning("discover_assets: error fetching Instagram account: %s", exc)
+            logger.warning(
+                "discover_assets: error fetching Instagram account for page %s: %s",
+                page_id,
+                exc,
+            )
 
-    # --- Ad Account ---
+    if all_instagram_accounts:
+        instagram_account_id = all_instagram_accounts[0]["id"]
+    elif facebook_page_id:
+        logger.warning(
+            "discover_assets: no Instagram Business Account linked to any discovered page"
+        )
+
+    # --- Ad Accounts ---
     try:
         async with httpx.AsyncClient(timeout=30.0) as client:
             resp = await client.get(
                 f"{META_BASE}/me/adaccounts",
-                params={"fields": "id", "access_token": token},
+                params={"fields": "id,name", "access_token": token},
             )
         data = resp.json()
         ad_accounts = data.get("data", [])
         if not ad_accounts:
             logger.warning("discover_assets: no Ad Accounts found for this token")
         else:
+            all_ad_accounts = [{"id": a.get("id"), "name": a.get("name", a.get("id", ""))} for a in ad_accounts]
             ad_account_id = ad_accounts[0].get("id")
     except Exception as exc:
         logger.warning("discover_assets: error fetching Ad Accounts: %s", exc)
@@ -227,4 +257,7 @@ async def discover_assets(token: str) -> dict:
         "facebook_page_id": facebook_page_id,
         "instagram_account_id": instagram_account_id,
         "ad_account_id": ad_account_id,
+        "pages": all_pages,
+        "ad_accounts": all_ad_accounts,
+        "instagram_accounts": all_instagram_accounts,
     }
