@@ -460,7 +460,7 @@ export default function ContentPage() {
   }, []);
 
   const handleProjectChange = (e: React.ChangeEvent<HTMLSelectElement>) => {
-    const proj = projects.find((p) => p.id === e.target.value);
+    const proj = projects.find((p) => p.slug === e.target.value);
     if (proj) {
       setSelectedProjectId(proj.id);
       setSelectedProjectSlug(proj.slug);
@@ -491,13 +491,13 @@ export default function ContentPage() {
               <span className="text-sm" style={{ color: "#9ca3af" }}>Loading...</span>
             ) : (
               <select
-                value={selectedProjectId}
+                value={selectedProjectSlug}
                 onChange={handleProjectChange}
                 className="text-sm rounded-md px-3 py-2 text-white focus:outline-none focus:ring-2 focus:ring-[#7c3aed]"
                 style={{ border: "1px solid #333333", backgroundColor: "#1a1a1a" }}
               >
                 {projects.map((p) => (
-                  <option key={p.id} value={p.id}>
+                  <option key={p.id} value={p.slug}>
                     {p.name}
                   </option>
                 ))}
