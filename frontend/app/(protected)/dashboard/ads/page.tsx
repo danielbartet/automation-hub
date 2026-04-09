@@ -18,6 +18,7 @@ import {
 } from "@/lib/api";
 import { Loader2, Plus, Download } from "lucide-react";
 import Link from "next/link";
+import { useT } from "@/lib/i18n";
 import {
   LineChart,
   Line,
@@ -96,6 +97,7 @@ const ANDROMEDA_STATUS_CLASSES: Record<string, string> = {
 };
 
 export default function AdsPage() {
+  const t = useT();
   const { data: session } = useSession();
   const isClient = session?.user?.role === "client";
   const token = (session as { accessToken?: string } | null)?.accessToken ?? "";
@@ -175,10 +177,10 @@ export default function AdsPage() {
     );
     try {
       await approveOptimizerAction(token, rec.approval_token);
-      showRecsToast("Acción aprobada");
+      showRecsToast(t.ads_action_approved);
       loadData();
     } catch {
-      showRecsToast("Error al aprobar");
+      showRecsToast(t.ads_approve_error);
       loadData();
     }
   };
@@ -198,10 +200,10 @@ export default function AdsPage() {
     );
     try {
       await rejectOptimizerAction(token, rec.approval_token);
-      showRecsToast("Acción rechazada");
+      showRecsToast(t.ads_action_rejected);
       loadData();
     } catch {
-      showRecsToast("Error al rechazar");
+      showRecsToast(t.ads_reject_error);
       loadData();
     }
   };
@@ -216,7 +218,7 @@ export default function AdsPage() {
       setImportResult({ imported: result.imported, updated: result.updated });
       loadData();
     } catch (err) {
-      setImportError(err instanceof Error ? err.message : "Error al importar campañas");
+      setImportError(err instanceof Error ? err.message : t.ads_import_error_default);
     } finally {
       setImporting(false);
     }
@@ -269,12 +271,12 @@ export default function AdsPage() {
                 {importing ? (
                   <>
                     <Loader2 className="h-4 w-4 animate-spin" />
-                    Importando campañas...
+                    {t.ads_importing}
                   </>
                 ) : (
                   <>
                     <Download className="h-4 w-4" />
-                    Importar de Meta
+                    {t.ads_import_from_meta}
                   </>
                 )}
               </button>
@@ -286,7 +288,7 @@ export default function AdsPage() {
                 onMouseEnter={e => { if (!(e.currentTarget as HTMLButtonElement).disabled) (e.currentTarget as HTMLButtonElement).style.backgroundColor = "#6d28d9"; }}
                 onMouseLeave={e => { (e.currentTarget as HTMLButtonElement).style.backgroundColor = "#7c3aed"; }}
               >
-                <Plus className="h-4 w-4" />Create Campaign
+                <Plus className="h-4 w-4" />{t.ads_create_campaign}
               </button>
             </div>
           )}
@@ -302,14 +304,14 @@ export default function AdsPage() {
           <div className="rounded-md p-4 text-sm text-green-400 flex items-center justify-between" style={{ backgroundColor: "#052e16", border: "1px solid #166534" }}>
             <span>
               {importResult.imported > 0 && (
-                <span><strong>{importResult.imported}</strong> {importResult.imported === 1 ? "campaña importada" : "campañas importadas"}</span>
+                <span><strong>{importResult.imported}</strong> {importResult.imported === 1 ? t.ads_imported_one : t.ads_imported_many}</span>
               )}
               {importResult.imported > 0 && importResult.updated > 0 && <span>, </span>}
               {importResult.updated > 0 && (
-                <span><strong>{importResult.updated}</strong> {importResult.updated === 1 ? "campaña actualizada" : "campañas actualizadas"}</span>
+                <span><strong>{importResult.updated}</strong> {importResult.updated === 1 ? t.ads_updated_one : t.ads_updated_many}</span>
               )}
               {importResult.imported === 0 && importResult.updated === 0 && (
-                <span>No se encontraron campañas nuevas o modificadas en Meta.</span>
+                <span>{t.ads_no_new_campaigns}</span>
               )}
             </span>
             <button
@@ -323,7 +325,7 @@ export default function AdsPage() {
 
         {importError && (
           <div className="rounded-md p-4 text-sm text-red-400 flex items-center justify-between" style={{ backgroundColor: "#450a0a", border: "1px solid #7f1d1d" }}>
-            <span>Error al importar: {importError}</span>
+            <span>{t.ads_import_error_prefix} {importError}</span>
             <button
               onClick={() => setImportError(null)}
               className="ml-4 text-red-400 hover:text-red-300 font-medium"
@@ -346,7 +348,7 @@ export default function AdsPage() {
           <div className="rounded-lg overflow-hidden" style={{ backgroundColor: "#111111", border: "1px solid #2d2d00" }}>
             <div className="px-6 py-4 flex items-center gap-2" style={{ borderBottom: "1px solid #2d2d00" }}>
               <span className="text-yellow-400 font-semibold text-sm">
-                Recomendaciones pendientes
+                {t.ads_pending_recommendations}
               </span>
               <span className="px-2 py-0.5 rounded-full text-xs font-bold text-yellow-400" style={{ backgroundColor: "#2d2d00" }}>
                 {allRecommendations.reduce((sum, r) => sum + r.recommendations.length, 0)}
@@ -360,14 +362,14 @@ export default function AdsPage() {
                   const isFatigued = rec.type === "campaign_fatigued";
 
                   const emoji = isScale ? "🟢" : isPause ? "🔴" : "🟡";
-                  const decisionLabel = isScale ? "SCALE" : isPause ? "PAUSE" : "FATIGADO";
+                  const decisionLabel = isScale ? "SCALE" : isPause ? "PAUSE" : t.ads_fatigued_label;
 
                   let summary = rec.rationale.slice(0, 100);
                   if (rec.rationale.length > 100) summary += "…";
 
                   // For scale/pause, add budget info if available
                   if (isScale && rec.budget_current != null && rec.budget_proposed != null) {
-                    summary = `Presupuesto $${rec.budget_current.toFixed(0)} → $${rec.budget_proposed.toFixed(0)}/día. ${summary}`;
+                    summary = t.ads_budget_change(rec.budget_current, rec.budget_proposed) + summary;
                   }
 
                   return (
@@ -392,7 +394,7 @@ export default function AdsPage() {
                                 onMouseEnter={e => (e.currentTarget.style.opacity = "0.85")}
                                 onMouseLeave={e => (e.currentTarget.style.opacity = "1")}
                               >
-                                Confirmar
+                                {t.ads_confirm}
                               </button>
                               <button
                                 onClick={() => handleRecReject(rec, campRec.campaign_id)}
@@ -401,7 +403,7 @@ export default function AdsPage() {
                                 onMouseEnter={e => (e.currentTarget.style.backgroundColor = "#333333")}
                                 onMouseLeave={e => (e.currentTarget.style.backgroundColor = "#1a1a1a")}
                               >
-                                Rechazar
+                                {t.ads_reject}
                               </button>
                             </>
                           )}
@@ -409,7 +411,7 @@ export default function AdsPage() {
                             href={`/dashboard/ads/${campRec.campaign_id}?project_slug=${selectedSlug}`}
                             className="px-3 py-1.5 text-xs font-medium text-blue-400 hover:text-blue-300 transition-colors"
                           >
-                            {isFatigued ? "Ver brief →" : "Ver campaña →"}
+                            {isFatigued ? t.ads_view_brief : t.ads_view_campaign}
                           </Link>
                         </div>
                       </div>
@@ -443,7 +445,7 @@ export default function AdsPage() {
         {/* Spend chart */}
         {spendData.length > 0 && (
           <div className="rounded-lg p-6" style={{ backgroundColor: "#111111", border: "1px solid #222222" }}>
-            <h3 className="text-base font-semibold text-white mb-4">Ad Spend (30 days)</h3>
+            <h3 className="text-base font-semibold text-white mb-4">{t.ads_spend_chart_title}</h3>
             <ResponsiveContainer width="100%" height={220}>
               <LineChart data={spendData}>
                 <CartesianGrid strokeDasharray="3 3" stroke="#222222" />
@@ -474,11 +476,11 @@ export default function AdsPage() {
           {loadingData ? (
             <div className="flex items-center justify-center h-40 text-sm" style={{ color: "#9ca3af" }}>
               <Loader2 className="h-5 w-5 animate-spin mr-2" />
-              Loading campaigns...
+              {t.ads_loading_campaigns}
             </div>
           ) : campaigns.length === 0 ? (
             <div className="flex items-center justify-center h-40 text-sm" style={{ color: "#9ca3af" }}>
-              No campaigns found.
+              {t.ads_no_campaigns}
             </div>
           ) : (
             <div className="overflow-x-auto">
@@ -493,7 +495,7 @@ export default function AdsPage() {
                     <th className="text-left px-4 py-3 font-medium" style={{ color: "#9ca3af" }}>Spend / Month</th>
                     <th className="text-left px-4 py-3 font-medium" style={{ color: "#9ca3af" }}>KPIs</th>
                     <th className="text-left px-4 py-3 font-medium" style={{ color: "#9ca3af" }}>Andromeda</th>
-                    <th className="text-left px-4 py-3 font-medium" style={{ color: "#9ca3af" }}>Detalle</th>
+                    <th className="text-left px-4 py-3 font-medium" style={{ color: "#9ca3af" }}>{t.ads_col_detail}</th>
                   </tr>
                 </thead>
                 <tbody>
@@ -564,7 +566,7 @@ export default function AdsPage() {
                           href={`/dashboard/ads/${c.id}?project_slug=${selectedSlug}`}
                           className="text-blue-400 hover:text-blue-300 text-xs font-medium"
                         >
-                          Ver detalle →
+                          {t.ads_view_detail}
                         </Link>
                       </td>
                     </tr>

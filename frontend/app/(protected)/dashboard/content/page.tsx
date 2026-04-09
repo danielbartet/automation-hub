@@ -10,6 +10,7 @@ import { GenerateContentModal } from "@/components/dashboard/GenerateContentModa
 import { EditContentModal } from "@/components/dashboard/EditContentModal";
 import { ImageGeneratorModal } from "@/components/dashboard/ImageGeneratorModal";
 import { ImageUploadZone } from "@/components/dashboard/ImageUploadZone";
+import { useT } from "@/lib/i18n";
 
 const API_BASE = process.env.NEXT_PUBLIC_API_URL ?? "http://localhost:8000";
 
@@ -23,6 +24,7 @@ interface ReelModalProps {
 }
 
 function ReelModal({ post, projectSlug, onClose, onSuccess }: ReelModalProps) {
+  const t = useT();
   const [tab, setTab] = useState<"upload" | "kling">("upload");
   const [videoFile, setVideoFile] = useState<File | null>(null);
   const [uploading, setUploading] = useState(false);
@@ -32,11 +34,11 @@ function ReelModal({ post, projectSlug, onClose, onSuccess }: ReelModalProps) {
     const file = e.target.files?.[0];
     if (!file) return;
     if (!["video/mp4", "video/quicktime"].includes(file.type)) {
-      setError("Solo se aceptan archivos MP4 o MOV");
+      setError(t.reel_error_format);
       return;
     }
     if (file.size > 100 * 1024 * 1024) {
-      setError("El archivo no puede superar 100MB");
+      setError(t.reel_error_size);
       return;
     }
     setError(null);
@@ -57,7 +59,7 @@ function ReelModal({ post, projectSlug, onClose, onSuccess }: ReelModalProps) {
       });
       if (!uploadRes.ok) {
         const err = await uploadRes.json().catch(() => ({}));
-        throw new Error((err as { detail?: string }).detail || "Error al subir el video");
+        throw new Error((err as { detail?: string }).detail || t.reel_error_upload);
       }
       const { url: videoUrl } = await uploadRes.json();
 
@@ -70,7 +72,7 @@ function ReelModal({ post, projectSlug, onClose, onSuccess }: ReelModalProps) {
       onSuccess();
       onClose();
     } catch (e) {
-      setError(e instanceof Error ? e.message : "Error al procesar el video");
+      setError(e instanceof Error ? e.message : t.reel_error_process);
     } finally {
       setUploading(false);
     }
@@ -80,7 +82,7 @@ function ReelModal({ post, projectSlug, onClose, onSuccess }: ReelModalProps) {
     <div className="fixed inset-0 bg-black/70 flex items-center justify-center z-50 p-4">
       <div className="rounded-xl shadow-xl w-full max-w-md" style={{ backgroundColor: "#111111", border: "1px solid #222222" }}>
         <div className="flex items-center justify-between p-5" style={{ borderBottom: "1px solid #222222" }}>
-          <h2 className="text-base font-semibold text-white">Agregar Reel a este post</h2>
+          <h2 className="text-base font-semibold text-white">{t.reel_modal_title}</h2>
           <button onClick={onClose} className="p-1 rounded-md transition-colors" style={{ color: "#9ca3af" }} onMouseEnter={e => (e.currentTarget.style.backgroundColor = "#1f1f1f")} onMouseLeave={e => (e.currentTarget.style.backgroundColor = "transparent")}>
             <X className="h-4 w-4" />
           </button>
@@ -95,7 +97,7 @@ function ReelModal({ post, projectSlug, onClose, onSuccess }: ReelModalProps) {
                 tab === "upload" ? "bg-[#7c3aed] text-white" : "text-gray-400 hover:text-white"
               }`}
             >
-              Subir video manualmente
+              {t.reel_tab_upload}
             </button>
             <button
               onClick={() => setTab("kling")}
@@ -103,7 +105,7 @@ function ReelModal({ post, projectSlug, onClose, onSuccess }: ReelModalProps) {
                 tab === "kling" ? "bg-[#7c3aed] text-white" : "text-gray-400 hover:text-white"
               }`}
             >
-              Generar con Kling AI
+              {t.reel_tab_kling}
             </button>
           </div>
 
@@ -129,8 +131,8 @@ function ReelModal({ post, projectSlug, onClose, onSuccess }: ReelModalProps) {
                     onChange={handleFileChange}
                   />
                   <Upload className="h-6 w-6 mb-1" style={{ color: "#9ca3af" }} />
-                  <span className="text-xs" style={{ color: "#9ca3af" }}>Arrastrá o hacé clic para subir</span>
-                  <span className="text-xs mt-0.5" style={{ color: "#6b7280" }}>MP4, MOV · máx 100MB</span>
+                  <span className="text-xs" style={{ color: "#9ca3af" }}>{t.reel_drop_hint}</span>
+                  <span className="text-xs mt-0.5" style={{ color: "#6b7280" }}>{t.reel_drop_formats}</span>
                 </label>
               )}
 
@@ -147,17 +149,17 @@ function ReelModal({ post, projectSlug, onClose, onSuccess }: ReelModalProps) {
                 {uploading ? (
                   <>
                     <Loader2 className="h-4 w-4 animate-spin" />
-                    Enviando...
+                    {t.reel_uploading}
                   </>
                 ) : (
-                  "Enviar para aprobación"
+                  t.reel_submit
                 )}
               </button>
             </div>
           ) : (
             <div className="space-y-3 text-center py-4">
               <span className="inline-flex items-center px-2.5 py-1 rounded-full text-xs font-medium" style={{ backgroundColor: "#1f1f1f", color: "#9ca3af" }}>
-                Próximamente
+                {t.reel_coming_soon}
               </span>
               <div>
                 <button
@@ -165,9 +167,9 @@ function ReelModal({ post, projectSlug, onClose, onSuccess }: ReelModalProps) {
                   className="w-full py-2 text-sm font-medium rounded-lg cursor-not-allowed"
                   style={{ backgroundColor: "#1a1a1a", color: "#6b7280" }}
                 >
-                  Generar con Kling AI
+                  {t.reel_tab_kling}
                 </button>
-                <p className="text-xs mt-2" style={{ color: "#6b7280" }}>Disponible próximamente</p>
+                <p className="text-xs mt-2" style={{ color: "#6b7280" }}>{t.reel_coming_soon_note}</p>
               </div>
             </div>
           )}
@@ -186,6 +188,7 @@ interface StoryCreatorModalProps {
 }
 
 function StoryCreatorModal({ projectSlug, onClose, onSuccess }: StoryCreatorModalProps) {
+  const t = useT();
   const [imageUrl, setImageUrl] = useState("");
   const [textOverlay, setTextOverlay] = useState("");
   const [scheduledAt, setScheduledAt] = useState("");
@@ -194,7 +197,7 @@ function StoryCreatorModal({ projectSlug, onClose, onSuccess }: StoryCreatorModa
 
   const handlePublish = async () => {
     if (!imageUrl) {
-      setError("La imagen es requerida");
+      setError(t.story_error_image_required);
       return;
     }
     setLoading(true);
@@ -212,13 +215,13 @@ function StoryCreatorModal({ projectSlug, onClose, onSuccess }: StoryCreatorModa
 
       if (!res.ok) {
         const err = await res.json().catch(() => ({}));
-        throw new Error((err as { detail?: string }).detail || "Error al publicar la historia");
+        throw new Error((err as { detail?: string }).detail || t.story_error_publish);
       }
 
       onSuccess();
       onClose();
     } catch (e) {
-      setError(e instanceof Error ? e.message : "Error al publicar la historia");
+      setError(e instanceof Error ? e.message : t.story_error_publish);
     } finally {
       setLoading(false);
     }
@@ -228,7 +231,7 @@ function StoryCreatorModal({ projectSlug, onClose, onSuccess }: StoryCreatorModa
     <div className="fixed inset-0 bg-black/70 flex items-center justify-center z-50 p-4">
       <div className="rounded-xl shadow-xl w-full max-w-md" style={{ backgroundColor: "#111111", border: "1px solid #222222" }}>
         <div className="flex items-center justify-between p-5" style={{ borderBottom: "1px solid #222222" }}>
-          <h2 className="text-base font-semibold text-white">Nueva Historia</h2>
+          <h2 className="text-base font-semibold text-white">{t.story_modal_title}</h2>
           <button onClick={onClose} className="p-1 rounded-md transition-colors" style={{ color: "#9ca3af" }} onMouseEnter={e => (e.currentTarget.style.backgroundColor = "#1f1f1f")} onMouseLeave={e => (e.currentTarget.style.backgroundColor = "transparent")}>
             <X className="h-4 w-4" />
           </button>
@@ -237,7 +240,7 @@ function StoryCreatorModal({ projectSlug, onClose, onSuccess }: StoryCreatorModa
         <div className="p-5 space-y-4">
           <div>
             <label className="block text-sm font-medium mb-2" style={{ color: "#d1d5db" }}>
-              Imagen * <span className="text-xs font-normal" style={{ color: "#9ca3af" }}>(relación de aspecto 9:16 recomendada)</span>
+              {t.story_image_label} <span className="text-xs font-normal" style={{ color: "#9ca3af" }}>{t.story_image_ratio_hint}</span>
             </label>
             <ImageUploadZone
               projectSlug={projectSlug}
@@ -248,7 +251,7 @@ function StoryCreatorModal({ projectSlug, onClose, onSuccess }: StoryCreatorModa
 
           <div>
             <label className="block text-sm font-medium mb-1" style={{ color: "#d1d5db" }}>
-              Texto opcional
+              {t.story_text_label}
             </label>
             <textarea
               value={textOverlay}
@@ -256,13 +259,13 @@ function StoryCreatorModal({ projectSlug, onClose, onSuccess }: StoryCreatorModa
               rows={2}
               className="w-full rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-[#7c3aed] text-white placeholder-gray-500"
               style={{ border: "1px solid #333333", backgroundColor: "#1a1a1a" }}
-              placeholder="Texto para mostrar en la historia..."
+              placeholder={t.story_text_placeholder}
             />
           </div>
 
           <div>
             <label className="block text-sm font-medium mb-1" style={{ color: "#d1d5db" }}>
-              Programar para
+              {t.story_schedule_label}
             </label>
             <input
               type="datetime-local"
@@ -274,7 +277,7 @@ function StoryCreatorModal({ projectSlug, onClose, onSuccess }: StoryCreatorModa
           </div>
 
           <p className="text-xs rounded-lg p-3" style={{ color: "#9ca3af", backgroundColor: "#0d0d0d" }}>
-            Las historias duran 24 horas y no pasan por aprobación de Telegram.
+            {t.story_note}
           </p>
 
           {error && (
@@ -294,10 +297,10 @@ function StoryCreatorModal({ projectSlug, onClose, onSuccess }: StoryCreatorModa
             {loading ? (
               <>
                 <Loader2 className="h-4 w-4 animate-spin" />
-                Publicando...
+                {t.story_publishing}
               </>
             ) : (
-              "Publicar Historia"
+              t.story_publish_btn
             )}
           </button>
         </div>
@@ -361,6 +364,7 @@ function formatDate(dateStr: string) {
 }
 
 export default function ContentPage() {
+  const t = useT();
   const { data: session } = useSession();
   const searchParams = useSearchParams();
   const isClient = session?.user?.role === "client";
@@ -396,10 +400,10 @@ export default function ContentPage() {
     setImportingMeta(true);
     try {
       const result = await importFromMeta(selectedProjectSlug);
-      showToast("success", result.message || `${result.imported} posts importados de Instagram`);
+      showToast("success", result.message || t.content_import_success(result.imported));
       loadContent();
     } catch (err) {
-      showToast("error", err instanceof Error ? err.message : "Error al importar de Meta");
+      showToast("error", err instanceof Error ? err.message : t.content_import_error);
     } finally {
       setImportingMeta(false);
     }
@@ -521,7 +525,7 @@ export default function ContentPage() {
                     <path d="M22 12c0-5.523-4.477-10-10-10S2 6.477 2 12c0 4.991 3.657 9.128 8.438 9.878v-6.987h-2.54V12h2.54V9.797c0-2.506 1.492-3.89 3.777-3.89 1.094 0 2.238.195 2.238.195v2.46h-1.26c-1.243 0-1.63.771-1.63 1.562V12h2.773l-.443 2.89h-2.33v6.988C18.343 21.128 22 16.991 22 12z"/>
                   </svg>
                 )}
-                Importar de Meta
+                {t.content_import_from_meta}
               </button>
               <div ref={generateDropdownRef} className="relative">
                 <button
@@ -533,7 +537,7 @@ export default function ContentPage() {
                   onMouseLeave={e => (e.currentTarget.style.backgroundColor = "#7c3aed")}
                 >
                   <PlusCircle className="h-4 w-4" />
-                  Generate New
+                  {t.content_generate_new}
                   <ChevronDown className="h-3.5 w-3.5 ml-0.5" />
                 </button>
                 {showGenerateDropdown && (
@@ -547,8 +551,8 @@ export default function ContentPage() {
                     >
                       <span>✨</span>
                       <div>
-                        <p className="font-medium text-white">Contenido</p>
-                        <p className="text-xs" style={{ color: "#9ca3af" }}>Carousel, imagen o texto</p>
+                        <p className="font-medium text-white">{t.content_dropdown_content_title}</p>
+                        <p className="text-xs" style={{ color: "#9ca3af" }}>{t.content_dropdown_content_subtitle}</p>
                       </div>
                     </button>
                     <button
@@ -559,8 +563,8 @@ export default function ContentPage() {
                     >
                       <span>📖</span>
                       <div>
-                        <p className="font-medium text-white">Historia</p>
-                        <p className="text-xs" style={{ color: "#9ca3af" }}>Story de 24 horas</p>
+                        <p className="font-medium text-white">{t.content_dropdown_story_title}</p>
+                        <p className="text-xs" style={{ color: "#9ca3af" }}>{t.content_dropdown_story_subtitle}</p>
                       </div>
                     </button>
                     <button
@@ -570,8 +574,8 @@ export default function ContentPage() {
                     >
                       <span>🎬</span>
                       <div>
-                        <p className="font-medium">Reel</p>
-                        <p className="text-xs">Seleccioná un post con imagen</p>
+                        <p className="font-medium">{t.content_dropdown_reel_title}</p>
+                        <p className="text-xs">{t.content_dropdown_reel_subtitle}</p>
                       </div>
                     </button>
                   </div>
@@ -610,12 +614,12 @@ export default function ContentPage() {
           {loadingContent ? (
             <div className="flex items-center justify-center h-40 text-sm" style={{ color: "#9ca3af" }}>
               <Loader2 className="h-5 w-5 animate-spin mr-2" />
-              Loading content...
+              {t.content_loading}
             </div>
           ) : filtered.length === 0 ? (
             <div className="flex flex-col items-center justify-center h-40 gap-3">
               <FileText className="h-10 w-10" style={{ color: "#374151" }} />
-              <p className="text-sm" style={{ color: "#9ca3af" }}>No content found.</p>
+              <p className="text-sm" style={{ color: "#9ca3af" }}>{t.content_empty}</p>
             </div>
           ) : (
             <table className="w-full text-sm">
@@ -626,8 +630,8 @@ export default function ContentPage() {
                   <th className="text-left px-4 py-3 font-medium" style={{ color: "#9ca3af" }}>Status</th>
                   <th className="text-left px-4 py-3 font-medium" style={{ color: "#9ca3af" }}>Created</th>
                   <th className="text-left px-4 py-3 font-medium" style={{ color: "#9ca3af" }}>Video</th>
-                  <th className="text-left px-4 py-3 font-medium" style={{ color: "#9ca3af" }}>Imagen</th>
-                  <th className="text-left px-4 py-3 font-medium" style={{ color: "#9ca3af" }}>Actions</th>
+                  <th className="text-left px-4 py-3 font-medium" style={{ color: "#9ca3af" }}>{t.content_col_image}</th>
+                  <th className="text-left px-4 py-3 font-medium" style={{ color: "#9ca3af" }}>{t.content_col_actions}</th>
                 </tr>
               </thead>
               <tbody>
@@ -681,7 +685,7 @@ export default function ContentPage() {
                                 rel="noopener noreferrer"
                                 className="text-xs text-blue-400 hover:underline"
                               >
-                                Descargar
+                                {t.content_download}
                               </a>
                             </div>
                           );
@@ -691,10 +695,10 @@ export default function ContentPage() {
                             <button
                               onClick={() => setReelPost(post)}
                               className="inline-flex items-center gap-1.5 px-3 py-1.5 bg-violet-700 text-white text-xs font-medium rounded-md hover:bg-violet-600 transition-colors whitespace-nowrap"
-                              title="Agregar Reel a este post"
+                              title={t.reel_modal_title}
                             >
                               <Video className="h-3.5 w-3.5" />
-                              🎬 Generar Reel
+                              🎬 {t.content_generate_reel}
                             </button>
                           );
                         }
@@ -709,7 +713,7 @@ export default function ContentPage() {
                           style={{ border: "1px solid #333333", color: "#9ca3af" }}
                           onMouseEnter={e => { (e.currentTarget as HTMLButtonElement).style.color = "#ffffff"; (e.currentTarget as HTMLButtonElement).style.backgroundColor = "#1a1a1a"; }}
                           onMouseLeave={e => { (e.currentTarget as HTMLButtonElement).style.color = "#9ca3af"; (e.currentTarget as HTMLButtonElement).style.backgroundColor = "transparent"; }}
-                          title="Generar imagen con IA"
+                          title={t.content_generate_image}
                         >
                           {post.image_url ? (
                             <>
@@ -724,7 +728,7 @@ export default function ContentPage() {
                           ) : (
                             <>
                               <Image className="h-3.5 w-3.5" />
-                              Generar imagen
+                              {t.content_generate_image}
                             </>
                           )}
                         </button>
@@ -799,7 +803,7 @@ export default function ContentPage() {
           projectSlug={selectedProjectSlug}
           onClose={() => setReelPost(null)}
           onSuccess={() => {
-            showToast("success", "Reel enviado para aprobación");
+            showToast("success", t.content_toast_reel_sent);
             setReelPost(null);
             loadContent();
           }}
@@ -811,7 +815,7 @@ export default function ContentPage() {
           projectSlug={selectedProjectSlug}
           onClose={() => setShowStoryModal(false)}
           onSuccess={() => {
-            showToast("success", "Historia publicada correctamente");
+            showToast("success", t.content_toast_story_published);
             setShowStoryModal(false);
             loadContent();
           }}
