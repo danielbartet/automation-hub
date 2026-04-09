@@ -14,6 +14,16 @@ export async function fetchProjects() {
   return res.json();
 }
 
+export async function deleteProject(slug: string) {
+  const res = await fetch(`${API_BASE}/api/v1/projects/${slug}`, {
+    method: "DELETE",
+  });
+  if (!res.ok) {
+    const err = await res.json().catch(() => ({}));
+    throw new Error((err as { detail?: string }).detail || "Failed to delete project");
+  }
+}
+
 export async function createProject(data: {
   name: string;
   slug: string;

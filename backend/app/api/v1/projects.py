@@ -100,6 +100,17 @@ async def create_project(data: ProjectCreate, db: AsyncSession = Depends(get_ses
     return project
 
 
+@router.delete("/{slug}", status_code=204)
+async def delete_project(slug: str, db: AsyncSession = Depends(get_session)) -> None:
+    """Delete a project and all its associated data."""
+    result = await db.execute(select(Project).where(Project.slug == slug))
+    project = result.scalar_one_or_none()
+    if not project:
+        raise HTTPException(status_code=404, detail=f"Project '{slug}' not found")
+    await db.delete(project)
+    await db.commit()
+
+
 @router.get("/{slug}", response_model=ProjectResponse)
 async def get_project(slug: str, db: AsyncSession = Depends(get_session)) -> Project:
     """Get a single project by slug."""
