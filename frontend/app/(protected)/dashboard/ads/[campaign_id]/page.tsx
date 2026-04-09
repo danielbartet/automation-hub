@@ -4,6 +4,7 @@ import { useParams, useRouter, useSearchParams } from "next/navigation"
 import { useSession } from "next-auth/react"
 import Link from "next/link"
 import { Header } from "@/components/layout/Header"
+import { useT } from "@/lib/i18n"
 import {
   LineChart,
   Line,
@@ -132,17 +133,7 @@ function fmtDate(iso: string): string {
   }
 }
 
-function relativeTime(iso: string): string {
-  try {
-    const diffMs = Date.now() - new Date(iso).getTime()
-    const diffDays = Math.floor(diffMs / 86400000)
-    if (diffDays === 0) return "hoy"
-    if (diffDays === 1) return "hace 1 día"
-    return `hace ${diffDays} días`
-  } catch {
-    return iso
-  }
-}
+// relativeTime is now built inside the component using t
 
 function filterByDateRange(
   data: CampaignDetail["daily_insights"],
@@ -191,6 +182,7 @@ const DECISION_CLASSES: Record<string, string> = {
 // ─── Page ─────────────────────────────────────────────────────────────────────
 
 export default function CampaignDetailPage() {
+  const t = useT()
   const params = useParams()
   const router = useRouter()
   const searchParams = useSearchParams()
@@ -198,6 +190,18 @@ export default function CampaignDetailPage() {
   const token = (session as { accessToken?: string } | null)?.accessToken ?? ""
   const campaignId = params?.campaign_id as string
   const projectSlug = searchParams?.get("project_slug") ?? ""
+
+  const relativeTime = (iso: string): string => {
+    try {
+      const diffMs = Date.now() - new Date(iso).getTime()
+      const diffDays = Math.floor(diffMs / 86400000)
+      if (diffDays === 0) return "today"
+      if (diffDays === 1) return "1 day ago"
+      return `${diffDays} days ago`
+    } catch {
+      return iso
+    }
+  }
 
   const [detail, setDetail] = useState<CampaignDetail | null>(null)
   // Use local DB id for mutations — campaignId from URL may be a Meta ID (large int
@@ -231,7 +235,7 @@ export default function CampaignDetailPage() {
       setRecommendations(recs)
       setNewBudget(data?.campaign?.daily_budget ?? 0)
     } catch (e) {
-      showToast("Error al cargar campaña")
+      showToast(t.campaign_detail_toast_load_error)
     } finally {
       setLoading(false)
     }
@@ -247,11 +251,11 @@ export default function CampaignDetailPage() {
     setOptimizing(true)
     try {
       const result = await optimizeCampaign(localId)
-      showToast(`Análisis: ${result.decision || "Completado"}`)
+      showToast(t.campaign_detail_toast_analysis(result.decision || ""))
       const fresh = await fetchCampaignDetail(token, campaignId)
       setDetail(fresh)
     } catch {
-      showToast("Error al optimizar")
+      showToast(t.campaign_detail_toast_optimize_error)
     } finally {
       setOptimizing(false)
     }
@@ -263,9 +267,9 @@ export default function CampaignDetailPage() {
       await updateCampaignStatus(localId, status as "active" | "paused")
       const fresh = await fetchCampaignDetail(token, campaignId)
       setDetail(fresh)
-      showToast(`Campaña ${status === "paused" ? "pausada" : "activada"}`)
+      showToast(status === "paused" ? t.campaign_detail_toast_paused : t.campaign_detail_toast_activated)
     } catch {
-      showToast("Error al cambiar estado")
+      showToast(t.campaign_detail_toast_status_error)
     } finally {
       setStatusChanging(false)
     }
@@ -277,9 +281,9 @@ export default function CampaignDetailPage() {
       setBudgetModalOpen(false)
       const fresh = await fetchCampaignDetail(token, campaignId)
       setDetail(fresh)
-      showToast(`Presupuesto actualizado a $${newBudget}/día`)
+      showToast(t.campaign_detail_toast_budget_updated(newBudget))
     } catch {
-      showToast("Error al actualizar presupuesto")
+      showToast(t.campaign_detail_toast_budget_error)
     }
   }
 
@@ -289,9 +293,9 @@ export default function CampaignDetailPage() {
       await approveOptimizerAction(token, log.approval_token)
       const fresh = await fetchCampaignDetail(token, campaignId)
       setDetail(fresh)
-      showToast("Acción aprobada")
+      showToast(t.campaign_detail_toast_approved)
     } catch {
-      showToast("Error al aprobar")
+      showToast(t.campaign_detail_toast_approve_error)
     }
   }
 
@@ -301,9 +305,9 @@ export default function CampaignDetailPage() {
       await rejectOptimizerAction(token, log.approval_token)
       const fresh = await fetchCampaignDetail(token, campaignId)
       setDetail(fresh)
-      showToast("Acción rechazada")
+      showToast(t.campaign_detail_toast_rejected)
     } catch {
-      showToast("Error al rechazar")
+      showToast(t.campaign_detail_toast_reject_error)
     }
   }
 
@@ -317,10 +321,10 @@ export default function CampaignDetailPage() {
     )
     try {
       await approveOptimizerAction(token, rec.approval_token)
-      showToast("Acción aprobada")
+      showToast(t.campaign_detail_toast_approved)
       loadDetail()
     } catch {
-      showToast("Error al aprobar")
+      showToast(t.campaign_detail_toast_approve_error)
       loadDetail()
     }
   }
@@ -335,23 +339,23 @@ export default function CampaignDetailPage() {
     )
     try {
       await rejectOptimizerAction(token, rec.approval_token)
-      showToast("Acción rechazada")
+      showToast(t.campaign_detail_toast_rejected)
       loadDetail()
     } catch {
-      showToast("Error al rechazar")
+      showToast(t.campaign_detail_toast_reject_error)
       loadDetail()
     }
   }
 
   const copyToClipboard = (text: string) => {
-    navigator.clipboard.writeText(text).then(() => showToast("Copiado al portapapeles"))
+    navigator.clipboard.writeText(text).then(() => showToast(t.campaign_detail_toast_copied))
   }
 
   // ── Loading ────────────────────────────────────────────────────────────────
   if (loading) {
     return (
       <div className="min-h-screen text-white">
-        <Header title="Detalle de campaña" />
+        <Header title={t.campaign_detail_title} />
         <div className="flex items-center justify-center py-32">
           <Loader2 className="h-8 w-8 animate-spin text-gray-400" />
         </div>
@@ -362,9 +366,9 @@ export default function CampaignDetailPage() {
   if (!detail) {
     return (
       <div className="min-h-screen text-white">
-        <Header title="Detalle de campaña" />
+        <Header title={t.campaign_detail_title} />
         <div className="flex items-center justify-center py-32">
-          <p className="text-gray-400">No se pudo cargar la campaña.</p>
+          <p className="text-gray-400">{t.campaign_detail_not_found}</p>
         </div>
       </div>
     )
@@ -382,35 +386,35 @@ export default function CampaignDetailPage() {
       <div className="space-y-4">
         {/* Row 1 — main metrics */}
         <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-6 gap-4">
-          <KPICard label="Total Gastado" value={fmt(ins.total_spend)} sub={ins.period} />
-          <KPICard label="Leads" value={ins.leads != null ? String(ins.leads) : String(ins.total_results ?? "—")} sub={ins.result_label} />
-          <KPICard label="Costo / Lead" value={ins.cpl != null ? fmt(ins.cpl) : fmt(ins.cost_per_result)} />
-          <KPICard label="CTR" value={ins.avg_ctr != null ? `${ins.avg_ctr.toFixed(2)}%` : "—"} />
-          <KPICard label="Frecuencia" value={ins.avg_frequency != null ? ins.avg_frequency.toFixed(2) : "—"} />
-          <KPICard label="Alcance" value={ins.total_reach != null ? ins.total_reach.toLocaleString() : "—"} />
+          <KPICard label={t.campaign_detail_kpi_total_spent} value={fmt(ins.total_spend)} sub={ins.period} />
+          <KPICard label={t.campaign_detail_kpi_leads} value={ins.leads != null ? String(ins.leads) : String(ins.total_results ?? "—")} sub={ins.result_label} />
+          <KPICard label={t.campaign_detail_kpi_cost_lead} value={ins.cpl != null ? fmt(ins.cpl) : fmt(ins.cost_per_result)} />
+          <KPICard label={t.campaign_detail_kpi_ctr} value={ins.avg_ctr != null ? `${ins.avg_ctr.toFixed(2)}%` : "—"} />
+          <KPICard label={t.campaign_detail_kpi_frequency} value={ins.avg_frequency != null ? ins.avg_frequency.toFixed(2) : "—"} />
+          <KPICard label={t.campaign_detail_kpi_reach} value={ins.total_reach != null ? ins.total_reach.toLocaleString() : "—"} />
         </div>
         {/* Row 2 — funnel (only if data exists) */}
         {(ins.landing_page_views != null || ins.click_to_lead_rate != null || ins.landing_page_conversion_rate != null || ins.cpc_derived != null) && (
           <div>
-            <p className="text-gray-500 text-xs mb-2 uppercase tracking-wider">Embudo</p>
+            <p className="text-gray-500 text-xs mb-2 uppercase tracking-wider">{t.campaign_detail_section_funnel}</p>
             <div className="grid grid-cols-2 sm:grid-cols-4 gap-4">
               {ins.landing_page_views != null && (
-                <KPICard label="Visitas a Landing" value={ins.landing_page_views.toLocaleString()} />
+                <KPICard label={t.campaign_detail_kpi_landing_views} value={ins.landing_page_views.toLocaleString()} />
               )}
               {ins.click_to_lead_rate != null && (
-                <KPICard label="Click → Lead" value={`${ins.click_to_lead_rate.toFixed(1)}%`} sub="% de clicks que se convierten en lead" />
+                <KPICard label={t.campaign_detail_kpi_click_to_lead} value={`${ins.click_to_lead_rate.toFixed(1)}%`} sub={t.campaign_detail_kpi_click_to_lead_sub} />
               )}
               {ins.landing_page_conversion_rate != null && (
-                <KPICard label="Conv. Landing" value={`${ins.landing_page_conversion_rate.toFixed(1)}%`} sub="% de visitas que generan un lead" />
+                <KPICard label={t.campaign_detail_kpi_conv_landing} value={`${ins.landing_page_conversion_rate.toFixed(1)}%`} sub={t.campaign_detail_kpi_conv_landing_sub} />
               )}
               {ins.cpc_derived != null && (
-                <KPICard label="CPC (link)" value={fmt(ins.cpc_derived)} />
+                <KPICard label={t.campaign_detail_kpi_cpc_link} value={fmt(ins.cpc_derived)} />
               )}
               {ins.hook_rate != null && (
-                <KPICard label="Hook Rate" value={`${ins.hook_rate.toFixed(1)}%`} sub="% de impresiones que llegan a la landing" />
+                <KPICard label={t.campaign_detail_kpi_hook_rate} value={`${ins.hook_rate.toFixed(1)}%`} sub={t.campaign_detail_kpi_hook_rate_sub} />
               )}
               {ins.cost_per_landing_page_view != null && (
-                <KPICard label="Costo / Vista LP" value={fmt(ins.cost_per_landing_page_view)} />
+                <KPICard label={t.campaign_detail_kpi_cost_landing} value={fmt(ins.cost_per_landing_page_view)} />
               )}
             </div>
           </div>
@@ -418,13 +422,13 @@ export default function CampaignDetailPage() {
         {/* Row 3 — engagement (only if any > 0) */}
         {hasEngagement && (
           <div>
-            <p className="text-gray-500 text-xs mb-2 uppercase tracking-wider">Engagement</p>
+            <p className="text-gray-500 text-xs mb-2 uppercase tracking-wider">{t.campaign_detail_section_engagement}</p>
             <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-5 gap-4">
-              {ins.post_reactions != null && <KPICard label="Reacciones" value={ins.post_reactions.toLocaleString()} />}
-              {ins.comments != null && <KPICard label="Comentarios" value={ins.comments.toLocaleString()} />}
-              {ins.post_saves != null && <KPICard label="Guardados" value={ins.post_saves.toLocaleString()} />}
-              {ins.video_views != null && <KPICard label="Views de Video" value={ins.video_views.toLocaleString()} />}
-              {ins.page_engagement != null && <KPICard label="Page Engagement" value={ins.page_engagement.toLocaleString()} />}
+              {ins.post_reactions != null && <KPICard label={t.campaign_detail_kpi_reactions} value={ins.post_reactions.toLocaleString()} />}
+              {ins.comments != null && <KPICard label={t.campaign_detail_kpi_comments} value={ins.comments.toLocaleString()} />}
+              {ins.post_saves != null && <KPICard label={t.campaign_detail_kpi_saves} value={ins.post_saves.toLocaleString()} />}
+              {ins.video_views != null && <KPICard label={t.campaign_detail_kpi_video_views} value={ins.video_views.toLocaleString()} />}
+              {ins.page_engagement != null && <KPICard label={t.campaign_detail_kpi_page_engagement} value={ins.page_engagement.toLocaleString()} />}
             </div>
           </div>
         )}
@@ -435,32 +439,32 @@ export default function CampaignDetailPage() {
       <div className="space-y-4">
         {/* Row 1 */}
         <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-6 gap-4">
-          <KPICard label="Total Gastado" value={fmt(ins.total_spend)} sub={ins.period} />
-          <KPICard label="ROAS" value={ins.roas != null ? `${ins.roas.toFixed(2)}x` : "—"} sub="Retorno sobre inversión publicitaria" />
-          <KPICard label="Compras" value={ins.purchases != null ? String(ins.purchases) : String(ins.total_results ?? "—")} sub={ins.result_label} />
-          <KPICard label="CPA" value={ins.cost_per_purchase != null ? fmt(ins.cost_per_purchase) : fmt(ins.cost_per_result)} />
-          <KPICard label="CTR" value={ins.avg_ctr != null ? `${ins.avg_ctr.toFixed(2)}%` : "—"} />
-          <KPICard label="Frecuencia" value={ins.avg_frequency != null ? ins.avg_frequency.toFixed(2) : "—"} />
+          <KPICard label={t.campaign_detail_kpi_total_spent} value={fmt(ins.total_spend)} sub={ins.period} />
+          <KPICard label={t.campaign_detail_kpi_roas} value={ins.roas != null ? `${ins.roas.toFixed(2)}x` : "—"} sub={t.campaign_detail_kpi_roas_sub} />
+          <KPICard label={t.campaign_detail_kpi_purchases} value={ins.purchases != null ? String(ins.purchases) : String(ins.total_results ?? "—")} sub={ins.result_label} />
+          <KPICard label={t.campaign_detail_kpi_cpa} value={ins.cost_per_purchase != null ? fmt(ins.cost_per_purchase) : fmt(ins.cost_per_result)} />
+          <KPICard label={t.campaign_detail_kpi_ctr} value={ins.avg_ctr != null ? `${ins.avg_ctr.toFixed(2)}%` : "—"} />
+          <KPICard label={t.campaign_detail_kpi_frequency} value={ins.avg_frequency != null ? ins.avg_frequency.toFixed(2) : "—"} />
         </div>
         {/* Row 2 */}
         <div className="grid grid-cols-2 sm:grid-cols-4 gap-4">
-          {ins.revenue != null && <KPICard label="Revenue" value={fmt(ins.revenue)} />}
-          {ins.cpl != null && <KPICard label="CPL" value={fmt(ins.cpl)} />}
-          {ins.landing_page_views != null && <KPICard label="Visitas a Landing" value={ins.landing_page_views.toLocaleString()} />}
+          {ins.revenue != null && <KPICard label={t.campaign_detail_kpi_revenue} value={fmt(ins.revenue)} />}
+          {ins.cpl != null && <KPICard label={t.campaign_detail_kpi_cpl} value={fmt(ins.cpl)} />}
+          {ins.landing_page_views != null && <KPICard label={t.campaign_detail_kpi_landing_views} value={ins.landing_page_views.toLocaleString()} />}
           {ins.click_to_lead_rate != null && (
-            <KPICard label="Click → Compra" value={`${ins.click_to_lead_rate.toFixed(1)}%`} sub="% de clicks que se convierten en compra" />
+            <KPICard label={t.campaign_detail_kpi_click_to_purchase} value={`${ins.click_to_lead_rate.toFixed(1)}%`} sub={t.campaign_detail_kpi_click_to_purchase_sub} />
           )}
         </div>
         {/* Row 3 — engagement */}
         {hasEngagement && (
           <div>
-            <p className="text-gray-500 text-xs mb-2 uppercase tracking-wider">Engagement</p>
+            <p className="text-gray-500 text-xs mb-2 uppercase tracking-wider">{t.campaign_detail_section_engagement}</p>
             <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-5 gap-4">
-              {ins.post_reactions != null && <KPICard label="Reacciones" value={ins.post_reactions.toLocaleString()} />}
-              {ins.comments != null && <KPICard label="Comentarios" value={ins.comments.toLocaleString()} />}
-              {ins.post_saves != null && <KPICard label="Guardados" value={ins.post_saves.toLocaleString()} />}
-              {ins.video_views != null && <KPICard label="Views de Video" value={ins.video_views.toLocaleString()} />}
-              {ins.page_engagement != null && <KPICard label="Page Engagement" value={ins.page_engagement.toLocaleString()} />}
+              {ins.post_reactions != null && <KPICard label={t.campaign_detail_kpi_reactions} value={ins.post_reactions.toLocaleString()} />}
+              {ins.comments != null && <KPICard label={t.campaign_detail_kpi_comments} value={ins.comments.toLocaleString()} />}
+              {ins.post_saves != null && <KPICard label={t.campaign_detail_kpi_saves} value={ins.post_saves.toLocaleString()} />}
+              {ins.video_views != null && <KPICard label={t.campaign_detail_kpi_video_views} value={ins.video_views.toLocaleString()} />}
+              {ins.page_engagement != null && <KPICard label={t.campaign_detail_kpi_page_engagement} value={ins.page_engagement.toLocaleString()} />}
             </div>
           </div>
         )}
@@ -472,20 +476,20 @@ export default function CampaignDetailPage() {
       <div className="space-y-4">
         {/* Row 1 */}
         <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-6 gap-4">
-          <KPICard label="Total Gastado" value={fmt(ins.total_spend)} sub={ins.period} />
-          <KPICard label="Clicks" value={ins.link_clicks != null ? ins.link_clicks.toLocaleString() : ins.total_clicks != null ? ins.total_clicks.toLocaleString() : "—"} />
-          <KPICard label="CPC" value={ins.cpc_derived != null ? fmt(ins.cpc_derived) : fmt(ins.avg_cpc)} />
-          <KPICard label="CTR" value={ins.avg_ctr != null ? `${ins.avg_ctr.toFixed(2)}%` : "—"} />
-          <KPICard label="Alcance" value={ins.total_reach != null ? ins.total_reach.toLocaleString() : "—"} />
-          <KPICard label="CPM" value={fmt(ins.avg_cpm)} />
+          <KPICard label={t.campaign_detail_kpi_total_spent} value={fmt(ins.total_spend)} sub={ins.period} />
+          <KPICard label={t.campaign_detail_kpi_clicks} value={ins.link_clicks != null ? ins.link_clicks.toLocaleString() : ins.total_clicks != null ? ins.total_clicks.toLocaleString() : "—"} />
+          <KPICard label={t.campaign_detail_kpi_cpc} value={ins.cpc_derived != null ? fmt(ins.cpc_derived) : fmt(ins.avg_cpc)} />
+          <KPICard label={t.campaign_detail_kpi_ctr} value={ins.avg_ctr != null ? `${ins.avg_ctr.toFixed(2)}%` : "—"} />
+          <KPICard label={t.campaign_detail_kpi_reach} value={ins.total_reach != null ? ins.total_reach.toLocaleString() : "—"} />
+          <KPICard label={t.campaign_detail_kpi_cpm} value={fmt(ins.avg_cpm)} />
         </div>
         {/* Row 2 */}
         <div className="grid grid-cols-2 sm:grid-cols-4 gap-4">
-          {ins.landing_page_views != null && <KPICard label="Visitas a Landing" value={ins.landing_page_views.toLocaleString()} />}
-          {ins.hook_rate != null && <KPICard label="Hook Rate" value={`${ins.hook_rate.toFixed(1)}%`} sub="% de impresiones que llegan a la landing" />}
-          {ins.post_reactions != null && <KPICard label="Reacciones" value={ins.post_reactions.toLocaleString()} />}
-          {ins.post_saves != null && <KPICard label="Guardados" value={ins.post_saves.toLocaleString()} />}
-          {ins.video_views != null && <KPICard label="Views de Video" value={ins.video_views.toLocaleString()} />}
+          {ins.landing_page_views != null && <KPICard label={t.campaign_detail_kpi_landing_views} value={ins.landing_page_views.toLocaleString()} />}
+          {ins.hook_rate != null && <KPICard label={t.campaign_detail_kpi_hook_rate} value={`${ins.hook_rate.toFixed(1)}%`} sub={t.campaign_detail_kpi_hook_rate_sub} />}
+          {ins.post_reactions != null && <KPICard label={t.campaign_detail_kpi_reactions} value={ins.post_reactions.toLocaleString()} />}
+          {ins.post_saves != null && <KPICard label={t.campaign_detail_kpi_saves} value={ins.post_saves.toLocaleString()} />}
+          {ins.video_views != null && <KPICard label={t.campaign_detail_kpi_video_views} value={ins.video_views.toLocaleString()} />}
         </div>
       </div>
     )
@@ -502,17 +506,17 @@ export default function CampaignDetailPage() {
   const metricKey =
     chartMetric === "ctr" ? "ctrPct" : chartMetric === "cpc" ? "cpc" : "frequency"
   const metricLabel =
-    chartMetric === "ctr" ? "CTR %" : chartMetric === "cpc" ? "CPC $" : "Frecuencia"
+    chartMetric === "ctr" ? "CTR %" : chartMetric === "cpc" ? "CPC $" : t.campaign_detail_chart_frequency
 
   return (
     <div className="min-h-screen text-white">
-      <Header title="Detalle de campaña" />
+      <Header title={t.campaign_detail_title} />
       <div className="p-6 space-y-6 max-w-[1400px] mx-auto">
 
-        {/* ── RECOMENDACIONES ACTIVAS ─────────────────────────────────────── */}
+        {/* ── ACTIVE RECOMMENDATIONS ──────────────────────────────────────── */}
         {recommendations?.has_pending && recommendations.recommendations.length > 0 && (
           <div className="space-y-3">
-            <h2 className="text-white font-semibold text-base">Recomendaciones activas</h2>
+            <h2 className="text-white font-semibold text-base">{t.campaign_detail_active_recs}</h2>
             {recommendations.recommendations.map((rec) => {
               const isScale = rec.type === "optimizer_scale"
               const isPause = rec.type === "optimizer_pause"
@@ -525,10 +529,10 @@ export default function CampaignDetailPage() {
                 : "text-yellow-400"
 
               const headerLabel = isScale
-                ? "SCALE RECOMENDADO"
+                ? t.campaign_detail_rec_scale
                 : isPause
-                ? "PAUSE RECOMENDADO"
-                : "CREATIVO FATIGADO"
+                ? t.campaign_detail_rec_pause
+                : t.campaign_detail_rec_fatigued
 
               const borderColor = isScale
                 ? "#166534"
@@ -563,10 +567,10 @@ export default function CampaignDetailPage() {
                   {/* Budget info (SCALE) */}
                   {isScale && rec.budget_current != null && rec.budget_proposed != null && (
                     <div className="text-sm">
-                      <span className="text-gray-400">Presupuesto actual: </span>
-                      <span className="text-white font-medium">${rec.budget_current.toFixed(2)}/día</span>
-                      <span className="text-gray-400"> → Propuesto: </span>
-                      <span className="text-green-400 font-medium">${rec.budget_proposed.toFixed(2)}/día</span>
+                      <span className="text-gray-400">{t.campaign_detail_rec_current_budget} </span>
+                      <span className="text-white font-medium">{t.campaign_detail_per_day(rec.budget_current)}</span>
+                      <span className="text-gray-400"> {t.campaign_detail_rec_proposed_budget} </span>
+                      <span className="text-green-400 font-medium">{t.campaign_detail_per_day(rec.budget_proposed)}</span>
                       {rec.budget_current > 0 && (
                         <span className="text-green-500 text-xs ml-1">
                           (+{(((rec.budget_proposed - rec.budget_current) / rec.budget_current) * 100).toFixed(0)}%)
@@ -577,43 +581,43 @@ export default function CampaignDetailPage() {
 
                   {/* Warning (PAUSE) */}
                   {isPause && (
-                    <p className="text-orange-300 text-xs">Esta acción pausará la campaña en Meta Ads.</p>
+                    <p className="text-orange-300 text-xs">{t.campaign_detail_rec_pause_warning}</p>
                   )}
 
                   {/* Metrics */}
                   {m && Object.keys(m).length > 0 && (
                     <div className="rounded-lg p-3 space-y-1" style={{ backgroundColor: "#0a0a0a" }}>
                       <p className="text-gray-400 text-xs font-medium mb-2">
-                        {isFatigued ? "Métricas de fatiga:" : "Métricas (últimos 7d):"}
+                        {isFatigued ? t.campaign_detail_rec_fatigue_metrics : t.campaign_detail_rec_metrics_7d}
                       </p>
                       {isFatigued ? (
                         <div className="flex flex-wrap gap-x-4 gap-y-1 text-xs text-gray-300">
                           {m.ctr_current != null && (
                             <span>
-                              CTR actual: <span className="text-white">{m.ctr_current.toFixed(2)}%</span>
+                              {t.campaign_detail_rec_ctr_label} <span className="text-white">{m.ctr_current.toFixed(2)}%</span>
                               {m.ctr_7d_ago != null && (
-                                <span className="text-gray-500"> (era {m.ctr_7d_ago.toFixed(2)}%</span>
+                                <span className="text-gray-500"> ({t.campaign_detail_rec_ctr_was(m.ctr_7d_ago)}</span>
                               )}
                               {m.ctr_drop_pct != null && (
-                                <span className="text-red-400">, cayó {m.ctr_drop_pct.toFixed(1)}%)</span>
+                                <span className="text-red-400">{t.campaign_detail_rec_dropped(m.ctr_drop_pct)}</span>
                               )}
                             </span>
                           )}
                           {m.frequency != null && (
-                            <span>Frecuencia: <span className="text-white">{m.frequency.toFixed(1)}</span></span>
+                            <span>{t.campaign_detail_rec_freq_label} <span className="text-white">{m.frequency.toFixed(1)}</span></span>
                           )}
                           {m.cost_per_result != null && (
-                            <span>Costo/resultado: <span className="text-white">${m.cost_per_result.toFixed(2)}</span></span>
+                            <span>{t.campaign_detail_rec_cost_result} <span className="text-white">${m.cost_per_result.toFixed(2)}</span></span>
                           )}
                         </div>
                       ) : (
                         <div className="flex flex-wrap gap-x-4 gap-y-1 text-xs text-gray-300">
-                          {m.ctr != null && <span>CTR: <span className="text-white">{m.ctr.toFixed(2)}%</span></span>}
-                          {m.cpl != null && <span>CPL: <span className="text-white">${m.cpl.toFixed(2)}</span></span>}
-                          {m.frequency != null && <span>Frecuencia: <span className="text-white">{m.frequency.toFixed(1)}</span></span>}
-                          {m.spend != null && <span>Gasto: <span className="text-white">${m.spend.toFixed(2)}</span></span>}
-                          {m.days_running != null && <span>Días activa: <span className="text-white">{m.days_running}</span></span>}
-                          {m.impressions != null && <span>Impresiones: <span className="text-white">{m.impressions.toLocaleString()}</span></span>}
+                          {m.ctr != null && <span>{t.campaign_detail_rec_ctr_label} <span className="text-white">{m.ctr.toFixed(2)}%</span></span>}
+                          {m.cpl != null && <span>{t.campaign_detail_rec_cpl_label} <span className="text-white">${m.cpl.toFixed(2)}</span></span>}
+                          {m.frequency != null && <span>{t.campaign_detail_rec_freq_label} <span className="text-white">{m.frequency.toFixed(1)}</span></span>}
+                          {m.spend != null && <span>{t.campaign_detail_rec_spend_label} <span className="text-white">${m.spend.toFixed(2)}</span></span>}
+                          {m.days_running != null && <span>{t.campaign_detail_rec_days_running} <span className="text-white">{m.days_running}</span></span>}
+                          {m.impressions != null && <span>{t.campaign_detail_rec_impressions} <span className="text-white">{m.impressions.toLocaleString()}</span></span>}
                         </div>
                       )}
                     </div>
@@ -622,27 +626,27 @@ export default function CampaignDetailPage() {
                   {/* Creative brief (FATIGUED) */}
                   {isFatigued && brief && (
                     <div className="rounded-lg p-3 space-y-2" style={{ backgroundColor: "#0a0a0a", border: "1px solid #1a1a1a" }}>
-                      <p className="text-yellow-400 text-xs font-medium">Brief de reemplazo:</p>
+                      <p className="text-yellow-400 text-xs font-medium">{t.campaign_detail_rec_brief_title}</p>
                       {brief.angle && (
                         <p className="text-xs text-gray-300">
-                          <span className="text-gray-500">Ángulo: </span>{brief.angle}
+                          <span className="text-gray-500">{t.campaign_detail_rec_angle} </span>{brief.angle}
                         </p>
                       )}
                       {brief.replacement_persona && (
                         <p className="text-xs text-gray-300">
-                          <span className="text-gray-500">Persona: </span>{brief.replacement_persona}
+                          <span className="text-gray-500">{t.campaign_detail_rec_persona} </span>{brief.replacement_persona}
                         </p>
                       )}
                       {brief.suggested_hook && (
                         <div className="flex items-start gap-2">
                           <p className="text-xs text-gray-300 flex-1">
-                            <span className="text-gray-500">Hook: </span>
+                            <span className="text-gray-500">{t.campaign_detail_rec_hook} </span>
                             <span className="italic">"{brief.suggested_hook}"</span>
                           </p>
                           <button
                             onClick={() => copyToClipboard(brief.suggested_hook!)}
                             className="flex-shrink-0 p-1 rounded hover:bg-gray-700 text-gray-400 hover:text-white"
-                            title="Copiar hook"
+                            title={t.campaign_detail_rec_hook}
                           >
                             <Copy className="h-3 w-3" />
                           </button>
@@ -651,13 +655,13 @@ export default function CampaignDetailPage() {
                       {brief.suggested_body && (
                         <div className="flex items-start gap-2">
                           <p className="text-xs text-gray-300 flex-1">
-                            <span className="text-gray-500">Copy: </span>
+                            <span className="text-gray-500">{t.campaign_detail_rec_copy} </span>
                             <span className="italic">"{brief.suggested_body}"</span>
                           </p>
                           <button
                             onClick={() => copyToClipboard(brief.suggested_body!)}
                             className="flex-shrink-0 p-1 rounded hover:bg-gray-700 text-gray-400 hover:text-white"
-                            title="Copiar copy"
+                            title={t.campaign_detail_rec_copy}
                           >
                             <Copy className="h-3 w-3" />
                           </button>
@@ -665,17 +669,17 @@ export default function CampaignDetailPage() {
                       )}
                       {brief.visual_direction && (
                         <p className="text-xs text-gray-300">
-                          <span className="text-gray-500">Visual: </span>{brief.visual_direction}
+                          <span className="text-gray-500">{t.campaign_detail_rec_visual} </span>{brief.visual_direction}
                         </p>
                       )}
                       {brief.what_to_avoid && (
                         <p className="text-xs text-gray-300">
-                          <span className="text-gray-500">Evitar: </span>{brief.what_to_avoid}
+                          <span className="text-gray-500">{t.campaign_detail_rec_avoid} </span>{brief.what_to_avoid}
                         </p>
                       )}
                       {(brief.urgency_level || brief.urgency_reason) && (
                         <p className="text-xs text-yellow-300">
-                          Urgencia: <span className="font-semibold">{brief.urgency_level ?? ""}</span>
+                          {t.campaign_detail_rec_urgency} <span className="font-semibold">{brief.urgency_level ?? ""}</span>
                           {brief.urgency_reason && <span className="text-gray-400"> — {brief.urgency_reason}</span>}
                         </p>
                       )}
@@ -692,7 +696,7 @@ export default function CampaignDetailPage() {
                         onMouseEnter={e => (e.currentTarget.style.opacity = "0.85")}
                         onMouseLeave={e => (e.currentTarget.style.opacity = "1")}
                       >
-                        Confirmar {isScale ? "SCALE" : "PAUSE"}
+                        {isScale ? t.campaign_detail_confirm_scale : t.campaign_detail_confirm_pause}
                       </button>
                       <button
                         onClick={() => handleRecommendationReject(rec)}
@@ -701,7 +705,7 @@ export default function CampaignDetailPage() {
                         onMouseEnter={e => (e.currentTarget.style.backgroundColor = "#333333")}
                         onMouseLeave={e => (e.currentTarget.style.backgroundColor = "#1a1a1a")}
                       >
-                        Rechazar
+                        {t.campaign_detail_reject}
                       </button>
                     </div>
                   )}
@@ -718,7 +722,7 @@ export default function CampaignDetailPage() {
               href="/dashboard/ads"
               className="text-gray-400 hover:text-white flex items-center gap-1 text-sm"
             >
-              ← Campañas
+              {t.campaign_detail_back}
             </Link>
             <h1 className="text-2xl font-bold text-white">{detail.campaign.name}</h1>
             <span
@@ -735,7 +739,7 @@ export default function CampaignDetailPage() {
             </span>
             {detail.campaign.daily_budget > 0 && (
               <span className="px-2 py-1 rounded text-xs font-semibold bg-[#1a1a1a] text-gray-300">
-                ${detail.campaign.daily_budget.toFixed(2)}/día
+                {t.campaign_detail_per_day(detail.campaign.daily_budget)}
               </span>
             )}
             <span
@@ -746,7 +750,7 @@ export default function CampaignDetailPage() {
                   : "bg-orange-900 text-orange-300"
               }`}
             >
-              Andromeda: {detail.andromeda_status}
+              {t.campaign_detail_andromeda} {detail.andromeda_status}
             </span>
           </div>
 
@@ -756,7 +760,7 @@ export default function CampaignDetailPage() {
               disabled={optimizing}
               className="px-3 py-1.5 bg-purple-700 hover:bg-purple-600 disabled:opacity-50 text-white text-sm rounded"
             >
-              {optimizing ? "Analizando..." : "Optimizar ahora"}
+              {optimizing ? t.campaign_detail_optimizing : t.campaign_detail_optimize_btn}
             </button>
             {detail.campaign.status === "ACTIVE" ? (
               <button
@@ -768,7 +772,7 @@ export default function CampaignDetailPage() {
                 {statusChanging ? (
                   <Loader2 className="h-3.5 w-3.5 animate-spin" />
                 ) : null}
-                Pausar campaña
+                {t.campaign_detail_pause_btn}
               </button>
             ) : (
               <button
@@ -780,14 +784,14 @@ export default function CampaignDetailPage() {
                 {statusChanging ? (
                   <Loader2 className="h-3.5 w-3.5 animate-spin" />
                 ) : null}
-                Activar campaña
+                {t.campaign_detail_activate_btn}
               </button>
             )}
             <button
               onClick={() => setBudgetModalOpen(true)}
               className="px-3 py-1.5 bg-blue-700 hover:bg-blue-600 text-white text-sm rounded"
             >
-              Presupuesto
+              {t.campaign_detail_budget_btn}
             </button>
           </div>
         </div>
@@ -798,7 +802,7 @@ export default function CampaignDetailPage() {
         {/* ── DATE RANGE + CHARTS ─────────────────────────────────────────── */}
         <div>
           <div className="flex items-center gap-2 mb-4">
-            <span className="text-gray-400 text-sm">Período:</span>
+            <span className="text-gray-400 text-sm">{t.campaign_detail_period}</span>
             {(["last_7d", "last_30d", "this_month"] as const).map((r) => (
               <button
                 key={r}
@@ -810,17 +814,17 @@ export default function CampaignDetailPage() {
                 }`}
                 style={{ backgroundColor: dateRange === r ? "#333333" : "#111111" }}
               >
-                {r === "last_7d" ? "7 días" : r === "last_30d" ? "30 días" : "Este mes"}
+                {r === "last_7d" ? t.campaign_detail_range_7d : r === "last_30d" ? t.campaign_detail_range_30d : t.campaign_detail_range_month}
               </button>
             ))}
           </div>
 
           <div className="grid grid-cols-1 lg:grid-cols-2 gap-4">
-            {/* Left — Gasto diario */}
+            {/* Left — Daily Spend */}
             <div className="rounded-lg p-4" style={{ backgroundColor: "#111111", border: "1px solid #222222" }}>
-              <h3 className="text-white font-semibold mb-4 text-sm">Gasto diario</h3>
+              <h3 className="text-white font-semibold mb-4 text-sm">{t.campaign_detail_chart_daily_spend}</h3>
               {chartData.length === 0 ? (
-                <p className="text-gray-500 text-sm text-center py-10">Sin datos</p>
+                <p className="text-gray-500 text-sm text-center py-10">{t.campaign_detail_no_data}</p>
               ) : (
                 <ResponsiveContainer width="100%" height={220}>
                   <LineChart data={chartData}>
@@ -832,7 +836,7 @@ export default function CampaignDetailPage() {
                     />
                     <Tooltip
                       contentStyle={{ backgroundColor: "#1f2937", border: "1px solid #374151", color: "#fff" }}
-                      formatter={(v: number) => [`$${v.toFixed(2)}`, "Gasto"]}
+                      formatter={(v: number) => [`$${v.toFixed(2)}`, t.campaign_detail_chart_spend_label]}
                     />
                     <Line
                       type="monotone"
@@ -846,10 +850,10 @@ export default function CampaignDetailPage() {
               )}
             </div>
 
-            {/* Right — Rendimiento diario */}
+            {/* Right — Daily Performance */}
             <div className="rounded-lg p-4" style={{ backgroundColor: "#111111", border: "1px solid #222222" }}>
               <div className="flex items-center justify-between mb-4">
-                <h3 className="text-white font-semibold text-sm">Rendimiento diario</h3>
+                <h3 className="text-white font-semibold text-sm">{t.campaign_detail_chart_daily_perf}</h3>
                 <div className="flex gap-1">
                   {(["ctr", "cpc", "frequency"] as const).map((m) => (
                     <button
@@ -862,13 +866,13 @@ export default function CampaignDetailPage() {
                       }`}
                       style={chartMetric !== m ? { backgroundColor: "#1a1a1a" } : undefined}
                     >
-                      {m === "ctr" ? "CTR" : m === "cpc" ? "CPC" : "Frecuencia"}
+                      {m === "ctr" ? "CTR" : m === "cpc" ? "CPC" : t.campaign_detail_chart_frequency}
                     </button>
                   ))}
                 </div>
               </div>
               {chartData.length === 0 ? (
-                <p className="text-gray-500 text-sm text-center py-10">Sin datos</p>
+                <p className="text-gray-500 text-sm text-center py-10">{t.campaign_detail_no_data}</p>
               ) : (
                 <ResponsiveContainer width="100%" height={220}>
                   <BarChart data={chartData}>
@@ -892,7 +896,7 @@ export default function CampaignDetailPage() {
                       yAxisId="right"
                       type="monotone"
                       dataKey="results"
-                      name="Resultados"
+                      name={t.campaign_detail_chart_results}
                       stroke="#10b981"
                       strokeWidth={2}
                       dot={false}
@@ -909,16 +913,16 @@ export default function CampaignDetailPage() {
 
           {/* Ad Sets */}
           <div className="rounded-lg p-4" style={{ backgroundColor: "#111111", border: "1px solid #222222" }}>
-            <h3 className="text-white font-semibold mb-4 text-sm">Ad Sets</h3>
+            <h3 className="text-white font-semibold mb-4 text-sm">{t.campaign_detail_adsets_title}</h3>
             {detail.adsets.length === 0 ? (
-              <p className="text-gray-500 text-sm">Sin datos</p>
+              <p className="text-gray-500 text-sm">{t.campaign_detail_no_data}</p>
             ) : (
               <table className="w-full text-sm">
                 <thead>
                   <tr className="text-gray-400 text-xs" style={{ borderBottom: "1px solid #222222" }}>
-                    <th className="pb-2 text-left font-normal">Nombre</th>
-                    <th className="pb-2 text-left font-normal">Status</th>
-                    <th className="pb-2 text-right font-normal">Budget/día</th>
+                    <th className="pb-2 text-left font-normal">{t.campaign_detail_adsets_col_name}</th>
+                    <th className="pb-2 text-left font-normal">{t.campaign_detail_adsets_col_status}</th>
+                    <th className="pb-2 text-right font-normal">{t.campaign_detail_adsets_col_budget}</th>
                   </tr>
                 </thead>
                 <tbody>
@@ -945,7 +949,7 @@ export default function CampaignDetailPage() {
                         {adset.budget_display === "CBO" ? (
                           <span className="px-1.5 py-0.5 rounded text-gray-300 text-xs font-medium" style={{ backgroundColor: "#333333" }}>CBO</span>
                         ) : adset.daily_budget > 0 ? (
-                          <span className="text-gray-300">${adset.daily_budget.toFixed(2)}/día</span>
+                          <span className="text-gray-300">{t.campaign_detail_per_day(adset.daily_budget)}</span>
                         ) : (
                           <span className="text-gray-500">—</span>
                         )}
@@ -957,11 +961,11 @@ export default function CampaignDetailPage() {
             )}
           </div>
 
-          {/* Ads — Creativos activos */}
+          {/* Ads — Active Creatives */}
           <div className="rounded-lg p-4" style={{ backgroundColor: "#111111", border: "1px solid #222222" }}>
-            <h3 className="text-white font-semibold mb-4 text-sm">Creativos activos</h3>
+            <h3 className="text-white font-semibold mb-4 text-sm">{t.campaign_detail_creatives_title}</h3>
             {detail.ads.length === 0 ? (
-              <p className="text-gray-500 text-sm">Sin datos</p>
+              <p className="text-gray-500 text-sm">{t.campaign_detail_no_data}</p>
             ) : (
               <div className="space-y-3">
                 {detail.ads.map((ad) => {
@@ -969,10 +973,10 @@ export default function CampaignDetailPage() {
                   const daysRunning = (Date.now() - new Date(detail.campaign.created_at).getTime()) / 86400000
                   const adHealth =
                     daysRunning < 7
-                      ? { label: "Nuevo", cls: "bg-blue-900 text-blue-300" }
+                      ? { label: t.campaign_detail_creative_new, cls: "bg-blue-900 text-blue-300" }
                       : detail.andromeda_status === "fatigued"
-                      ? { label: "Fatigado", cls: "bg-orange-900 text-orange-300" }
-                      : { label: "Saludable", cls: "bg-emerald-900 text-emerald-300" }
+                      ? { label: t.campaign_detail_creative_fatigued, cls: "bg-orange-900 text-orange-300" }
+                      : { label: t.campaign_detail_creative_healthy, cls: "bg-emerald-900 text-emerald-300" }
 
                   // Check if there's a creative_brief in the latest MODIFY/fatigue log
                   const hasBrief = detail.andromeda_status === "fatigued"
@@ -991,7 +995,7 @@ export default function CampaignDetailPage() {
                         />
                       ) : (
                         <div className="w-12 h-12 rounded flex items-center justify-center flex-shrink-0" style={{ backgroundColor: "#1a1a1a" }}>
-                          <span className="text-gray-500 text-xs">Sin img</span>
+                          <span className="text-gray-500 text-xs">{t.campaign_detail_creative_no_img}</span>
                         </div>
                       )}
                       <div className="flex-1 min-w-0">
@@ -1018,14 +1022,14 @@ export default function CampaignDetailPage() {
                         <div className="flex flex-wrap gap-x-3 mt-1.5 text-[10px] text-gray-500">
                           <span>CTR: {ins.avg_ctr?.toFixed(2) ?? "—"}%</span>
                           <span>Freq: {ins.avg_frequency?.toFixed(1) ?? "—"}</span>
-                          <span>{Math.floor(daysRunning)}d corriendo</span>
+                          <span>{t.campaign_detail_creative_running(Math.floor(daysRunning))}</span>
                         </div>
                         {hasBrief && (
                           <button
-                            onClick={() => showToast("Abrí el panel de notificaciones para ver el brief completo.")}
+                            onClick={() => showToast(t.campaign_detail_brief_notification_hint)}
                             className="mt-1.5 text-[10px] text-orange-400 hover:text-orange-300 transition-colors"
                           >
-                            Ver brief →
+                            {t.campaign_detail_creative_view_brief}
                           </button>
                         )}
                       </div>
@@ -1038,9 +1042,9 @@ export default function CampaignDetailPage() {
 
           {/* Optimization Logs */}
           <div className="rounded-lg p-4" style={{ backgroundColor: "#111111", border: "1px solid #222222" }}>
-            <h3 className="text-white font-semibold mb-4 text-sm">Logs de Optimización</h3>
+            <h3 className="text-white font-semibold mb-4 text-sm">{t.campaign_detail_logs_title}</h3>
             {detail.optimization_logs.length === 0 ? (
-              <p className="text-gray-500 text-sm">Sin registros</p>
+              <p className="text-gray-500 text-sm">{t.campaign_detail_logs_no_records}</p>
             ) : (
               <div className="space-y-3 max-h-[400px] overflow-y-auto pr-1">
                 {detail.optimization_logs.map((log) => (
@@ -1067,12 +1071,12 @@ export default function CampaignDetailPage() {
                         }`}
                       >
                         {log.approval_status === "pending"
-                          ? "pendiente"
+                          ? t.campaign_detail_logs_pending
                           : log.approval_status === "approved"
-                          ? "aprobado"
+                          ? t.campaign_detail_logs_approved
                           : log.approval_status === "rejected"
-                          ? "rechazado"
-                          : "auto"}
+                          ? t.campaign_detail_logs_rejected
+                          : t.campaign_detail_logs_auto}
                       </span>
                     </div>
 
@@ -1091,13 +1095,13 @@ export default function CampaignDetailPage() {
                         }
                         className="mt-1 text-[10px] text-indigo-400 hover:text-indigo-300 transition-colors"
                       >
-                        {expandedRationale[log.id] ? "Ver menos" : "Ver más"}
+                        {expandedRationale[log.id] ? t.campaign_detail_logs_see_less : t.campaign_detail_logs_see_more}
                       </button>
                     )}
 
                     {log.budget_before != null && log.budget_after != null && (
                       <p className="text-gray-500 text-xs mt-1">
-                        ${log.budget_before} → ${log.budget_after}/día
+                        {t.campaign_detail_per_day(log.budget_before)} → {t.campaign_detail_per_day(log.budget_after)}
                       </p>
                     )}
 
@@ -1107,13 +1111,13 @@ export default function CampaignDetailPage() {
                           onClick={() => handleApprove(log)}
                           className="px-2 py-0.5 text-xs bg-green-800 hover:bg-green-700 text-green-200 rounded"
                         >
-                          Aprobar
+                          {t.campaign_detail_logs_approve}
                         </button>
                         <button
                           onClick={() => handleReject(log)}
                           className="px-2 py-0.5 text-xs bg-red-900 hover:bg-red-800 text-red-300 rounded"
                         >
-                          Rechazar
+                          {t.campaign_detail_logs_reject}
                         </button>
                       </div>
                     )}
@@ -1129,22 +1133,22 @@ export default function CampaignDetailPage() {
       {optimizeModalOpen && (
         <div className="fixed inset-0 bg-black/60 flex items-center justify-center z-50">
           <div className="rounded-xl p-6 w-96" style={{ backgroundColor: "#0a0a0a", border: "1px solid #222222" }}>
-            <h3 className="text-white font-semibold mb-3">Confirmar optimización</h3>
+            <h3 className="text-white font-semibold mb-3">{t.campaign_detail_optimize_modal_title}</h3>
             <p className="text-gray-400 text-sm mb-6">
-              ¿Estás seguro de que querés optimizar esta campaña?
+              {t.campaign_detail_optimize_modal_body}
             </p>
             <div className="flex gap-2">
               <button
                 onClick={() => setOptimizeModalOpen(false)}
                 className="flex-1 px-3 py-2 text-white rounded" style={{ backgroundColor: "#1a1a1a" }}
               >
-                Cancelar
+                {t.campaign_detail_optimize_modal_cancel}
               </button>
               <button
                 onClick={handleOptimizeConfirm}
                 className="flex-1 px-3 py-2 bg-purple-600 text-white rounded hover:bg-purple-500"
               >
-                Confirmar
+                {t.campaign_detail_optimize_modal_confirm}
               </button>
             </div>
           </div>
@@ -1155,21 +1159,21 @@ export default function CampaignDetailPage() {
       {budgetModalOpen && (
         <div className="fixed inset-0 bg-black/60 flex items-center justify-center z-50">
           <div className="rounded-xl p-6 w-96" style={{ backgroundColor: "#0a0a0a", border: "1px solid #222222" }}>
-            <h3 className="text-white font-semibold mb-4">Ajustar presupuesto diario</h3>
+            <h3 className="text-white font-semibold mb-4">{t.campaign_detail_budget_modal_title}</h3>
             <p className="text-gray-400 text-sm mb-4">
-              Presupuesto actual: ${detail.campaign.daily_budget}/día
+              {t.campaign_detail_budget_modal_current(detail.campaign.daily_budget)}
             </p>
             <input
               type="number"
               value={newBudget}
               onChange={(e) => setNewBudget(Number(e.target.value))}
               className="w-full text-white px-3 py-2 rounded mb-2 focus:outline-none focus:ring-2 focus:ring-blue-600" style={{ backgroundColor: "#111111", border: "1px solid #222222" }}
-              placeholder="Nuevo presupuesto en USD"
+              placeholder={t.campaign_detail_budget_modal_placeholder}
               min={1}
             />
             {newBudget < 10 && newBudget > 0 && (
               <p className="text-yellow-400 text-xs mb-2">
-                Se recomienda un mínimo de $10/día
+                {t.campaign_detail_budget_modal_min_warning}
               </p>
             )}
             <div className="flex gap-2 mt-4">
@@ -1177,13 +1181,13 @@ export default function CampaignDetailPage() {
                 onClick={() => setBudgetModalOpen(false)}
                 className="flex-1 px-3 py-2 text-white rounded" style={{ backgroundColor: "#1a1a1a" }}
               >
-                Cancelar
+                {t.campaign_detail_budget_modal_cancel}
               </button>
               <button
                 onClick={handleBudgetUpdate}
                 className="flex-1 px-3 py-2 bg-blue-600 text-white rounded hover:bg-blue-500"
               >
-                Actualizar
+                {t.campaign_detail_budget_modal_update}
               </button>
             </div>
           </div>

@@ -1,6 +1,7 @@
 "use client";
 import { useEffect, useRef, useState } from "react";
 import { useSession } from "next-auth/react";
+import { useT } from "@/lib/i18n";
 import {
   X, FileText, TrendingUp, PauseCircle, CheckCircle, XCircle,
   AlertTriangle, Bell, Check, Loader2, Copy, ChevronDown, ChevronUp,
@@ -84,6 +85,7 @@ function timeAgo(dateStr: string): string {
 }
 
 function CopyButton({ text }: { text: string }) {
+  const t = useT();
   const [copied, setCopied] = useState(false);
   const handleCopy = () => {
     navigator.clipboard.writeText(text).catch(() => {});
@@ -94,10 +96,10 @@ function CopyButton({ text }: { text: string }) {
     <button
       onClick={handleCopy}
       className="flex-shrink-0 p-1 hover:bg-gray-600 rounded transition-colors"
-      title="Copiar"
+      title={t.notif_copy_btn}
     >
       {copied ? (
-        <span className="text-green-400 text-xs font-medium">Copiado ✓</span>
+        <span className="text-green-400 text-xs font-medium">{t.notif_copied}</span>
       ) : (
         <Copy className="h-3 w-3 text-gray-400 hover:text-white" />
       )}
@@ -111,68 +113,69 @@ interface FatigueBriefPanelProps {
 }
 
 function FatigueBriefPanel({ notif, onOpenUpload }: FatigueBriefPanelProps) {
+  const t = useT();
   const brief = notif.action_data?.creative_brief;
   const metrics = notif.action_data?.metrics;
   if (!brief) return null;
 
   return (
     <div className="mt-3 space-y-3 text-xs">
-      {/* Diagnóstico */}
+      {/* Diagnosis */}
       <div>
-        <p className="text-gray-500 uppercase tracking-wider text-[10px] font-semibold mb-1">── Diagnóstico</p>
+        <p className="text-gray-500 uppercase tracking-wider text-[10px] font-semibold mb-1">{t.notif_diagnosis_label}</p>
         <div className="bg-gray-800 rounded px-3 py-2">
           <p className="text-gray-300">{brief.fatigue_diagnosis}</p>
           {metrics && (
             <p className="text-gray-500 mt-1">
               CTR: <span className="text-white">{metrics.ctr_current?.toFixed(2)}%</span>
-              {metrics.ctr_7d_ago ? <> ← era <span className="text-white">{metrics.ctr_7d_ago.toFixed(2)}%</span></> : null}
+              {metrics.ctr_7d_ago ? <> ← {t.campaign_detail_rec_ctr_was(metrics.ctr_7d_ago)}</> : null}
               {metrics.frequency != null && (
-                <> &nbsp;|&nbsp; Frecuencia: <span className={metrics.frequency > 3.0 ? "text-orange-400" : "text-white"}>{metrics.frequency.toFixed(1)}</span></>
+                <> &nbsp;|&nbsp; {t.campaign_detail_rec_freq_label} <span className={metrics.frequency > 3.0 ? "text-orange-400" : "text-white"}>{metrics.frequency.toFixed(1)}</span></>
               )}
             </p>
           )}
         </div>
       </div>
 
-      {/* Problema */}
+      {/* Problem */}
       <div>
-        <p className="text-gray-500 uppercase tracking-wider text-[10px] font-semibold mb-1">── Problema</p>
+        <p className="text-gray-500 uppercase tracking-wider text-[10px] font-semibold mb-1">{t.notif_problem_label}</p>
         <div className="space-y-1">
           {brief.current_angle && (
             <p className="text-gray-400">
-              Ángulo actual:{" "}
+              {t.notif_angle_label}{" "}
               <span className="inline-flex items-center px-1.5 py-0.5 rounded bg-gray-700 text-gray-300 text-[10px] font-medium">
                 {brief.current_angle}
               </span>
             </p>
           )}
           {brief.current_persona && (
-            <p className="text-gray-400">Persona actual: <span className="text-gray-300">{brief.current_persona}</span></p>
+            <p className="text-gray-400">{t.notif_persona_label} <span className="text-gray-300">{brief.current_persona}</span></p>
           )}
         </div>
       </div>
 
-      {/* Qué crear */}
+      {/* What to create */}
       <div className="border-l-2 border-green-600 pl-3 space-y-2">
-        <p className="text-gray-500 uppercase tracking-wider text-[10px] font-semibold">── Qué crear</p>
+        <p className="text-gray-500 uppercase tracking-wider text-[10px] font-semibold">{t.notif_what_to_create}</p>
         {brief.replacement_angle && (
           <p className="text-gray-400">
-            Ángulo nuevo:{" "}
+            {t.notif_new_angle}{" "}
             <span className="inline-flex items-center px-1.5 py-0.5 rounded bg-green-900 text-green-300 text-[10px] font-medium">
               {brief.replacement_angle}
             </span>
           </p>
         )}
         {brief.replacement_persona && (
-          <p className="text-gray-400">Persona: <span className="text-gray-300">{brief.replacement_persona}</span></p>
+          <p className="text-gray-400">{t.notif_new_persona} <span className="text-gray-300">{brief.replacement_persona}</span></p>
         )}
         {brief.replacement_awareness && (
-          <p className="text-gray-400">Etapa: <span className="text-gray-300">{brief.replacement_awareness}</span></p>
+          <p className="text-gray-400">{t.notif_stage_label} <span className="text-gray-300">{brief.replacement_awareness}</span></p>
         )}
 
         {brief.suggested_hook && (
           <div>
-            <p className="text-gray-500 mb-1">Hook sugerido:</p>
+            <p className="text-gray-500 mb-1">{t.notif_hook_label}</p>
             <div className="flex items-start gap-2 bg-gray-800 rounded px-3 py-2">
               <p className="text-white flex-1 leading-snug">{brief.suggested_hook}</p>
               <CopyButton text={brief.suggested_hook} />
@@ -182,7 +185,7 @@ function FatigueBriefPanel({ notif, onOpenUpload }: FatigueBriefPanelProps) {
 
         {brief.suggested_body && (
           <div>
-            <p className="text-gray-500 mb-1">Copy (125 chars):</p>
+            <p className="text-gray-500 mb-1">{t.notif_copy_label}</p>
             <div className="flex items-start gap-2 bg-gray-800 rounded px-3 py-2">
               <p className="text-white flex-1 leading-snug">{brief.suggested_body}</p>
               <CopyButton text={brief.suggested_body} />
@@ -191,24 +194,24 @@ function FatigueBriefPanel({ notif, onOpenUpload }: FatigueBriefPanelProps) {
         )}
 
         {brief.visual_direction && (
-          <p className="text-gray-400 italic">Visual: {brief.visual_direction}</p>
+          <p className="text-gray-400 italic">{t.notif_visual_label} {brief.visual_direction}</p>
         )}
       </div>
 
-      {/* Evitar */}
+      {/* Avoid */}
       {brief.what_to_avoid && (
         <div>
-          <p className="text-gray-500 uppercase tracking-wider text-[10px] font-semibold mb-1">── Evitar</p>
+          <p className="text-gray-500 uppercase tracking-wider text-[10px] font-semibold mb-1">{t.notif_avoid_label}</p>
           <div className="bg-orange-900/30 border border-orange-700/50 rounded px-3 py-2">
             <p className="text-orange-200">{brief.what_to_avoid}</p>
           </div>
         </div>
       )}
 
-      {/* Urgencia */}
+      {/* Urgency */}
       {brief.urgency && (
         <div>
-          <p className="text-gray-500 uppercase tracking-wider text-[10px] font-semibold mb-1">── Urgencia</p>
+          <p className="text-gray-500 uppercase tracking-wider text-[10px] font-semibold mb-1">{t.notif_urgency_label}</p>
           <div className="flex items-start gap-2">
             <span
               className={`inline-flex items-center px-2 py-0.5 rounded text-[10px] font-semibold flex-shrink-0 ${
@@ -217,7 +220,7 @@ function FatigueBriefPanel({ notif, onOpenUpload }: FatigueBriefPanelProps) {
                   : "bg-yellow-900 text-yellow-300"
               }`}
             >
-              {brief.urgency === "high" ? "URGENTE" : "MODERADO"}
+              {brief.urgency === "high" ? t.notif_urgency_high : t.notif_urgency_moderate}
             </span>
             {brief.urgency_reason && (
               <p className="text-gray-400">{brief.urgency_reason}</p>
@@ -231,7 +234,7 @@ function FatigueBriefPanel({ notif, onOpenUpload }: FatigueBriefPanelProps) {
         onClick={() => onOpenUpload(notif)}
         className="w-full mt-2 py-2 bg-purple-700 hover:bg-purple-600 text-white text-xs font-semibold rounded-lg transition-colors"
       >
-        Subir nuevo creativo →
+        {t.notif_upload_creative}
       </button>
     </div>
   );
@@ -242,6 +245,7 @@ interface NotificationPanelProps {
 }
 
 export function NotificationPanel({ onClose }: NotificationPanelProps) {
+  const t = useT();
   const { data: session } = useSession();
   const token = session?.accessToken || "";
   const [items, setItems] = useState<NotifItem[]>([]);
@@ -294,11 +298,11 @@ export function NotificationPanel({ onClose }: NotificationPanelProps) {
     setActionLoading(notif.id);
     try {
       const result = await approveOptimizerAction(token, approvalToken);
-      setActionResults(prev => ({ ...prev, [notif.id]: { text: result.result || "Acción ejecutada", ok: true } }));
+      setActionResults(prev => ({ ...prev, [notif.id]: { text: result.result || t.notif_action_executed, ok: true } }));
       setItems(prev => prev.map(n => n.id === notif.id ? { ...n, is_read: true } : n));
       dismissAfterDelay(notif.id);
     } catch (e) {
-      setActionResults(prev => ({ ...prev, [notif.id]: { text: `Error: ${e instanceof Error ? e.message : "Falló la acción"}`, ok: false } }));
+      setActionResults(prev => ({ ...prev, [notif.id]: { text: `Error: ${e instanceof Error ? e.message : t.notif_action_failed}`, ok: false } }));
     } finally { setActionLoading(null); }
   };
 
@@ -308,7 +312,7 @@ export function NotificationPanel({ onClose }: NotificationPanelProps) {
     setActionLoading(notif.id);
     try {
       await rejectOptimizerAction(token, approvalToken);
-      setActionResults(prev => ({ ...prev, [notif.id]: { text: "Acción cancelada", ok: false } }));
+      setActionResults(prev => ({ ...prev, [notif.id]: { text: t.notif_action_cancelled, ok: false } }));
       setItems(prev => prev.map(n => n.id === notif.id ? { ...n, is_read: true } : n));
       dismissAfterDelay(notif.id);
     } catch { /* ignore */ }
@@ -375,13 +379,13 @@ export function NotificationPanel({ onClose }: NotificationPanelProps) {
 
         {/* Header */}
         <div className="flex items-center justify-between p-4" style={{ borderBottom: "1px solid #222222" }}>
-          <h3 className="text-white font-semibold">Notificaciones</h3>
+          <h3 className="text-white font-semibold">{t.notif_panel_title}</h3>
           <div className="flex items-center gap-2">
             <button onClick={handleMarkAllRead} className="text-xs transition-colors" style={{ color: "#9ca3af" }}
               onMouseEnter={e => (e.currentTarget.style.color = "#ffffff")}
               onMouseLeave={e => (e.currentTarget.style.color = "#9ca3af")}
             >
-              Marcar todo
+              {t.notif_panel_mark_all}
             </button>
             <button
               onClick={onClose}
@@ -404,7 +408,7 @@ export function NotificationPanel({ onClose }: NotificationPanelProps) {
               onMouseEnter={e => { if (filter !== f) (e.currentTarget as HTMLButtonElement).style.color = "#ffffff"; }}
               onMouseLeave={e => { if (filter !== f) (e.currentTarget as HTMLButtonElement).style.color = "#9ca3af"; }}
             >
-              {f === "all" ? "Todas" : f === "unread" ? "No leídas" : "Pendientes"}
+              {f === "all" ? t.notif_filter_all : f === "unread" ? t.notif_filter_unread : t.notif_filter_pending}
             </button>
           ))}
         </div>
@@ -413,12 +417,12 @@ export function NotificationPanel({ onClose }: NotificationPanelProps) {
         <div className="flex-1 overflow-y-auto">
           {loading ? (
             <div className="flex items-center justify-center py-12 text-gray-500 text-sm">
-              <Loader2 className="h-4 w-4 animate-spin mr-2" />Cargando...
+              <Loader2 className="h-4 w-4 animate-spin mr-2" />{t.notif_loading}
             </div>
           ) : filtered.length === 0 ? (
             <div className="flex flex-col items-center justify-center py-16 text-gray-600">
               <Bell className="h-10 w-10 mb-3" />
-              <p className="text-sm">No hay notificaciones</p>
+              <p className="text-sm">{t.notif_empty}</p>
             </div>
           ) : (
             <div className="divide-y" style={{ borderColor: "#1a1a1a" }}>
@@ -459,7 +463,7 @@ export function NotificationPanel({ onClose }: NotificationPanelProps) {
                             onClick={() => toggleMessage(notif.id)}
                             className="mt-0.5 text-xs text-gray-600 hover:text-gray-400 transition-colors"
                           >
-                            {msgExpanded ? "Ver menos ↑" : "Ver más ↓"}
+                            {msgExpanded ? t.notif_show_less : t.notif_show_more}
                           </button>
                         )}
 
@@ -472,7 +476,7 @@ export function NotificationPanel({ onClose }: NotificationPanelProps) {
                               className="flex items-center gap-1 px-2.5 py-1 bg-green-600 hover:bg-green-500 text-white text-xs font-medium rounded-md disabled:opacity-50 transition-colors"
                             >
                               {isLoading ? <Loader2 className="h-3 w-3 animate-spin" /> : <Check className="h-3 w-3" />}
-                              Confirmar
+                              {t.notif_confirm}
                             </button>
                             <button
                               onClick={() => handleReject(notif)}
@@ -480,7 +484,7 @@ export function NotificationPanel({ onClose }: NotificationPanelProps) {
                               className="flex items-center gap-1 px-2.5 py-1 bg-gray-700 hover:bg-gray-600 text-gray-300 text-xs font-medium rounded-md disabled:opacity-50 transition-colors"
                             >
                               <X className="h-3 w-3" />
-                              Cancelar
+                              {t.notif_cancel}
                             </button>
                           </div>
                         )}
@@ -495,7 +499,7 @@ export function NotificationPanel({ onClose }: NotificationPanelProps) {
                             }
                             className="mt-2 block text-sm text-blue-400 hover:text-blue-300 hover:underline transition-colors"
                           >
-                            Ver campaña completa →
+                            {t.notif_view_campaign}
                           </a>
                         )}
 
@@ -507,7 +511,7 @@ export function NotificationPanel({ onClose }: NotificationPanelProps) {
                               className="mt-2 flex items-center gap-1 text-xs text-orange-400 hover:text-orange-300 transition-colors"
                             >
                               {briefExpanded ? <ChevronUp className="h-3 w-3" /> : <ChevronDown className="h-3 w-3" />}
-                              {briefExpanded ? "Ocultar brief" : "Ver brief →"}
+                              {briefExpanded ? t.notif_hide_brief : t.notif_view_brief}
                             </button>
 
                             {briefExpanded && (
@@ -547,7 +551,7 @@ export function NotificationPanel({ onClose }: NotificationPanelProps) {
                             className="mt-1.5 text-xs text-blue-400 hover:text-blue-300 transition-colors"
                           >
                             {notif.type === "post_failed"
-                              ? (msgExpanded ? "Ocultar detalle ↑" : "Ver detalle →")
+                              ? (msgExpanded ? t.notif_hide_detail : t.notif_view_detail)
                               : `${notif.action_label} →`}
                           </button>
                         )}

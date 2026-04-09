@@ -4,6 +4,7 @@ import { useSession } from "next-auth/react";
 import { useRouter } from "next/navigation";
 import { Plus, Pencil, X, Check, Loader2, ShieldAlert } from "lucide-react";
 import { fetchUsers, createUser, updateUser, fetchProjects } from "@/lib/api";
+import { useT } from "@/lib/i18n";
 import type { Project } from "@/types";
 
 interface User {
@@ -51,6 +52,7 @@ interface CreateModalProps {
 }
 
 function CreateUserModal({ token, projects, onClose, onCreated }: CreateModalProps) {
+  const t = useT();
   const [form, setForm] = useState<UserFormData>({
     name: "",
     email: "",
@@ -80,7 +82,7 @@ function CreateUserModal({ token, projects, onClose, onCreated }: CreateModalPro
       onCreated();
       onClose();
     } catch (err) {
-      setError(err instanceof Error ? err.message : "Failed to create user");
+      setError(err instanceof Error ? err.message : t.users_create_error_default);
     } finally {
       setLoading(false);
     }
@@ -91,7 +93,7 @@ function CreateUserModal({ token, projects, onClose, onCreated }: CreateModalPro
       <div className="absolute inset-0 bg-black/60" onClick={onClose} />
       <div className="relative w-full max-w-lg bg-gray-900 border border-gray-700 rounded-xl shadow-2xl p-6 mx-4 max-h-[90vh] overflow-y-auto">
         <div className="flex items-center justify-between mb-5">
-          <h2 className="text-white font-semibold text-lg">New User</h2>
+          <h2 className="text-white font-semibold text-lg">{t.users_create_title}</h2>
           <button onClick={onClose} className="p-1 hover:bg-gray-700 rounded-md">
             <X className="h-4 w-4 text-gray-400" />
           </button>
@@ -99,7 +101,7 @@ function CreateUserModal({ token, projects, onClose, onCreated }: CreateModalPro
 
         <form onSubmit={handleSubmit} className="space-y-4">
           <div>
-            <label className="block text-sm font-medium text-gray-300 mb-1">Name</label>
+            <label className="block text-sm font-medium text-gray-300 mb-1">{t.users_create_name}</label>
             <input
               type="text"
               required
@@ -110,7 +112,7 @@ function CreateUserModal({ token, projects, onClose, onCreated }: CreateModalPro
           </div>
 
           <div>
-            <label className="block text-sm font-medium text-gray-300 mb-1">Email</label>
+            <label className="block text-sm font-medium text-gray-300 mb-1">{t.users_create_email}</label>
             <input
               type="email"
               required
@@ -121,7 +123,7 @@ function CreateUserModal({ token, projects, onClose, onCreated }: CreateModalPro
           </div>
 
           <div>
-            <label className="block text-sm font-medium text-gray-300 mb-1">Password</label>
+            <label className="block text-sm font-medium text-gray-300 mb-1">{t.users_create_password}</label>
             <input
               type="password"
               required
@@ -132,7 +134,7 @@ function CreateUserModal({ token, projects, onClose, onCreated }: CreateModalPro
           </div>
 
           <div>
-            <label className="block text-sm font-medium text-gray-300 mb-1">Role</label>
+            <label className="block text-sm font-medium text-gray-300 mb-1">{t.users_create_role}</label>
             <select
               value={form.role}
               onChange={e => setForm(p => ({ ...p, role: e.target.value }))}
@@ -146,7 +148,7 @@ function CreateUserModal({ token, projects, onClose, onCreated }: CreateModalPro
 
           {projects.length > 0 && (
             <div>
-              <label className="block text-sm font-medium text-gray-300 mb-2">Projects</label>
+              <label className="block text-sm font-medium text-gray-300 mb-2">{t.users_create_projects}</label>
               <div className="space-y-2 max-h-40 overflow-y-auto pr-1">
                 {projects.map(project => (
                   <label key={project.id} className="flex items-center gap-2 cursor-pointer group">
@@ -173,7 +175,7 @@ function CreateUserModal({ token, projects, onClose, onCreated }: CreateModalPro
                 onChange={e => setForm(p => ({ ...p, can_approve: e.target.checked }))}
                 className="w-4 h-4 rounded border-gray-600 bg-gray-800 text-blue-500 focus:ring-blue-500"
               />
-              <span className="text-sm text-gray-300">Can approve optimizer actions</span>
+              <span className="text-sm text-gray-300">{t.users_create_can_approve}</span>
             </label>
           </div>
 
@@ -187,7 +189,7 @@ function CreateUserModal({ token, projects, onClose, onCreated }: CreateModalPro
               onClick={onClose}
               className="flex-1 px-4 py-2 border border-gray-700 rounded-md text-gray-300 hover:bg-gray-800 text-sm transition-colors"
             >
-              Cancel
+              {t.users_create_cancel}
             </button>
             <button
               type="submit"
@@ -195,7 +197,7 @@ function CreateUserModal({ token, projects, onClose, onCreated }: CreateModalPro
               className="flex-1 flex items-center justify-center gap-2 px-4 py-2 bg-blue-600 hover:bg-blue-500 rounded-md text-white text-sm disabled:opacity-50 transition-colors"
             >
               {loading ? <Loader2 className="h-4 w-4 animate-spin" /> : <Check className="h-4 w-4" />}
-              Create User
+              {t.users_create_submit}
             </button>
           </div>
         </form>
@@ -213,6 +215,7 @@ interface EditModalProps {
 }
 
 function EditUserModal({ user, token, projects, onClose, onUpdated }: EditModalProps) {
+  const t = useT();
   const [role, setRole] = useState(user.role);
   const [isActive, setIsActive] = useState(user.is_active);
   const [canApprove, setCanApprove] = useState(false);
@@ -240,7 +243,7 @@ function EditUserModal({ user, token, projects, onClose, onUpdated }: EditModalP
       onUpdated();
       onClose();
     } catch (err) {
-      setError(err instanceof Error ? err.message : "Failed to update user");
+      setError(err instanceof Error ? err.message : t.users_edit_error_default);
     } finally {
       setLoading(false);
     }
@@ -252,7 +255,7 @@ function EditUserModal({ user, token, projects, onClose, onUpdated }: EditModalP
       <div className="relative w-full max-w-lg bg-gray-900 border border-gray-700 rounded-xl shadow-2xl p-6 mx-4 max-h-[90vh] overflow-y-auto">
         <div className="flex items-center justify-between mb-5">
           <div>
-            <h2 className="text-white font-semibold text-lg">Edit User</h2>
+            <h2 className="text-white font-semibold text-lg">{t.users_edit_title}</h2>
             <p className="text-gray-400 text-sm">{user.email}</p>
           </div>
           <button onClick={onClose} className="p-1 hover:bg-gray-700 rounded-md">
@@ -262,7 +265,7 @@ function EditUserModal({ user, token, projects, onClose, onUpdated }: EditModalP
 
         <form onSubmit={handleSubmit} className="space-y-4">
           <div>
-            <label className="block text-sm font-medium text-gray-300 mb-1">Role</label>
+            <label className="block text-sm font-medium text-gray-300 mb-1">{t.users_edit_role}</label>
             <select
               value={role}
               onChange={e => setRole(e.target.value as User["role"])}
@@ -276,7 +279,7 @@ function EditUserModal({ user, token, projects, onClose, onUpdated }: EditModalP
 
           {projects.length > 0 && (
             <div>
-              <label className="block text-sm font-medium text-gray-300 mb-2">Projects</label>
+              <label className="block text-sm font-medium text-gray-300 mb-2">{t.users_edit_projects}</label>
               <div className="space-y-2 max-h-40 overflow-y-auto pr-1">
                 {projects.map(project => (
                   <label key={project.id} className="flex items-center gap-2 cursor-pointer group">
@@ -303,7 +306,7 @@ function EditUserModal({ user, token, projects, onClose, onUpdated }: EditModalP
                 onChange={e => setCanApprove(e.target.checked)}
                 className="w-4 h-4 rounded border-gray-600 bg-gray-800 text-blue-500 focus:ring-blue-500"
               />
-              <span className="text-sm text-gray-300">Can approve optimizer actions</span>
+              <span className="text-sm text-gray-300">{t.users_edit_can_approve}</span>
             </label>
 
             <label className="flex items-center gap-2 cursor-pointer">
@@ -313,7 +316,7 @@ function EditUserModal({ user, token, projects, onClose, onUpdated }: EditModalP
                 onChange={e => setIsActive(e.target.checked)}
                 className="w-4 h-4 rounded border-gray-600 bg-gray-800 text-blue-500 focus:ring-blue-500"
               />
-              <span className="text-sm text-gray-300">Active account</span>
+              <span className="text-sm text-gray-300">{t.users_edit_is_active}</span>
             </label>
           </div>
 
@@ -327,7 +330,7 @@ function EditUserModal({ user, token, projects, onClose, onUpdated }: EditModalP
               onClick={onClose}
               className="flex-1 px-4 py-2 border border-gray-700 rounded-md text-gray-300 hover:bg-gray-800 text-sm transition-colors"
             >
-              Cancel
+              {t.users_edit_cancel}
             </button>
             <button
               type="submit"
@@ -335,7 +338,7 @@ function EditUserModal({ user, token, projects, onClose, onUpdated }: EditModalP
               className="flex-1 flex items-center justify-center gap-2 px-4 py-2 bg-blue-600 hover:bg-blue-500 rounded-md text-white text-sm disabled:opacity-50 transition-colors"
             >
               {loading ? <Loader2 className="h-4 w-4 animate-spin" /> : <Check className="h-4 w-4" />}
-              Save Changes
+              {t.users_edit_save}
             </button>
           </div>
         </form>
@@ -345,6 +348,7 @@ function EditUserModal({ user, token, projects, onClose, onUpdated }: EditModalP
 }
 
 export default function UsersPage() {
+  const t = useT();
   const { data: session, status } = useSession();
   const router = useRouter();
   const token = session?.accessToken || "";
@@ -395,7 +399,7 @@ export default function UsersPage() {
     return (
       <div className="flex flex-col items-center justify-center min-h-screen gap-3" style={{ backgroundColor: "#0a0a0a" }}>
         <ShieldAlert className="h-10 w-10 text-red-400" />
-        <p className="text-sm" style={{ color: "#9ca3af" }}>Access denied</p>
+        <p className="text-sm" style={{ color: "#9ca3af" }}>{t.users_access_denied}</p>
       </div>
     );
   }
@@ -406,8 +410,8 @@ export default function UsersPage() {
         {/* Header */}
         <div className="flex items-center justify-between mb-6">
           <div>
-            <h1 className="text-2xl font-bold text-white">Users</h1>
-            <p className="text-sm mt-1" style={{ color: "#9ca3af" }}>Manage user accounts and permissions</p>
+            <h1 className="text-2xl font-bold text-white">{t.users_page_title}</h1>
+            <p className="text-sm mt-1" style={{ color: "#9ca3af" }}>{t.users_page_subtitle}</p>
           </div>
           <button
             onClick={() => setShowCreate(true)}
@@ -417,7 +421,7 @@ export default function UsersPage() {
             onMouseLeave={e => (e.currentTarget.style.backgroundColor = "#7c3aed")}
           >
             <Plus className="h-4 w-4" />
-            New User
+            {t.users_new_user}
           </button>
         </div>
 
@@ -426,21 +430,21 @@ export default function UsersPage() {
           {loadingUsers ? (
             <div className="flex items-center justify-center py-16 text-sm gap-2" style={{ color: "#9ca3af" }}>
               <Loader2 className="h-4 w-4 animate-spin" />
-              Loading users...
+              {t.users_loading}
             </div>
           ) : users.length === 0 ? (
             <div className="flex items-center justify-center py-16 text-sm" style={{ color: "#9ca3af" }}>
-              No users found.
+              {t.users_empty}
             </div>
           ) : (
             <table className="w-full">
               <thead>
                 <tr style={{ borderBottom: "1px solid #222222" }}>
-                  <th className="text-left px-5 py-3 text-xs font-medium uppercase tracking-wider" style={{ color: "#9ca3af" }}>Name</th>
-                  <th className="text-left px-5 py-3 text-xs font-medium uppercase tracking-wider" style={{ color: "#9ca3af" }}>Email</th>
-                  <th className="text-left px-5 py-3 text-xs font-medium uppercase tracking-wider" style={{ color: "#9ca3af" }}>Role</th>
-                  <th className="text-left px-5 py-3 text-xs font-medium uppercase tracking-wider" style={{ color: "#9ca3af" }}>Status</th>
-                  <th className="text-right px-5 py-3 text-xs font-medium uppercase tracking-wider" style={{ color: "#9ca3af" }}>Actions</th>
+                  <th className="text-left px-5 py-3 text-xs font-medium uppercase tracking-wider" style={{ color: "#9ca3af" }}>{t.users_col_name}</th>
+                  <th className="text-left px-5 py-3 text-xs font-medium uppercase tracking-wider" style={{ color: "#9ca3af" }}>{t.users_col_email}</th>
+                  <th className="text-left px-5 py-3 text-xs font-medium uppercase tracking-wider" style={{ color: "#9ca3af" }}>{t.users_col_role}</th>
+                  <th className="text-left px-5 py-3 text-xs font-medium uppercase tracking-wider" style={{ color: "#9ca3af" }}>{t.users_col_status}</th>
+                  <th className="text-right px-5 py-3 text-xs font-medium uppercase tracking-wider" style={{ color: "#9ca3af" }}>{t.users_col_actions}</th>
                 </tr>
               </thead>
               <tbody>
@@ -458,7 +462,7 @@ export default function UsersPage() {
                     <td className="px-5 py-4">
                       <span className={`inline-flex items-center gap-1.5 text-xs font-medium ${user.is_active ? "text-green-400" : "text-gray-500"}`}>
                         <span className={`w-1.5 h-1.5 rounded-full ${user.is_active ? "bg-green-400" : "bg-gray-600"}`} />
-                        {user.is_active ? "Active" : "Inactive"}
+                        {user.is_active ? t.users_status_active : t.users_status_inactive}
                       </span>
                     </td>
                     <td className="px-5 py-4 text-right">
@@ -470,7 +474,7 @@ export default function UsersPage() {
                         onMouseLeave={e => { (e.currentTarget as HTMLButtonElement).style.color = "#9ca3af"; (e.currentTarget as HTMLButtonElement).style.borderColor = "#333333"; }}
                       >
                         <Pencil className="h-3 w-3" />
-                        Edit
+                        {t.users_edit}
                       </button>
                     </td>
                   </tr>

@@ -426,17 +426,17 @@ export default function AdsPage() {
         {/* KPI Cards */}
         <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
           <KPICard
-            title="Spend This Month"
+            title={t.ads_kpi_spend_month}
             value={`$${((metaTotals as any)?.spend_this_month ?? 0).toFixed(2)}`}
             subtitle="Meta Ads"
           />
           <KPICard
-            title="Spend Today"
+            title={t.ads_kpi_spend_today}
             value={`$${((metaTotals as any)?.spend_today ?? 0).toFixed(2)}`}
             subtitle="Meta Ads"
           />
           <KPICard
-            title="Active Campaigns"
+            title={t.ads_kpi_active_campaigns}
             value={(metaTotals as any)?.active_campaigns ?? 0}
             subtitle="Meta Ads"
           />
@@ -471,7 +471,7 @@ export default function AdsPage() {
         {/* Campaigns table */}
         <div className="rounded-lg overflow-hidden" style={{ backgroundColor: "#111111", border: "1px solid #222222" }}>
           <div className="px-6 py-4" style={{ borderBottom: "1px solid #222222" }}>
-            <h3 className="text-base font-semibold text-white">Campaigns</h3>
+            <h3 className="text-base font-semibold text-white">{t.ads_col_campaigns}</h3>
           </div>
           {loadingData ? (
             <div className="flex items-center justify-center h-40 text-sm" style={{ color: "#9ca3af" }}>
@@ -487,14 +487,14 @@ export default function AdsPage() {
               <table className="w-full text-sm">
                 <thead style={{ backgroundColor: "#111111", borderBottom: "1px solid #222222" }}>
                   <tr>
-                    <th className="text-left px-4 py-3 font-medium" style={{ color: "#9ca3af" }}>Name</th>
-                    <th className="text-left px-4 py-3 font-medium" style={{ color: "#9ca3af" }}>Objective</th>
-                    <th className="text-left px-4 py-3 font-medium" style={{ color: "#9ca3af" }}>Status</th>
-                    <th className="text-left px-4 py-3 font-medium" style={{ color: "#9ca3af" }}>Daily Budget</th>
-                    <th className="text-left px-4 py-3 font-medium" style={{ color: "#9ca3af" }}>Spend Today</th>
-                    <th className="text-left px-4 py-3 font-medium" style={{ color: "#9ca3af" }}>Spend / Month</th>
-                    <th className="text-left px-4 py-3 font-medium" style={{ color: "#9ca3af" }}>KPIs</th>
-                    <th className="text-left px-4 py-3 font-medium" style={{ color: "#9ca3af" }}>Andromeda</th>
+                    <th className="text-left px-4 py-3 font-medium" style={{ color: "#9ca3af" }}>{t.ads_col_name}</th>
+                    <th className="text-left px-4 py-3 font-medium" style={{ color: "#9ca3af" }}>{t.ads_col_objective}</th>
+                    <th className="text-left px-4 py-3 font-medium" style={{ color: "#9ca3af" }}>{t.ads_col_status}</th>
+                    <th className="text-left px-4 py-3 font-medium" style={{ color: "#9ca3af" }}>{t.ads_col_daily_budget}</th>
+                    <th className="text-left px-4 py-3 font-medium" style={{ color: "#9ca3af" }}>{t.ads_col_spend_today}</th>
+                    <th className="text-left px-4 py-3 font-medium" style={{ color: "#9ca3af" }}>{t.ads_col_spend_month}</th>
+                    <th className="text-left px-4 py-3 font-medium" style={{ color: "#9ca3af" }}>{t.ads_col_kpis}</th>
+                    <th className="text-left px-4 py-3 font-medium" style={{ color: "#9ca3af" }}>{t.ads_col_andromeda}</th>
                     <th className="text-left px-4 py-3 font-medium" style={{ color: "#9ca3af" }}>{t.ads_col_detail}</th>
                   </tr>
                 </thead>

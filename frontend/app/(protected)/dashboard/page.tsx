@@ -7,6 +7,7 @@ import { KPICard } from "@/components/dashboard/KPICard";
 import { WhatToPostTodayCard } from "@/components/dashboard/WhatToPostTodayCard";
 import { fetchDashboard, fetchProjects } from "@/lib/api";
 import { Loader2, FileText } from "lucide-react";
+import { useT } from "@/lib/i18n";
 
 interface Project {
   id: string;
@@ -62,11 +63,7 @@ const STATUS_CLASSES: Record<string, string> = {
   draft: "bg-gray-800 text-gray-400",
 };
 
-const STATUS_LABELS: Record<string, string> = {
-  pending_approval: "Pending",
-  published: "Published",
-  draft: "Draft",
-};
+// STATUS_LABELS is now built from translations inside the component
 
 const CAMPAIGN_STATUS_CLASSES: Record<string, string> = {
   ACTIVE: "bg-green-900/50 text-green-400",
@@ -86,6 +83,7 @@ function formatDate(dateStr: string) {
 }
 
 export default function DashboardPage() {
+  const t = useT();
   const searchParams = useSearchParams();
   const router = useRouter();
   const projectParam = searchParams.get("project");
@@ -139,9 +137,9 @@ export default function DashboardPage() {
       <div className="p-6 space-y-6">
         {/* Project selector */}
         <div className="flex items-center gap-3">
-          <label className="text-sm font-medium" style={{ color: "#9ca3af" }}>Project:</label>
+          <label className="text-sm font-medium" style={{ color: "#9ca3af" }}>{t.overview_project_label}</label>
           {loadingProjects ? (
-            <span className="text-sm" style={{ color: "#9ca3af" }}>Loading...</span>
+            <span className="text-sm" style={{ color: "#9ca3af" }}>{t.overview_loading}</span>
           ) : (
             <select
               value={selectedSlug}
@@ -187,34 +185,34 @@ export default function DashboardPage() {
         {/* KPI Cards */}
         <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-6 gap-4">
           <KPICard
-            title="Total Posts"
+            title={t.overview_kpi_total_posts}
             value={data?.content?.total_posts ?? 0}
-            subtitle="All time"
+            subtitle={t.overview_kpi_total_posts_sub}
           />
           <KPICard
-            title="Posts This Week"
+            title={t.overview_kpi_week_posts}
             value={data?.content?.posts_this_week ?? 0}
-            subtitle="Last 7 days"
+            subtitle={t.overview_kpi_week_posts_sub}
           />
           <KPICard
-            title="Posts This Month"
+            title={t.overview_kpi_month_posts}
             value={data?.content?.posts_this_month ?? 0}
-            subtitle="Last 30 days"
+            subtitle={t.overview_kpi_month_posts_sub}
           />
           <KPICard
-            title="Pending Approvals"
+            title={t.overview_kpi_pending}
             value={data?.content?.pending_approvals ?? 0}
-            subtitle="Via Telegram"
+            subtitle={t.overview_kpi_pending_sub}
           />
           <KPICard
-            title="Ad Spend This Month"
+            title={t.overview_kpi_ad_spend}
             value={`$${(data?.meta_ads?.totals?.spend_this_month ?? data?.meta_ads?.spend_this_month ?? 0).toFixed(2)}`}
-            subtitle="Meta Ads"
+            subtitle={t.overview_kpi_ad_spend_sub}
           />
           <KPICard
-            title="Active Campaigns"
+            title={t.overview_kpi_active_campaigns}
             value={data?.meta_ads?.totals?.active_campaigns ?? data?.meta_ads?.active_campaigns ?? 0}
-            subtitle="Meta Ads"
+            subtitle={t.overview_kpi_active_campaigns_sub}
           />
         </div>
 
@@ -222,47 +220,54 @@ export default function DashboardPage() {
           {/* Recent Posts */}
           <div className="rounded-lg overflow-hidden" style={{ backgroundColor: "#111111", border: "1px solid #222222" }}>
             <div className="px-6 py-4" style={{ borderBottom: "1px solid #222222" }}>
-              <h3 className="text-base font-semibold text-white">Recent Posts</h3>
+              <h3 className="text-base font-semibold text-white">{t.overview_recent_posts}</h3>
             </div>
             {loadingData ? (
               <div className="flex items-center justify-center h-40 text-sm" style={{ color: "#9ca3af" }}>
                 <Loader2 className="h-5 w-5 animate-spin mr-2" />
-                Loading...
+                {t.overview_loading}
               </div>
             ) : recentPosts.length === 0 ? (
               <div className="flex flex-col items-center justify-center h-40 gap-2">
                 <FileText className="h-8 w-8" style={{ color: "#374151" }} />
-                <p className="text-sm" style={{ color: "#9ca3af" }}>No recent posts.</p>
+                <p className="text-sm" style={{ color: "#9ca3af" }}>{t.overview_no_recent_posts}</p>
               </div>
             ) : (
               <table className="w-full text-sm">
                 <thead style={{ backgroundColor: "#111111", borderBottom: "1px solid #222222" }}>
                   <tr>
-                    <th className="text-left px-4 py-3 font-medium" style={{ color: "#9ca3af" }}>Caption</th>
-                    <th className="text-left px-4 py-3 font-medium" style={{ color: "#9ca3af" }}>Status</th>
-                    <th className="text-left px-4 py-3 font-medium" style={{ color: "#9ca3af" }}>Date</th>
+                    <th className="text-left px-4 py-3 font-medium" style={{ color: "#9ca3af" }}>{t.overview_col_caption}</th>
+                    <th className="text-left px-4 py-3 font-medium" style={{ color: "#9ca3af" }}>{t.overview_col_status}</th>
+                    <th className="text-left px-4 py-3 font-medium" style={{ color: "#9ca3af" }}>{t.overview_col_date}</th>
                   </tr>
                 </thead>
                 <tbody>
-                  {recentPosts.map((post) => (
-                    <tr key={post.id} style={{ borderTop: "1px solid #1a1a1a" }} className="hover:bg-[#161616] transition-colors">
-                      <td className="px-4 py-3 max-w-[180px] truncate text-white">
-                        {post.caption}
-                      </td>
-                      <td className="px-4 py-3">
-                        <span
-                          className={`inline-flex items-center px-2 py-0.5 rounded-full text-xs font-medium ${
-                            STATUS_CLASSES[post.status] ?? "bg-gray-800 text-gray-400"
-                          }`}
-                        >
-                          {STATUS_LABELS[post.status] ?? post.status}
-                        </span>
-                      </td>
-                      <td className="px-4 py-3 whitespace-nowrap" style={{ color: "#9ca3af" }}>
-                        {formatDate(post.created_at)}
-                      </td>
-                    </tr>
-                  ))}
+                  {recentPosts.map((post) => {
+                    const statusLabel =
+                      post.status === "pending_approval" ? t.overview_status_pending :
+                      post.status === "published" ? t.overview_status_published :
+                      post.status === "draft" ? t.overview_status_draft :
+                      post.status;
+                    return (
+                      <tr key={post.id} style={{ borderTop: "1px solid #1a1a1a" }} className="hover:bg-[#161616] transition-colors">
+                        <td className="px-4 py-3 max-w-[180px] truncate text-white">
+                          {post.caption}
+                        </td>
+                        <td className="px-4 py-3">
+                          <span
+                            className={`inline-flex items-center px-2 py-0.5 rounded-full text-xs font-medium ${
+                              STATUS_CLASSES[post.status] ?? "bg-gray-800 text-gray-400"
+                            }`}
+                          >
+                            {statusLabel}
+                          </span>
+                        </td>
+                        <td className="px-4 py-3 whitespace-nowrap" style={{ color: "#9ca3af" }}>
+                          {formatDate(post.created_at)}
+                        </td>
+                      </tr>
+                    );
+                  })}
                 </tbody>
               </table>
             )}
@@ -271,25 +276,25 @@ export default function DashboardPage() {
           {/* Campaigns */}
           <div className="rounded-lg overflow-hidden" style={{ backgroundColor: "#111111", border: "1px solid #222222" }}>
             <div className="px-6 py-4" style={{ borderBottom: "1px solid #222222" }}>
-              <h3 className="text-base font-semibold text-white">Campaigns</h3>
+              <h3 className="text-base font-semibold text-white">{t.overview_campaigns}</h3>
             </div>
             {loadingData ? (
               <div className="flex items-center justify-center h-40 text-sm" style={{ color: "#9ca3af" }}>
                 <Loader2 className="h-5 w-5 animate-spin mr-2" />
-                Loading...
+                {t.overview_loading}
               </div>
             ) : campaigns.length === 0 ? (
               <div className="flex items-center justify-center h-40 text-sm" style={{ color: "#9ca3af" }}>
-                No campaigns found.
+                {t.overview_no_campaigns}
               </div>
             ) : (
               <table className="w-full text-sm">
                 <thead style={{ backgroundColor: "#111111", borderBottom: "1px solid #222222" }}>
                   <tr>
-                    <th className="text-left px-4 py-3 font-medium" style={{ color: "#9ca3af" }}>Campaign</th>
-                    <th className="text-left px-4 py-3 font-medium" style={{ color: "#9ca3af" }}>Status</th>
-                    <th className="text-left px-4 py-3 font-medium" style={{ color: "#9ca3af" }}>Today</th>
-                    <th className="text-left px-4 py-3 font-medium" style={{ color: "#9ca3af" }}>This Month</th>
+                    <th className="text-left px-4 py-3 font-medium" style={{ color: "#9ca3af" }}>{t.overview_col_campaign}</th>
+                    <th className="text-left px-4 py-3 font-medium" style={{ color: "#9ca3af" }}>{t.overview_col_status}</th>
+                    <th className="text-left px-4 py-3 font-medium" style={{ color: "#9ca3af" }}>{t.overview_col_today}</th>
+                    <th className="text-left px-4 py-3 font-medium" style={{ color: "#9ca3af" }}>{t.overview_col_this_month}</th>
                   </tr>
                 </thead>
                 <tbody>
