@@ -4,15 +4,19 @@ import { useEffect, useState, useCallback, useRef } from "react";
 import { useSession } from "next-auth/react";
 import { Header } from "@/components/layout/Header";
 import { getHealthSummary, refreshProjectHealth, ProjectHealth } from "@/lib/api";
+import { useT } from "@/lib/i18n";
 import { RefreshCw, AlertTriangle, CheckCircle, XCircle, Clock, Wifi, WifiOff } from "lucide-react";
 
 // ── Helpers ───────────────────────────────────────────────────────────────────
 
-function timeAgo(isoString: string): string {
-  const diff = Math.floor((Date.now() - new Date(isoString).getTime()) / 1000);
-  if (diff < 60) return "hace menos de 1 min";
-  if (diff < 3600) return `hace ${Math.floor(diff / 60)} min`;
-  return `hace ${Math.floor(diff / 3600)}h`;
+function useTimeAgo() {
+  const t = useT();
+  return (isoString: string): string => {
+    const diff = Math.floor((Date.now() - new Date(isoString).getTime()) / 1000);
+    if (diff < 60) return t.audiences_date_just_now;
+    if (diff < 3600) return t.audiences_date_min_ago(Math.floor(diff / 60));
+    return t.audiences_date_hours_ago(Math.floor(diff / 3600));
+  };
 }
 
 function formatCountdown(seconds: number): string {
@@ -91,11 +95,13 @@ function AccountStatusBadge({
 // ── TokenStatus ───────────────────────────────────────────────────────────────
 
 function TokenStatus({ token }: { token: ProjectHealth["token"] }) {
+  const t = useT();
+
   if (!token.is_valid) {
     return (
       <div className="flex items-center gap-2 text-sm" style={{ color: "#ef4444" }}>
         <XCircle className="h-4 w-4 flex-shrink-0" />
-        <span>Token expirado o inválido</span>
+        <span>{t.health_token_invalid}</span>
       </div>
     );
   }
@@ -103,18 +109,16 @@ function TokenStatus({ token }: { token: ProjectHealth["token"] }) {
   const days = token.days_remaining;
   let textColor = "#22c55e";
   let Icon = CheckCircle;
-  let label = `Válido — ${days} días restantes`;
+  let label = days !== null ? t.health_token_valid(days) : t.health_token_no_expiry;
 
-  if (days === null) {
-    label = "Válido — sin fecha de expiración";
-  } else if (days < 7) {
+  if (days !== null && days < 7) {
     textColor = "#ef4444";
     Icon = AlertTriangle;
-    label = `Expira en ${days} días — renovar urgente`;
-  } else if (days < 30) {
+    label = t.health_token_expiring_soon(days);
+  } else if (days !== null && days < 30) {
     textColor = "#eab308";
     Icon = AlertTriangle;
-    label = `Válido — ${days} días restantes`;
+    label = t.health_token_valid(days);
   }
 
   return (
@@ -134,6 +138,8 @@ interface ProjectHealthCardProps {
 }
 
 function ProjectHealthCard({ health, sessionToken, onRefreshed }: ProjectHealthCardProps) {
+  const t = useT();
+  const timeAgo = useTimeAgo();
   const [refreshing, setRefreshing] = useState(false);
   const [refreshError, setRefreshError] = useState<string | null>(null);
   const [countdown, setCountdown] = useState<number | null>(null);
@@ -174,7 +180,7 @@ function ProjectHealthCard({ health, sessionToken, onRefreshed }: ProjectHealthC
         onRefreshed(result as ProjectHealth);
       }
     } catch {
-      setRefreshError("Error al actualizar");
+      setRefreshError(t.health_refresh_error);
     } finally {
       setRefreshing(false);
     }
@@ -193,7 +199,7 @@ function ProjectHealthCard({ health, sessionToken, onRefreshed }: ProjectHealthC
         </div>
         <div className="flex items-center gap-2 text-sm" style={{ color: "#ef4444" }}>
           <XCircle className="h-4 w-4" />
-          <span>Error al cargar datos: {health.error}</span>
+          <span>{t.health_error_card(health.error)}</span>
         </div>
       </div>
     );
@@ -213,14 +219,14 @@ function ProjectHealthCard({ health, sessionToken, onRefreshed }: ProjectHealthC
           </div>
           <div className="flex items-center gap-1.5 text-xs" style={{ color: "#6b7280" }}>
             <Clock className="h-3 w-3" />
-            <span>Última actualización: {timeAgo(health.last_updated)}</span>
+            <span>{t.health_last_updated} {timeAgo(health.last_updated)}</span>
           </div>
           {health.is_stale && (
             <span
               className="inline-block px-2 py-0.5 rounded text-xs font-medium"
               style={{ backgroundColor: "rgba(234,179,8,0.15)", color: "#eab308" }}
             >
-              Datos desactualizados
+              {t.health_stale}
             </span>
           )}
         </div>
@@ -243,8 +249,8 @@ function ProjectHealthCard({ health, sessionToken, onRefreshed }: ProjectHealthC
           {countdown !== null
             ? formatCountdown(countdown)
             : refreshing
-            ? "Actualizando..."
-            : "Actualizar"}
+            ? t.health_refreshing
+            : t.health_refresh_btn}
         </button>
       </div>
 
@@ -257,7 +263,7 @@ function ProjectHealthCard({ health, sessionToken, onRefreshed }: ProjectHealthC
       {/* Ad Account */}
       <div className="space-y-2">
         <p className="text-xs font-semibold uppercase tracking-wider" style={{ color: "#6b7280" }}>
-          Ad Account
+          {t.health_section_ad_account}
         </p>
         <div className="flex flex-wrap items-center gap-x-4 gap-y-2">
           <AccountStatusBadge
@@ -265,7 +271,7 @@ function ProjectHealthCard({ health, sessionToken, onRefreshed }: ProjectHealthC
             color={health.ad_account.status_color}
           />
           <span className="text-sm" style={{ color: "#9ca3af" }}>
-            Gasto total:{" "}
+            {t.health_total_spend}{" "}
             <span className="text-white font-medium">${health.ad_account.spend_lifetime}</span>
           </span>
           <span
@@ -275,13 +281,13 @@ function ProjectHealthCard({ health, sessionToken, onRefreshed }: ProjectHealthC
                 health.ad_account.ads_disapproved_7d > 0 ? "#ef4444" : "#9ca3af",
             }}
           >
-            Ads rechazados (7d):{" "}
+            {t.health_ads_disapproved_label}{" "}
             <span className="font-medium">{health.ad_account.ads_disapproved_7d}</span>
           </span>
         </div>
         {health.ad_account.disable_reason && (
           <p className="text-xs" style={{ color: "#ef4444" }}>
-            Razón: {health.ad_account.disable_reason}
+            {t.health_disable_reason_label} {health.ad_account.disable_reason}
           </p>
         )}
       </div>
@@ -291,19 +297,19 @@ function ProjectHealthCard({ health, sessionToken, onRefreshed }: ProjectHealthC
       {/* Campaigns */}
       <div className="space-y-2">
         <p className="text-xs font-semibold uppercase tracking-wider" style={{ color: "#6b7280" }}>
-          Campañas activas
+          {t.health_section_campaigns}
         </p>
         {health.campaigns.length === 0 ? (
-          <p className="text-sm" style={{ color: "#4b5563" }}>Sin campañas activas</p>
+          <p className="text-sm" style={{ color: "#4b5563" }}>{t.health_no_active_campaigns}</p>
         ) : (
           <div className="overflow-x-auto">
             <table className="w-full text-sm">
               <thead>
                 <tr style={{ color: "#6b7280" }}>
-                  <th className="text-left font-medium pb-2 pr-4">Nombre</th>
-                  <th className="text-left font-medium pb-2 pr-4">Estado</th>
-                  <th className="text-right font-medium pb-2 pr-4">Budget/día</th>
-                  <th className="text-right font-medium pb-2">Gasto 7d</th>
+                  <th className="text-left font-medium pb-2 pr-4">{t.health_col_name}</th>
+                  <th className="text-left font-medium pb-2 pr-4">{t.health_col_status}</th>
+                  <th className="text-right font-medium pb-2 pr-4">{t.health_col_budget_day}</th>
+                  <th className="text-right font-medium pb-2">{t.health_col_spend_7d}</th>
                 </tr>
               </thead>
               <tbody>
@@ -344,7 +350,7 @@ function ProjectHealthCard({ health, sessionToken, onRefreshed }: ProjectHealthC
       {/* Token */}
       <div className="space-y-2">
         <p className="text-xs font-semibold uppercase tracking-wider" style={{ color: "#6b7280" }}>
-          Token del System User
+          {t.health_section_token}
         </p>
         <TokenStatus token={health.token} />
       </div>
@@ -354,7 +360,7 @@ function ProjectHealthCard({ health, sessionToken, onRefreshed }: ProjectHealthC
       {/* Organic */}
       <div className="space-y-2">
         <p className="text-xs font-semibold uppercase tracking-wider" style={{ color: "#6b7280" }}>
-          Orgánico
+          {t.health_section_organic}
         </p>
         <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
           {health.organic?.facebook_page ? (
@@ -365,7 +371,7 @@ function ProjectHealthCard({ health, sessionToken, onRefreshed }: ProjectHealthC
                 <WifiOff className="h-4 w-4 flex-shrink-0" style={{ color: "#ef4444" }} />
               )}
               <div>
-                <p className="text-xs" style={{ color: "#6b7280" }}>Facebook</p>
+                <p className="text-xs" style={{ color: "#6b7280" }}>{t.health_facebook}</p>
                 <p className="text-sm text-white">{health.organic.facebook_page.name}</p>
                 <span
                   className="text-xs"
@@ -373,7 +379,7 @@ function ProjectHealthCard({ health, sessionToken, onRefreshed }: ProjectHealthC
                     color: health.organic.facebook_page.is_published ? "#22c55e" : "#ef4444",
                   }}
                 >
-                  {health.organic.facebook_page.is_published ? "Activa" : "Inactiva"}
+                  {health.organic.facebook_page.is_published ? t.health_page_active : t.health_page_inactive}
                 </span>
               </div>
             </div>
@@ -381,8 +387,8 @@ function ProjectHealthCard({ health, sessionToken, onRefreshed }: ProjectHealthC
             <div className="flex items-center gap-2">
               <WifiOff className="h-4 w-4 flex-shrink-0" style={{ color: "#4b5563" }} />
               <div>
-                <p className="text-xs" style={{ color: "#6b7280" }}>Facebook</p>
-                <p className="text-sm" style={{ color: "#4b5563" }}>No configurado</p>
+                <p className="text-xs" style={{ color: "#6b7280" }}>{t.health_facebook}</p>
+                <p className="text-sm" style={{ color: "#4b5563" }}>{t.health_not_configured}</p>
               </div>
             </div>
           )}
@@ -395,7 +401,7 @@ function ProjectHealthCard({ health, sessionToken, onRefreshed }: ProjectHealthC
                 ig
               </div>
               <div>
-                <p className="text-xs" style={{ color: "#6b7280" }}>Instagram</p>
+                <p className="text-xs" style={{ color: "#6b7280" }}>{t.health_instagram}</p>
                 <p className="text-sm text-white">@{health.organic.instagram.username}</p>
                 <span className="text-xs" style={{ color: "#6b7280" }}>
                   {health.organic.instagram.media_count} posts
@@ -411,8 +417,8 @@ function ProjectHealthCard({ health, sessionToken, onRefreshed }: ProjectHealthC
                 ig
               </div>
               <div>
-                <p className="text-xs" style={{ color: "#6b7280" }}>Instagram</p>
-                <p className="text-sm" style={{ color: "#4b5563" }}>No configurado</p>
+                <p className="text-xs" style={{ color: "#6b7280" }}>{t.health_instagram}</p>
+                <p className="text-sm" style={{ color: "#4b5563" }}>{t.health_not_configured}</p>
               </div>
             </div>
           )}
@@ -426,6 +432,8 @@ function ProjectHealthCard({ health, sessionToken, onRefreshed }: ProjectHealthC
 
 export default function HealthPage() {
   const { data: session } = useSession();
+  const t = useT();
+  const timeAgo = useTimeAgo();
   const [healthData, setHealthData] = useState<ProjectHealth[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
@@ -441,11 +449,11 @@ export default function HealthPage() {
       setLastFetch(new Date());
       setError(null);
     } catch {
-      setError("No se pudo cargar el Health Monitor");
+      setError(t.health_error_load);
     } finally {
       setLoading(false);
     }
-  }, [token]);
+  }, [token, t]);
 
   // Initial fetch
   useEffect(() => {
@@ -470,27 +478,27 @@ export default function HealthPage() {
 
   return (
     <div className="flex flex-col min-h-screen" style={{ backgroundColor: "#0a0a0a" }}>
-      <Header title="Health Monitor" />
+      <Header title={t.health_page_title} />
       <div className="flex-1 p-6 md:p-8 max-w-7xl mx-auto w-full">
         {/* Page header */}
         <div className="mb-8">
           <div className="flex items-center gap-3 mb-1">
-            <h1 className="text-2xl font-bold text-white">Health Monitor</h1>
+            <h1 className="text-2xl font-bold text-white">{t.health_page_title}</h1>
             {criticalCount > 0 && (
               <span
                 className="px-2 py-0.5 rounded-full text-xs font-bold"
                 style={{ backgroundColor: "rgba(239,68,68,0.2)", color: "#ef4444" }}
               >
-                {criticalCount} alerta{criticalCount > 1 ? "s" : ""}
+                {t.health_alerts(criticalCount)}
               </span>
             )}
           </div>
           <p className="text-sm" style={{ color: "#6b7280" }}>
-            Estado en tiempo real de todos tus proyectos
+            {t.health_page_subtitle}
           </p>
           {lastFetch && (
             <p className="text-xs mt-1" style={{ color: "#4b5563" }}>
-              Datos obtenidos {timeAgo(lastFetch.toISOString())} · Auto-refresh cada 15 min
+              {t.health_last_fetched(timeAgo(lastFetch.toISOString()))}
             </p>
           )}
         </div>
@@ -513,7 +521,7 @@ export default function HealthPage() {
           </div>
         ) : healthData.length === 0 ? (
           <div className="text-center py-20" style={{ color: "#4b5563" }}>
-            <p className="text-lg">No hay proyectos disponibles</p>
+            <p className="text-lg">{t.health_no_projects}</p>
           </div>
         ) : (
           <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">

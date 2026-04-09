@@ -5,6 +5,7 @@ import { useSession } from "next-auth/react";
 import { Header } from "@/components/layout/Header";
 import { CreateAudienceModal } from "@/components/dashboard/CreateAudienceModal";
 import { fetchProjects } from "@/lib/api";
+import { useT } from "@/lib/i18n";
 import { Loader2, Plus, Trash2, UserPlus } from "lucide-react";
 
 const API_BASE = process.env.NEXT_PUBLIC_API_URL ?? "http://localhost:8000";
@@ -26,13 +27,6 @@ export interface Audience {
   meta_audience_id?: string;
 }
 
-const TYPE_LABELS: Record<Audience["type"], string> = {
-  website: "Visitantes del sitio",
-  customer_list: "Lista de clientes",
-  engagement: "Interacciones",
-  lookalike: "Lookalike",
-};
-
 const TYPE_BADGE_STYLES: Record<Audience["type"], string> = {
   website: "bg-blue-900/50 text-blue-400",
   customer_list: "bg-purple-900/50 text-purple-400",
@@ -46,40 +40,48 @@ const STATUS_BADGE_STYLES: Record<Audience["status"], string> = {
   error: "bg-red-900/50 text-red-400",
 };
 
-const STATUS_LABELS: Record<Audience["status"], string> = {
-  ready: "Lista",
-  processing: "Procesando",
-  error: "Error",
-};
-
-const SOURCE_LABELS: Record<Audience["type"], string> = {
-  website: "Pixel",
-  customer_list: "CSV",
-  engagement: "Instagram/Facebook",
-  lookalike: "Basada en audiencia",
-};
-
-function relativeDate(isoString: string): string {
-  const date = new Date(isoString);
-  const now = new Date();
-  const diffMs = now.getTime() - date.getTime();
-  const diffDays = Math.floor(diffMs / (1000 * 60 * 60 * 24));
-  const diffHours = Math.floor(diffMs / (1000 * 60 * 60));
-  const diffMinutes = Math.floor(diffMs / (1000 * 60));
-
-  if (diffMinutes < 1) return "hace un momento";
-  if (diffMinutes < 60) return `hace ${diffMinutes} min`;
-  if (diffHours < 24) return `hace ${diffHours}h`;
-  if (diffDays === 1) return "hace 1 día";
-  if (diffDays < 30) return `hace ${diffDays} días`;
-  const diffMonths = Math.floor(diffDays / 30);
-  if (diffMonths === 1) return "hace 1 mes";
-  return `hace ${diffMonths} meses`;
-}
-
 export default function AudiencesPage() {
   const { data: session } = useSession();
   const token = (session as { accessToken?: string } | null)?.accessToken ?? "";
+  const t = useT();
+
+  const TYPE_LABELS: Record<Audience["type"], string> = {
+    website: t.audiences_type_website,
+    customer_list: t.audiences_type_customer_list,
+    engagement: t.audiences_type_engagement,
+    lookalike: t.audiences_type_lookalike,
+  };
+
+  const STATUS_LABELS: Record<Audience["status"], string> = {
+    ready: t.audiences_status_ready,
+    processing: t.audiences_status_processing,
+    error: t.audiences_status_error,
+  };
+
+  const SOURCE_LABELS: Record<Audience["type"], string> = {
+    website: t.audiences_source_website,
+    customer_list: t.audiences_source_customer_list,
+    engagement: t.audiences_source_engagement,
+    lookalike: t.audiences_source_lookalike,
+  };
+
+  function relativeDate(isoString: string): string {
+    const date = new Date(isoString);
+    const now = new Date();
+    const diffMs = now.getTime() - date.getTime();
+    const diffDays = Math.floor(diffMs / (1000 * 60 * 60 * 24));
+    const diffHours = Math.floor(diffMs / (1000 * 60 * 60));
+    const diffMinutes = Math.floor(diffMs / (1000 * 60));
+
+    if (diffMinutes < 1) return t.audiences_date_just_now;
+    if (diffMinutes < 60) return t.audiences_date_min_ago(diffMinutes);
+    if (diffHours < 24) return t.audiences_date_hours_ago(diffHours);
+    if (diffDays === 1) return t.audiences_date_1day_ago;
+    if (diffDays < 30) return t.audiences_date_days_ago(diffDays);
+    const diffMonths = Math.floor(diffDays / 30);
+    if (diffMonths === 1) return t.audiences_date_1month_ago;
+    return t.audiences_date_months_ago(diffMonths);
+  }
 
   const [projects, setProjects] = useState<Project[]>([]);
   const [selectedSlug, setSelectedSlug] = useState<string>("");
@@ -128,15 +130,15 @@ export default function AudiencesPage() {
         headers: { Authorization: `Bearer ${token}` },
         cache: "no-store",
       });
-      if (!res.ok) throw new Error("Error al cargar audiencias");
+      if (!res.ok) throw new Error(t.audiences_error_load);
       const data = await res.json();
       setAudiences(Array.isArray(data) ? data : (data.items ?? []));
     } catch (err) {
-      setError(err instanceof Error ? err.message : "Error al cargar audiencias");
+      setError(err instanceof Error ? err.message : t.audiences_error_load);
     } finally {
       setLoading(false);
     }
-  }, [selectedSlug, token]);
+  }, [selectedSlug, token, t]);
 
   useEffect(() => {
     loadAudiences();
@@ -151,10 +153,10 @@ export default function AudiencesPage() {
         method: "DELETE",
         headers: { Authorization: `Bearer ${token}` },
       });
-      if (!res.ok) throw new Error("Error al eliminar audiencia");
+      if (!res.ok) throw new Error(t.audiences_error_delete);
       setAudiences((prev) => prev.filter((a) => a.id !== id));
     } catch (err) {
-      setError(err instanceof Error ? err.message : "Error al eliminar audiencia");
+      setError(err instanceof Error ? err.message : t.audiences_error_delete);
     } finally {
       setDeletingId(null);
     }
@@ -194,12 +196,12 @@ export default function AudiencesPage() {
       );
       const data = await res.json();
       if (!res.ok) {
-        throw new Error(data.detail ?? "Error al subir contactos");
+        throw new Error(data.detail ?? t.audiences_error_upload);
       }
-      setAddContactsResult(`Se agregaron ${data.added} contactos`);
+      setAddContactsResult(t.audiences_added_contacts(data.added));
       setAddContactsFile(null);
     } catch (err) {
-      setAddContactsError(err instanceof Error ? err.message : "Error al subir contactos");
+      setAddContactsError(err instanceof Error ? err.message : t.audiences_error_upload);
     } finally {
       setAddContactsLoading(false);
     }
@@ -207,16 +209,16 @@ export default function AudiencesPage() {
 
   return (
     <div>
-      <Header title="Audiencias" />
+      <Header title={t.audiences_page_title} />
       <div className="p-6 space-y-6">
         {/* Header row */}
         <div className="flex items-center gap-3 flex-wrap">
           <label className="text-sm font-medium" style={{ color: "#9ca3af" }}>
-            Project:
+            {t.audiences_project_label}
           </label>
           {loadingProjects ? (
             <span className="text-sm" style={{ color: "#9ca3af" }}>
-              Loading...
+              {t.audiences_loading}
             </span>
           ) : (
             <select
@@ -252,7 +254,7 @@ export default function AudiencesPage() {
               }}
             >
               <Plus className="h-4 w-4" />
-              Nueva audiencia
+              {t.audiences_new_btn}
             </button>
           </div>
         </div>
@@ -262,7 +264,7 @@ export default function AudiencesPage() {
             className="rounded-md p-4 text-sm text-red-400"
             style={{ backgroundColor: "#450a0a", border: "1px solid #7f1d1d" }}
           >
-            Error: {error}
+            {t.audiences_error_prefix} {error}
           </div>
         )}
 
@@ -272,7 +274,7 @@ export default function AudiencesPage() {
           style={{ backgroundColor: "#111111", border: "1px solid #222222" }}
         >
           <div className="px-6 py-4" style={{ borderBottom: "1px solid #222222" }}>
-            <h3 className="text-base font-semibold text-white">Audiencias personalizadas</h3>
+            <h3 className="text-base font-semibold text-white">{t.audiences_table_title}</h3>
           </div>
 
           {loading ? (
@@ -281,16 +283,15 @@ export default function AudiencesPage() {
               style={{ color: "#9ca3af" }}
             >
               <Loader2 className="h-5 w-5 animate-spin mr-2" />
-              Sincronizando con Meta...
+              {t.audiences_syncing}
             </div>
           ) : audiences.length === 0 ? (
             <div className="flex flex-col items-center justify-center h-56 text-center px-6">
               <p className="text-sm mb-1" style={{ color: "#9ca3af" }}>
-                Sin audiencias todavía.
+                {t.audiences_empty_title}
               </p>
               <p className="text-sm mb-6" style={{ color: "#6b7280" }}>
-                Creá tu primera audiencia para hacer retargeting o encontrar personas similares a tus
-                clientes.
+                {t.audiences_empty_subtitle}
               </p>
               <button
                 onClick={() => setShowCreateModal(true)}
@@ -306,7 +307,7 @@ export default function AudiencesPage() {
                 }}
               >
                 <Plus className="h-4 w-4" />
-                Crear primera audiencia
+                {t.audiences_create_first_btn}
               </button>
             </div>
           ) : (
@@ -318,43 +319,43 @@ export default function AudiencesPage() {
                       className="text-left px-4 py-3 font-medium"
                       style={{ color: "#9ca3af" }}
                     >
-                      Nombre
+                      {t.audiences_col_name}
                     </th>
                     <th
                       className="text-left px-4 py-3 font-medium"
                       style={{ color: "#9ca3af" }}
                     >
-                      Tipo
+                      {t.audiences_col_type}
                     </th>
                     <th
                       className="text-left px-4 py-3 font-medium"
                       style={{ color: "#9ca3af" }}
                     >
-                      Tamaño
+                      {t.audiences_col_size}
                     </th>
                     <th
                       className="text-left px-4 py-3 font-medium"
                       style={{ color: "#9ca3af" }}
                     >
-                      Estado
+                      {t.audiences_col_status}
                     </th>
                     <th
                       className="text-left px-4 py-3 font-medium"
                       style={{ color: "#9ca3af" }}
                     >
-                      Fuente
+                      {t.audiences_col_source}
                     </th>
                     <th
                       className="text-left px-4 py-3 font-medium"
                       style={{ color: "#9ca3af" }}
                     >
-                      Creada
+                      {t.audiences_col_created}
                     </th>
                     <th
                       className="text-left px-4 py-3 font-medium"
                       style={{ color: "#9ca3af" }}
                     >
-                      Acciones
+                      {t.audiences_col_actions}
                     </th>
                   </tr>
                 </thead>
@@ -376,8 +377,8 @@ export default function AudiencesPage() {
                       </td>
                       <td className="px-4 py-3" style={{ color: "#9ca3af" }}>
                         {audience.size == null || audience.status === "processing"
-                          ? "Procesando..."
-                          : `${audience.size.toLocaleString()} personas`}
+                          ? t.audiences_processing
+                          : t.audiences_people(audience.size)}
                       </td>
                       <td className="px-4 py-3">
                         <span
@@ -398,7 +399,7 @@ export default function AudiencesPage() {
                             <button
                               onClick={() => openAddContacts(audience)}
                               className="p-1.5 rounded transition-colors"
-                              title="Añadir contactos"
+                              title={t.audiences_add_contacts_tooltip}
                               style={{ color: "#7c3aed" }}
                               onMouseEnter={(e) => {
                                 (e.currentTarget as HTMLButtonElement).style.backgroundColor =
@@ -423,7 +424,7 @@ export default function AudiencesPage() {
                                 {deletingId === audience.id ? (
                                   <Loader2 className="h-3 w-3 animate-spin" />
                                 ) : (
-                                  "Confirmar"
+                                  t.audiences_confirm_delete
                                 )}
                               </button>
                               <button
@@ -431,7 +432,7 @@ export default function AudiencesPage() {
                                 className="text-xs px-2 py-1 rounded font-medium"
                                 style={{ color: "#9ca3af" }}
                               >
-                                Cancelar
+                                {t.audiences_cancel}
                               </button>
                             </div>
                           ) : (
@@ -439,7 +440,7 @@ export default function AudiencesPage() {
                               onClick={() => setConfirmDeleteId(audience.id)}
                               disabled={deletingId === audience.id}
                               className="p-1.5 rounded transition-colors disabled:opacity-50"
-                              title="Eliminar audiencia"
+                              title={t.audiences_delete_tooltip}
                               style={{ color: "#ef4444" }}
                               onMouseEnter={(e) => {
                                 (e.currentTarget as HTMLButtonElement).style.backgroundColor =
@@ -489,7 +490,7 @@ export default function AudiencesPage() {
             style={{ backgroundColor: "#111111", border: "1px solid #333333" }}
           >
             <h2 className="text-base font-semibold text-white">
-              Añadir contactos a {addContactsAudience.name}
+              {t.audiences_add_contacts_title(addContactsAudience.name)}
             </h2>
 
             {/* Drop zone */}
@@ -527,10 +528,10 @@ export default function AudiencesPage() {
               ) : (
                 <>
                   <p className="text-sm font-medium" style={{ color: "#9ca3af" }}>
-                    Arrastrá o hacé clic para seleccionar un CSV
+                    {t.audiences_drop_hint}
                   </p>
                   <p className="text-xs mt-1" style={{ color: "#6b7280" }}>
-                    Debe tener una columna &quot;email&quot; o &quot;correo&quot;
+                    {t.audiences_drop_column_hint}
                   </p>
                 </>
               )}
@@ -549,7 +550,7 @@ export default function AudiencesPage() {
                 className="px-4 py-2 text-sm rounded-lg font-medium"
                 style={{ color: "#9ca3af" }}
               >
-                Cerrar
+                {t.audiences_close}
               </button>
               <button
                 onClick={handleAddContactsSubmit}
@@ -567,7 +568,7 @@ export default function AudiencesPage() {
                 {addContactsLoading ? (
                   <Loader2 className="h-4 w-4 animate-spin" />
                 ) : (
-                  "Subir"
+                  t.audiences_upload_btn
                 )}
               </button>
             </div>
