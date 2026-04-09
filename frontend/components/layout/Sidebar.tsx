@@ -5,16 +5,7 @@ import { useSession } from "next-auth/react";
 import { useEffect, useState } from "react";
 import { LayoutDashboard, FileText, Megaphone, FolderKanban, CalendarDays, UsersRound, Activity, Users2 } from "lucide-react";
 import { getHealthSummary } from "@/lib/api";
-
-const navItems = [
-  { href: "/dashboard", label: "Overview", icon: LayoutDashboard },
-  { href: "/dashboard/projects", label: "Projects", icon: FolderKanban },
-  { href: "/dashboard/content", label: "Content", icon: FileText },
-  { href: "/dashboard/calendar", label: "Calendar", icon: CalendarDays },
-  { href: "/dashboard/ads", label: "Ads", icon: Megaphone },
-  { href: "/dashboard/ads/audiences", label: "Audiencias", icon: Users2 },
-  { href: "/dashboard/health", label: "Health Monitor", icon: Activity },
-];
+import { useT } from "@/lib/i18n";
 
 export function Sidebar() {
   const pathname = usePathname();
@@ -22,6 +13,17 @@ export function Sidebar() {
   const role = session?.user?.role || "";
   const isClient = role === "client";
   const [criticalTokenCount, setCriticalTokenCount] = useState(0);
+  const t = useT();
+
+  const navItems = [
+    { href: "/dashboard", label: t.nav_overview, icon: LayoutDashboard },
+    { href: "/dashboard/projects", label: t.nav_projects, icon: FolderKanban },
+    { href: "/dashboard/content", label: t.nav_content, icon: FileText },
+    { href: "/dashboard/calendar", label: t.nav_calendar, icon: CalendarDays },
+    { href: "/dashboard/ads", label: t.nav_ads, icon: Megaphone },
+    { href: "/dashboard/ads/audiences", label: t.nav_audiences, icon: Users2 },
+    { href: "/dashboard/health", label: t.nav_health, icon: Activity },
+  ];
 
   const token = session?.accessToken as string | undefined;
 
@@ -116,7 +118,7 @@ export function Sidebar() {
       {/* Settings section — admin only */}
       {role === "admin" && (
         <div className="p-4" style={{ borderTop: "1px solid #1a1a1a" }}>
-          <p className="text-xs uppercase tracking-wider mb-2 px-3" style={{ color: "#6b7280" }}>Settings</p>
+          <p className="text-xs uppercase tracking-wider mb-2 px-3" style={{ color: "#6b7280" }}>{t.nav_settings_label}</p>
           <Link
             href="/dashboard/settings/users"
             className="flex items-center gap-3 px-3 py-2 rounded-md text-sm font-medium transition-colors"
@@ -131,7 +133,7 @@ export function Sidebar() {
                 : { color: "#9ca3af" }
             }
           >
-            <UsersRound className="h-4 w-4" />Users
+            <UsersRound className="h-4 w-4" />{t.nav_settings_users}
           </Link>
         </div>
       )}

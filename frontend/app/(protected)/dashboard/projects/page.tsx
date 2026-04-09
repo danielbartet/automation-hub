@@ -10,6 +10,7 @@ import { Settings, PlusCircle, ExternalLink, FolderKanban, Trash2 } from "lucide
 import { ProjectFormDialog } from "@/components/dashboard/ProjectFormDialog";
 import { ProjectCreateDialog } from "@/components/dashboard/ProjectCreateDialog";
 import { MetaAssetSelectModal } from "@/components/dashboard/MetaAssetSelectModal";
+import { useT } from "@/lib/i18n";
 
 interface Project {
   id: string;
@@ -37,7 +38,7 @@ interface MetaAssetsPayload {
 
 // ── Token expiry badge ────────────────────────────────────────────────────────
 
-function MetaTokenBadge({ expiresAt }: { expiresAt: string }) {
+function MetaTokenBadge({ expiresAt, t }: { expiresAt: string; t: ReturnType<typeof useT> }) {
   const daysRemaining = Math.ceil(
     (new Date(expiresAt).getTime() - Date.now()) / 86400000
   );
@@ -48,7 +49,7 @@ function MetaTokenBadge({ expiresAt }: { expiresAt: string }) {
         className="inline-flex items-center px-2 py-0.5 rounded-full text-xs font-medium"
         style={{ backgroundColor: "#450a0a", color: "#f87171", border: "1px solid #7f1d1d" }}
       >
-        Token expirado — Reconectar
+        {t.projects_token_expired}
       </span>
     );
   }
@@ -59,7 +60,7 @@ function MetaTokenBadge({ expiresAt }: { expiresAt: string }) {
         className="inline-flex items-center px-2 py-0.5 rounded-full text-xs font-medium"
         style={{ backgroundColor: "#422006", color: "#fbbf24", border: "1px solid #92400e" }}
       >
-        Token expira en {daysRemaining} día{daysRemaining !== 1 ? "s" : ""}
+        {t.projects_token_expires_in(daysRemaining)}
       </span>
     );
   }
@@ -74,6 +75,7 @@ function ProjectsPageInner() {
   const searchParams = useSearchParams();
   const { data: session } = useSession();
   const role = session?.user?.role;
+  const t = useT();
 
   const [projects, setProjects] = useState<Project[]>([]);
   const [loading, setLoading] = useState(true);
@@ -107,7 +109,7 @@ function ProjectsPageInner() {
           setMetaSelectSlug(slug);
           setMetaSelectAssets(decoded);
         } catch {
-          setToast({ type: "error", message: "Error al procesar los activos de Meta" });
+          setToast({ type: "error", message: t.projects_toast_meta_error_parse });
         }
       }
       router.replace("/dashboard/projects");
@@ -134,7 +136,7 @@ function ProjectsPageInner() {
 
   const handleProjectCreated = (created: Project) => {
     setProjects((prev) => [...prev, created]);
-    setToast({ type: "success", message: `Proyecto "${created.name}" creado correctamente` });
+    setToast({ type: "success", message: t.projects_toast_created(created.name) });
   };
 
   const handleDeleteProject = async () => {
@@ -143,10 +145,10 @@ function ProjectsPageInner() {
     try {
       await deleteProject(deletingProject.slug);
       setProjects((prev) => prev.filter((p) => p.id !== deletingProject.id));
-      setToast({ type: "success", message: `Proyecto "${deletingProject.name}" eliminado` });
+      setToast({ type: "success", message: t.projects_toast_deleted(deletingProject.name) });
       setDeletingProject(null);
     } catch (e) {
-      setToast({ type: "error", message: e instanceof Error ? e.message : "Error eliminando el proyecto" });
+      setToast({ type: "error", message: e instanceof Error ? e.message : t.projects_toast_delete_error });
     } finally {
       setDeleteLoading(false);
     }
@@ -156,14 +158,14 @@ function ProjectsPageInner() {
     setProjects((prev) => prev.map((p) => (p.slug === updated.slug ? updated : p)));
     setMetaSelectSlug(null);
     setMetaSelectAssets(null);
-    setToast({ type: "success", message: "Activos de Meta guardados correctamente" });
+    setToast({ type: "success", message: t.projects_toast_meta_saved });
   };
 
   const canSeeTokenWarning = role === "admin" || role === "operator";
 
   return (
     <div>
-      <Header title="Projects" />
+      <Header title={t.projects_page_title} />
       <div className="p-6 space-y-6">
 
         {/* Toast banner */}
@@ -188,7 +190,11 @@ function ProjectsPageInner() {
 
         <div className="flex items-center justify-between">
           <p className="text-sm" style={{ color: "#9ca3af" }}>
-            {loading ? "Loading projects..." : `${projects.length} project${projects.length !== 1 ? "s" : ""}`}
+            {loading
+              ? t.projects_loading
+              : projects.length === 1
+              ? t.projects_count_one
+              : t.projects_count_many(projects.length)}
           </p>
           <button
             className="inline-flex items-center gap-2 px-4 py-2 text-white text-sm font-medium rounded-md transition-colors"
@@ -198,13 +204,13 @@ function ProjectsPageInner() {
             onClick={() => setShowCreateDialog(true)}
           >
             <PlusCircle className="h-4 w-4" />
-            New Project
+            {t.projects_new}
           </button>
         </div>
 
         {loading && (
           <div className="flex items-center justify-center h-40 text-sm" style={{ color: "#9ca3af" }}>
-            Loading...
+            {t.projects_loading_spinner}
           </div>
         )}
 
@@ -218,8 +224,8 @@ function ProjectsPageInner() {
           <div className="rounded-lg p-12 flex flex-col items-center gap-4" style={{ backgroundColor: "#111111", border: "1px solid #222222" }}>
             <FolderKanban className="h-12 w-12" style={{ color: "#374151" }} />
             <div className="text-center">
-              <p className="text-base font-medium text-white">No projects yet</p>
-              <p className="text-sm mt-1" style={{ color: "#9ca3af" }}>Create your first project to get started.</p>
+              <p className="text-base font-medium text-white">{t.projects_empty_title}</p>
+              <p className="text-sm mt-1" style={{ color: "#9ca3af" }}>{t.projects_empty_subtitle}</p>
             </div>
             <button
               className="inline-flex items-center gap-2 px-4 py-2 text-white text-sm font-medium rounded-md transition-colors"
@@ -229,7 +235,7 @@ function ProjectsPageInner() {
               onClick={() => setShowCreateDialog(true)}
             >
               <PlusCircle className="h-4 w-4" />
-              New Project
+              {t.projects_new}
             </button>
           </div>
         )}
@@ -258,14 +264,14 @@ function ProjectsPageInner() {
                         : "bg-gray-800 text-gray-500"
                     }`}
                   >
-                    {project.is_active ? "Active" : "Inactive"}
+                    {project.is_active ? t.projects_status_active : t.projects_status_inactive}
                   </span>
                 </div>
 
                 {/* Meta token expiry warning — admin/operator only */}
                 {canSeeTokenWarning && project.meta_token_expires_at && (
                   <div>
-                    <MetaTokenBadge expiresAt={project.meta_token_expires_at} />
+                    <MetaTokenBadge expiresAt={project.meta_token_expires_at} t={t} />
                   </div>
                 )}
 
@@ -278,14 +284,14 @@ function ProjectsPageInner() {
                     onMouseLeave={e => (e.currentTarget.style.backgroundColor = "#7c3aed")}
                   >
                     <ExternalLink className="h-4 w-4" />
-                    View Dashboard
+                    {t.projects_view_dashboard}
                   </Link>
                   <button
                     className="inline-flex items-center justify-center p-2 rounded-md transition-colors"
                     style={{ color: "#9ca3af", border: "1px solid #333333" }}
                     onMouseEnter={e => { (e.currentTarget as HTMLButtonElement).style.color = "#ffffff"; (e.currentTarget as HTMLButtonElement).style.borderColor = "#555555"; }}
                     onMouseLeave={e => { (e.currentTarget as HTMLButtonElement).style.color = "#9ca3af"; (e.currentTarget as HTMLButtonElement).style.borderColor = "#333333"; }}
-                    title="Project settings"
+                    title={t.projects_settings_title}
                     onClick={() => setEditingProject(project)}
                   >
                     <Settings className="h-4 w-4" />
@@ -296,7 +302,7 @@ function ProjectsPageInner() {
                       style={{ color: "#6b7280", border: "1px solid #333333" }}
                       onMouseEnter={e => { (e.currentTarget as HTMLButtonElement).style.color = "#ef4444"; (e.currentTarget as HTMLButtonElement).style.borderColor = "#ef4444"; }}
                       onMouseLeave={e => { (e.currentTarget as HTMLButtonElement).style.color = "#6b7280"; (e.currentTarget as HTMLButtonElement).style.borderColor = "#333333"; }}
-                      title="Eliminar proyecto"
+                      title={t.projects_delete_tooltip}
                       onClick={() => setDeletingProject(project)}
                     >
                       <Trash2 className="h-4 w-4" />
@@ -331,10 +337,10 @@ function ProjectsPageInner() {
               <div className="p-2 rounded-full" style={{ backgroundColor: "#450a0a" }}>
                 <Trash2 className="h-5 w-5 text-red-400" />
               </div>
-              <h2 className="text-base font-semibold text-white">Eliminar proyecto</h2>
+              <h2 className="text-base font-semibold text-white">{t.projects_delete_title}</h2>
             </div>
             <p className="text-sm" style={{ color: "#9ca3af" }}>
-              ¿Estás seguro que querés eliminar <span className="text-white font-medium">{deletingProject.name}</span>? Esta acción no se puede deshacer.
+              {t.projects_delete_confirm_msg(deletingProject.name)}
             </p>
             <div className="flex gap-3 pt-1">
               <button
@@ -343,7 +349,7 @@ function ProjectsPageInner() {
                 className="flex-1 py-2 rounded-lg text-sm font-medium"
                 style={{ backgroundColor: "#1a1a1a", color: "#9ca3af", border: "1px solid #333333" }}
               >
-                Cancelar
+                {t.projects_delete_cancel}
               </button>
               <button
                 onClick={handleDeleteProject}
@@ -351,7 +357,7 @@ function ProjectsPageInner() {
                 className="flex-1 py-2 rounded-lg text-sm font-medium text-white disabled:opacity-50"
                 style={{ backgroundColor: "#dc2626" }}
               >
-                {deleteLoading ? "Eliminando..." : "Eliminar"}
+                {deleteLoading ? t.projects_deleting : t.projects_delete_confirm_btn}
               </button>
             </div>
           </div>

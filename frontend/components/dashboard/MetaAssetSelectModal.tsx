@@ -3,6 +3,7 @@
 import { useState } from "react";
 import { updateProject } from "@/lib/api";
 import { X, Check } from "lucide-react";
+import { useT } from "@/lib/i18n";
 
 interface AssetItem {
   id: string;
@@ -134,6 +135,7 @@ function RadioList({
 }
 
 export function MetaAssetSelectModal({ slug, assets, onClose, onSuccess }: Props) {
+  const t = useT();
   const [selectedPageId, setSelectedPageId] = useState<string | null>(
     assets.current.page_id ?? assets.pages[0]?.id ?? null
   );
@@ -157,7 +159,7 @@ export function MetaAssetSelectModal({ slug, assets, onClose, onSuccess }: Props
       });
       onSuccess(updated);
     } catch (err) {
-      setError(err instanceof Error ? err.message : "Error al guardar");
+      setError(err instanceof Error ? err.message : t.meta_modal_error_default);
     } finally {
       setSaving(false);
     }
@@ -178,9 +180,9 @@ export function MetaAssetSelectModal({ slug, assets, onClose, onSuccess }: Props
         {/* Header */}
         <div className="flex items-center justify-between px-5 py-4 shrink-0" style={{ borderBottom: "1px solid #222222" }}>
           <div>
-            <h2 className="text-base font-semibold text-white">Seleccionar activos de Meta</h2>
+            <h2 className="text-base font-semibold text-white">{t.meta_modal_title}</h2>
             <p className="text-xs mt-0.5" style={{ color: "#9ca3af" }}>
-              Encontramos múltiples cuentas vinculadas. Elegí cuál usar para este proyecto.
+              {t.meta_modal_subtitle}
             </p>
           </div>
           <button
@@ -203,21 +205,21 @@ export function MetaAssetSelectModal({ slug, assets, onClose, onSuccess }: Props
         {/* Body */}
         <div className="px-5 py-4 space-y-5 overflow-y-auto flex-1">
           <RadioList
-            label="Facebook Pages"
+            label={t.meta_modal_label_pages}
             items={assets.pages}
             labelKey="name"
             selected={selectedPageId}
             onChange={setSelectedPageId}
           />
           <RadioList
-            label="Cuentas de Instagram"
+            label={t.meta_modal_label_instagram}
             items={assets.instagram_accounts}
             labelKey="username"
             selected={selectedInstagramId}
             onChange={setSelectedInstagramId}
           />
           <RadioList
-            label="Cuentas publicitarias"
+            label={t.meta_modal_label_ad_accounts}
             items={assets.ad_accounts}
             labelKey="name"
             selected={selectedAdAccountId}
@@ -246,7 +248,7 @@ export function MetaAssetSelectModal({ slug, assets, onClose, onSuccess }: Props
               (e.currentTarget as HTMLButtonElement).style.borderColor = "#333333";
             }}
           >
-            Cancelar
+            {t.meta_modal_cancel}
           </button>
           <button
             onClick={handleSave}
@@ -260,7 +262,7 @@ export function MetaAssetSelectModal({ slug, assets, onClose, onSuccess }: Props
               (e.currentTarget as HTMLButtonElement).style.backgroundColor = "#7c3aed";
             }}
           >
-            {saving ? "Guardando..." : "Guardar"}
+            {saving ? t.meta_modal_saving : t.meta_modal_save}
           </button>
         </div>
       </div>

@@ -2,6 +2,7 @@
 import { useState } from "react";
 import { X, Loader2 } from "lucide-react";
 import { createProject } from "@/lib/api";
+import { useT } from "@/lib/i18n";
 
 interface Project {
   id: string;
@@ -28,6 +29,7 @@ function toSlug(name: string) {
 }
 
 export function ProjectCreateDialog({ onClose, onSuccess }: Props) {
+  const t = useT();
   const [name, setName] = useState("");
   const [slug, setSlug] = useState("");
   const [slugManual, setSlugManual] = useState(false);
@@ -58,7 +60,7 @@ export function ProjectCreateDialog({ onClose, onSuccess }: Props) {
       onSuccess(project);
       onClose();
     } catch (e) {
-      setError(e instanceof Error ? e.message : "Error creando el proyecto");
+      setError(e instanceof Error ? e.message : t.create_dialog_error_default);
     } finally {
       setLoading(false);
     }
@@ -75,7 +77,7 @@ export function ProjectCreateDialog({ onClose, onSuccess }: Props) {
       <div className="w-full max-w-md rounded-xl p-6 space-y-5" style={{ backgroundColor: "#111111", border: "1px solid #222222" }}>
         {/* Header */}
         <div className="flex items-center justify-between">
-          <h2 className="text-lg font-semibold text-white">Nuevo Proyecto</h2>
+          <h2 className="text-lg font-semibold text-white">{t.create_dialog_title}</h2>
           <button onClick={onClose} className="text-gray-400 hover:text-white transition-colors">
             <X className="h-5 w-5" />
           </button>
@@ -83,35 +85,35 @@ export function ProjectCreateDialog({ onClose, onSuccess }: Props) {
 
         {/* Name */}
         <div>
-          <label className="block text-sm font-medium text-white mb-1">Nombre <span className="text-red-400">*</span></label>
+          <label className="block text-sm font-medium text-white mb-1">{t.create_dialog_name_label} <span className="text-red-400">*</span></label>
           <input
             value={name}
             onChange={(e) => handleNameChange(e.target.value)}
             className="w-full rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-[#7c3aed]"
             style={inputStyle}
-            placeholder="Ej: Mas que Fútbol"
+            placeholder={t.create_dialog_name_placeholder}
             autoFocus
           />
         </div>
 
         {/* Slug */}
         <div>
-          <label className="block text-sm font-medium text-white mb-1">Slug <span className="text-red-400">*</span></label>
+          <label className="block text-sm font-medium text-white mb-1">{t.create_dialog_slug_label} <span className="text-red-400">*</span></label>
           <input
             value={slug}
             onChange={(e) => handleSlugChange(e.target.value)}
             className="w-full rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-[#7c3aed] font-mono"
             style={inputStyle}
-            placeholder="ej: mas-que-futbol"
+            placeholder={t.create_dialog_slug_placeholder}
           />
-          <p className="text-xs mt-1" style={{ color: "#6b7280" }}>Identificador único — se usa en las URLs. Solo letras, números y guiones.</p>
+          <p className="text-xs mt-1" style={{ color: "#6b7280" }}>{t.create_dialog_slug_hint}</p>
         </div>
 
         {/* Language */}
         <div>
-          <label className="block text-sm font-medium text-white mb-2">Idioma del contenido</label>
+          <label className="block text-sm font-medium text-white mb-2">{t.create_dialog_lang_label}</label>
           <div className="flex gap-3">
-            {[{ value: "es", label: "Español" }, { value: "en", label: "English" }].map(({ value, label }) => (
+            {[{ value: "es", label: t.create_dialog_lang_es }, { value: "en", label: t.create_dialog_lang_en }].map(({ value, label }) => (
               <button
                 key={value}
                 type="button"
@@ -140,7 +142,7 @@ export function ProjectCreateDialog({ onClose, onSuccess }: Props) {
             className="flex-1 py-2 rounded-lg text-sm font-medium transition-colors"
             style={{ backgroundColor: "#1a1a1a", color: "#9ca3af", border: "1px solid #333333" }}
           >
-            Cancelar
+            {t.create_dialog_cancel}
           </button>
           <button
             onClick={handleCreate}
@@ -149,7 +151,7 @@ export function ProjectCreateDialog({ onClose, onSuccess }: Props) {
             style={{ backgroundColor: "#7c3aed" }}
           >
             {loading && <Loader2 className="h-4 w-4 animate-spin" />}
-            {loading ? "Creando..." : "Crear Proyecto"}
+            {loading ? t.create_dialog_creating : t.create_dialog_submit}
           </button>
         </div>
       </div>

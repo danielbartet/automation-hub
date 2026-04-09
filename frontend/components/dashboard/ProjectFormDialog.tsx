@@ -2,6 +2,7 @@
 import { useState } from "react";
 import { X, Loader2 } from "lucide-react";
 import { updateProject, connectMetaOAuth } from "@/lib/api";
+import { useT } from "@/lib/i18n";
 
 interface Project {
   id: string;
@@ -22,37 +23,14 @@ interface ProjectFormDialogProps {
   onSuccess: (updated: Project) => void;
 }
 
-const TABS = ["Contenido", "Audiencia", "Plataformas", "Marca y Visual"];
-
-const VISUAL_STYLE_OPTIONS = [
-  { value: "typographic", label: "Tipográfico dark — texto bold sobre fondo oscuro" },
-  { value: "photorealistic", label: "Fotorrealista — fotos reales, personas, productos" },
-  { value: "illustration", label: "Ilustración — vectores, iconos, colores planos" },
-  { value: "minimal", label: "Minimalista — mucho espacio en blanco, tipografía simple" },
-  { value: "data_visual", label: "Data/Stats — números grandes, gráficos, infografías" },
-];
-
-const BUSINESS_OBJECTIVE_OPTIONS = [
-  { value: "generate_leads", label: "Generar leads — capturar emails o contactos" },
-  { value: "sell_product", label: "Vender producto — conversiones directas" },
-  { value: "build_community", label: "Construir comunidad — engagement y seguidores" },
-  { value: "brand_positioning", label: "Posicionamiento de marca — awareness y autoridad" },
-];
-
-const POSTING_FREQUENCY_OPTIONS = [
-  { value: "daily", label: "Diario" },
-  { value: "3-4x_week", label: "3-4 veces por semana" },
-  { value: "1-2x_week", label: "1-2 veces por semana" },
-  { value: "on_demand", label: "Solo cuando hay novedad" },
-];
-
-const PLATFORM_OPTIONS = [
+const PLATFORM_OPTIONS_STATIC = [
   { value: "instagram", label: "Instagram" },
   { value: "facebook", label: "Facebook" },
   { value: "tiktok", label: "TikTok" },
   { value: "x_twitter", label: "X/Twitter" },
   { value: "linkedin", label: "LinkedIn" },
 ];
+
 
 function deriveColorPalette(primaryHex: string): string {
   const h = primaryHex.toLowerCase().replace("#", "");
@@ -101,8 +79,38 @@ function ColorPicker({
 }
 
 export function ProjectFormDialog({ project, onClose, onSuccess }: ProjectFormDialogProps) {
+  const t = useT();
   const cc = project.content_config ?? {};
   const mc = project.media_config ?? {};
+
+  const TABS = [
+    t.form_dialog_tab_content,
+    t.form_dialog_tab_audience,
+    t.form_dialog_tab_platforms,
+    t.form_dialog_tab_brand,
+  ];
+
+  const VISUAL_STYLE_OPTIONS = [
+    { value: "typographic", label: t.vs_typographic },
+    { value: "photorealistic", label: t.vs_photorealistic },
+    { value: "illustration", label: t.vs_illustration },
+    { value: "minimal", label: t.vs_minimal },
+    { value: "data_visual", label: t.vs_data_visual },
+  ];
+
+  const BUSINESS_OBJECTIVE_OPTIONS = [
+    { value: "generate_leads", label: t.bo_generate_leads },
+    { value: "sell_product", label: t.bo_sell_product },
+    { value: "build_community", label: t.bo_build_community },
+    { value: "brand_positioning", label: t.bo_brand_positioning },
+  ];
+
+  const POSTING_FREQUENCY_OPTIONS = [
+    { value: "daily", label: t.pf_daily },
+    { value: "3-4x_week", label: t.pf_3_4x_week },
+    { value: "1-2x_week", label: t.pf_1_2x_week },
+    { value: "on_demand", label: t.pf_on_demand },
+  ];
 
   const [tab, setTab] = useState(0);
   const [loading, setLoading] = useState(false);
@@ -198,7 +206,7 @@ export function ProjectFormDialog({ project, onClose, onSuccess }: ProjectFormDi
       onSuccess(result);
       onClose();
     } catch (e) {
-      setError(e instanceof Error ? e.message : "Error guardando el proyecto");
+      setError(e instanceof Error ? e.message : t.form_error_default);
     } finally {
       setLoading(false);
     }
@@ -216,7 +224,7 @@ export function ProjectFormDialog({ project, onClose, onSuccess }: ProjectFormDi
         {/* Header */}
         <div className="flex items-center justify-between p-6 flex-shrink-0" style={{ borderBottom: "1px solid #222222" }}>
           <div>
-            <h2 className="text-lg font-semibold text-white">Configurar proyecto</h2>
+            <h2 className="text-lg font-semibold text-white">{t.form_dialog_title}</h2>
             <p className="text-sm" style={{ color: "#9ca3af" }}>{project.name}</p>
           </div>
           <button
@@ -262,30 +270,30 @@ export function ProjectFormDialog({ project, onClose, onSuccess }: ProjectFormDi
           {tab === 0 && (
             <div className="space-y-5">
               <div>
-                <label className="block text-sm font-medium text-white mb-1">Tono de voz</label>
+                <label className="block text-sm font-medium text-white mb-1">{t.form_tone_label}</label>
                 <textarea
                   value={tone}
                   onChange={(e) => setTone(e.target.value)}
                   rows={3}
                   className="w-full rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-[#7c3aed]"
                   style={inputStyle}
-                  placeholder="Ej: Técnico, directo, elegante. Confrontacional pero inteligente."
+                  placeholder={t.form_tone_placeholder}
                 />
               </div>
               <div>
-                <label className="block text-sm font-medium text-white mb-1">Mensaje central de marca</label>
+                <label className="block text-sm font-medium text-white mb-1">{t.form_core_message_label}</label>
                 <textarea
                   value={coreMessage}
                   onChange={(e) => setCoreMessage(e.target.value)}
                   rows={2}
                   className="w-full rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-[#7c3aed]"
                   style={inputStyle}
-                  placeholder="Ej: AI no reemplaza developers. Reemplaza developers promedio."
+                  placeholder={t.form_core_message_placeholder}
                 />
               </div>
               <div>
                 <label className="block text-sm font-medium text-white mb-1">
-                  Reglas adicionales <span className="font-normal" style={{ color: "#9ca3af" }}>(una por línea)</span>
+                  {t.form_additional_rules_label} <span className="font-normal" style={{ color: "#9ca3af" }}>{t.form_additional_rules_hint}</span>
                 </label>
                 <textarea
                   value={additionalRules}
@@ -293,7 +301,7 @@ export function ProjectFormDialog({ project, onClose, onSuccess }: ProjectFormDi
                   rows={4}
                   className="w-full rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-[#7c3aed]"
                   style={inputStyle}
-                  placeholder={"El slide 1 debe hacer que alguien pare de scrollear\nCada slide debe tener UNA sola idea clara"}
+                  placeholder={t.form_additional_rules_placeholder}
                 />
               </div>
             </div>
@@ -303,19 +311,19 @@ export function ProjectFormDialog({ project, onClose, onSuccess }: ProjectFormDi
           {tab === 1 && (
             <div className="space-y-5">
               <div>
-                <label className="block text-sm font-medium text-white mb-1">Audiencia objetivo</label>
+                <label className="block text-sm font-medium text-white mb-1">{t.form_target_audience_label}</label>
                 <textarea
                   value={targetAudience}
                   onChange={(e) => setTargetAudience(e.target.value)}
                   rows={3}
                   className="w-full rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-[#7c3aed]"
                   style={inputStyle}
-                  placeholder="Ej: Developers 22-32 años, 0-5 años experiencia, que sienten que el AI los puede dejar atrás"
+                  placeholder={t.form_target_audience_placeholder}
                 />
               </div>
               <div>
                 <label className="block text-sm font-medium text-white mb-1">
-                  Categorías de contenido <span className="font-normal" style={{ color: "#9ca3af" }}>(una por línea)</span>
+                  {t.form_content_categories_label} <span className="font-normal" style={{ color: "#9ca3af" }}>{t.form_content_categories_hint}</span>
                 </label>
                 <textarea
                   value={contentCategories}
@@ -323,7 +331,7 @@ export function ProjectFormDialog({ project, onClose, onSuccess }: ProjectFormDi
                   rows={5}
                   className="w-full rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-[#7c3aed]"
                   style={inputStyle}
-                  placeholder={"Confrontación estratégica — desafiar suposiciones cómodas\nErrores comunes de juniors"}
+                  placeholder={t.form_content_categories_placeholder}
                 />
               </div>
             </div>
@@ -333,52 +341,52 @@ export function ProjectFormDialog({ project, onClose, onSuccess }: ProjectFormDi
           {tab === 2 && (
             <div className="space-y-5">
               <div>
-                <label className="block text-sm font-medium text-white mb-1">Facebook Page ID</label>
+                <label className="block text-sm font-medium text-white mb-1">{t.form_fb_page_id_label}</label>
                 <input
                   value={facebookPageId}
                   onChange={(e) => setFacebookPageId(e.target.value)}
                   className="w-full rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-[#7c3aed]"
                   style={inputStyle}
-                  placeholder="Ej: 1010286398835015"
+                  placeholder={t.form_fb_page_id_placeholder}
                 />
               </div>
               <div>
-                <label className="block text-sm font-medium text-white mb-1">Instagram Account ID</label>
+                <label className="block text-sm font-medium text-white mb-1">{t.form_ig_account_id_label}</label>
                 <input
                   value={instagramAccountId}
                   onChange={(e) => setInstagramAccountId(e.target.value)}
                   className="w-full rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-[#7c3aed]"
                   style={inputStyle}
-                  placeholder="Ej: 17841449394293930"
+                  placeholder={t.form_ig_account_id_placeholder}
                 />
               </div>
               <div>
-                <label className="block text-sm font-medium text-white mb-1">Ad Account ID</label>
+                <label className="block text-sm font-medium text-white mb-1">{t.form_ad_account_id_label}</label>
                 <input
                   value={adAccountId}
                   onChange={(e) => setAdAccountId(e.target.value)}
                   className="w-full rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-[#7c3aed]"
                   style={inputStyle}
-                  placeholder="Ej: act_1337773745049119"
+                  placeholder={t.form_ad_account_id_placeholder}
                 />
-                <p className="text-xs mt-1" style={{ color: "#6b7280" }}>Se completa automáticamente al conectar Meta Account</p>
+                <p className="text-xs mt-1" style={{ color: "#6b7280" }}>{t.form_ad_account_hint}</p>
               </div>
 
               {/* Meta Account OAuth */}
               <div style={{ borderTop: "1px solid #222222", paddingTop: "1.25rem" }}>
-                <label className="block text-sm font-medium text-white mb-3">Meta Account</label>
+                <label className="block text-sm font-medium text-white mb-3">{t.form_meta_account_label}</label>
                 {project.facebook_page_id ? (
                   <div className="flex items-center justify-between gap-3 flex-wrap">
                     <div className="flex items-center gap-2 flex-wrap">
                       <span className="inline-flex items-center px-2.5 py-1 rounded-full text-xs font-medium" style={{ backgroundColor: "#052e16", color: "#4ade80", border: "1px solid #166534" }}>
-                        Conectado
+                        {t.form_meta_connected}
                       </span>
                       <span className="text-xs font-mono" style={{ color: "#9ca3af" }}>
                         Page ID: {project.facebook_page_id}
                       </span>
                       {project.meta_token_expires_at && (
                         <span className="text-xs" style={{ color: "#6b7280" }}>
-                          · Token expira: {new Date(project.meta_token_expires_at).toLocaleDateString("es-ES", { day: "2-digit", month: "2-digit", year: "numeric" })}
+                          · {t.form_meta_token_expires} {new Date(project.meta_token_expires_at).toLocaleDateString("es-ES", { day: "2-digit", month: "2-digit", year: "numeric" })}
                         </span>
                       )}
                     </div>
@@ -388,13 +396,13 @@ export function ProjectFormDialog({ project, onClose, onSuccess }: ProjectFormDi
                       className="px-4 py-2 text-white text-xs font-medium rounded-lg transition-opacity hover:opacity-90"
                       style={{ backgroundColor: "#1877f2" }}
                     >
-                      Reconectar
+                      {t.form_meta_reconnect}
                     </button>
                   </div>
                 ) : (
                   <div className="space-y-3">
                     <p className="text-xs" style={{ color: "#9ca3af" }}>
-                      Conectá tu cuenta de Meta para publicar en Instagram y Facebook directamente desde el dashboard.
+                      {t.form_meta_connect_description}
                     </p>
                     <button
                       type="button"
@@ -405,7 +413,7 @@ export function ProjectFormDialog({ project, onClose, onSuccess }: ProjectFormDi
                       <svg className="h-4 w-4" viewBox="0 0 24 24" fill="currentColor">
                         <path d="M22 12c0-5.523-4.477-10-10-10S2 6.477 2 12c0 4.991 3.657 9.128 8.438 9.878v-6.987h-2.54V12h2.54V9.797c0-2.506 1.492-3.89 3.777-3.89 1.094 0 2.238.195 2.238.195v2.46h-1.26c-1.243 0-1.63.771-1.63 1.562V12h2.773l-.443 2.89h-2.33v6.988C18.343 21.128 22 16.991 22 12z"/>
                       </svg>
-                      Conectar Meta Account
+                      {t.form_meta_connect_btn}
                     </button>
                   </div>
                 )}
@@ -418,20 +426,20 @@ export function ProjectFormDialog({ project, onClose, onSuccess }: ProjectFormDi
             <div className="space-y-6">
               {/* Color pickers */}
               <div>
-                <label className="block text-sm font-medium text-white mb-3">Colores de marca</label>
+                <label className="block text-sm font-medium text-white mb-3">{t.form_brand_colors_label}</label>
                 <div className="flex flex-wrap gap-6">
                   <ColorPicker
-                    label="Color primario"
+                    label={t.form_color_primary}
                     value={brandPrimaryColor}
                     onChange={setBrandPrimaryColor}
                   />
                   <ColorPicker
-                    label="Color secundario"
+                    label={t.form_color_secondary}
                     value={brandSecondaryColor}
                     onChange={setBrandSecondaryColor}
                   />
                   <ColorPicker
-                    label="Fondo"
+                    label={t.form_color_bg}
                     value={brandBgColor}
                     onChange={setBrandBgColor}
                   />
@@ -440,7 +448,7 @@ export function ProjectFormDialog({ project, onClose, onSuccess }: ProjectFormDi
                 <div
                   className="mt-3 h-8 rounded-lg flex overflow-hidden"
                   style={{ border: "1px solid #333333" }}
-                  title="Vista previa de colores"
+                  title={t.form_color_preview_title}
                 >
                   <div className="flex-1" style={{ backgroundColor: brandBgColor }} />
                   <div className="w-8" style={{ backgroundColor: brandPrimaryColor }} />
@@ -450,7 +458,7 @@ export function ProjectFormDialog({ project, onClose, onSuccess }: ProjectFormDi
 
               {/* Visual style */}
               <div>
-                <label className="block text-sm font-medium text-white mb-1">Estilo visual</label>
+                <label className="block text-sm font-medium text-white mb-1">{t.form_visual_style_label}</label>
                 <select
                   value={visualStyle}
                   onChange={(e) => setVisualStyle(e.target.value)}
@@ -467,32 +475,32 @@ export function ProjectFormDialog({ project, onClose, onSuccess }: ProjectFormDi
 
               {/* Image mood */}
               <div>
-                <label className="block text-sm font-medium text-white mb-1">Mood de imagen</label>
+                <label className="block text-sm font-medium text-white mb-1">{t.form_image_mood_label}</label>
                 <textarea
                   value={imageMood}
                   onChange={(e) => setImageMood(e.target.value)}
                   rows={3}
                   className="w-full rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-[#7c3aed]"
                   style={inputStyle}
-                  placeholder="Ej: oscuro, premium, tecnológico, sin caras, tipografía bold"
+                  placeholder={t.form_image_mood_placeholder}
                 />
               </div>
 
               {/* Typography */}
               <div>
-                <label className="block text-sm font-medium text-white mb-1">Tipografías</label>
+                <label className="block text-sm font-medium text-white mb-1">{t.form_fonts_label}</label>
                 <input
                   value={brandFonts}
                   onChange={(e) => setBrandFonts(e.target.value)}
                   className="w-full rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-[#7c3aed]"
                   style={inputStyle}
-                  placeholder="Ej: Inter Bold, Space Grotesk, Bebas Neue"
+                  placeholder={t.form_fonts_placeholder}
                 />
               </div>
 
               {/* Competitors */}
               <div>
-                <label className="block text-sm font-medium text-white mb-1">Competidores</label>
+                <label className="block text-sm font-medium text-white mb-1">{t.form_competitors_label}</label>
                 <textarea
                   value={competitors}
                   onChange={(e) => setCompetitors(e.target.value)}
@@ -505,7 +513,7 @@ export function ProjectFormDialog({ project, onClose, onSuccess }: ProjectFormDi
 
               {/* Business objective */}
               <div>
-                <label className="block text-sm font-medium text-white mb-1">Objetivo de negocio</label>
+                <label className="block text-sm font-medium text-white mb-1">{t.form_business_objective_label}</label>
                 <select
                   value={businessObjective}
                   onChange={(e) => setBusinessObjective(e.target.value)}
@@ -522,9 +530,9 @@ export function ProjectFormDialog({ project, onClose, onSuccess }: ProjectFormDi
 
               {/* Target platforms */}
               <div>
-                <label className="block text-sm font-medium text-white mb-2">Plataformas objetivo</label>
+                <label className="block text-sm font-medium text-white mb-2">{t.form_target_platforms_label}</label>
                 <div className="flex flex-wrap gap-2">
-                  {PLATFORM_OPTIONS.map(({ value, label }) => (
+                  {PLATFORM_OPTIONS_STATIC.map(({ value, label }) => (
                     <button
                       key={value}
                       type="button"
@@ -546,7 +554,7 @@ export function ProjectFormDialog({ project, onClose, onSuccess }: ProjectFormDi
 
               {/* Posting frequency */}
               <div>
-                <label className="block text-sm font-medium text-white mb-1">Frecuencia de publicación</label>
+                <label className="block text-sm font-medium text-white mb-1">{t.form_posting_frequency_label}</label>
                 <select
                   value={postingFrequency}
                   onChange={(e) => setPostingFrequency(e.target.value)}
@@ -573,7 +581,7 @@ export function ProjectFormDialog({ project, onClose, onSuccess }: ProjectFormDi
             onMouseEnter={e => { (e.currentTarget as HTMLButtonElement).style.color = "#ffffff"; (e.currentTarget as HTMLButtonElement).style.borderColor = "#555555"; }}
             onMouseLeave={e => { (e.currentTarget as HTMLButtonElement).style.color = "#9ca3af"; (e.currentTarget as HTMLButtonElement).style.borderColor = "#333333"; }}
           >
-            Cancelar
+            {t.form_cancel}
           </button>
           <button
             onClick={handleSave}
@@ -586,10 +594,10 @@ export function ProjectFormDialog({ project, onClose, onSuccess }: ProjectFormDi
             {loading ? (
               <>
                 <Loader2 className="h-4 w-4 animate-spin" />
-                Guardando...
+                {t.form_saving}
               </>
             ) : (
-              "Guardar cambios"
+              t.form_save
             )}
           </button>
         </div>
