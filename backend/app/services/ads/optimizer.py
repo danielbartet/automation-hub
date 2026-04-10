@@ -289,10 +289,10 @@ CAMPAIGN INFO:
 - Name: {campaign.name}
 - Objective: {campaign.objective or "UNKNOWN"}
 - Daily budget: ${campaign.daily_budget or 0:.2f}
-- Days running: {days_since_created}
+- Days running: {days_since_created}  ← AUTHORITATIVE. Do NOT infer age from metrics spend or impressions — Meta metrics window is 7 days regardless of campaign age.
 - Status: {campaign.status}
 
-LAST 7 DAYS METRICS:
+LAST 7 DAYS METRICS (window = last 7 days only, not total campaign lifetime):
 - Spend: ${float(metrics.get('spend', 0)):.2f}
 - Impressions: {metrics.get('impressions', 0)}
 - Reach: {metrics.get('reach', 0)}
@@ -309,7 +309,12 @@ OPTIMIZATION HISTORY (last 3 decisions):
 COMPETITOR ADS (currently active — longer-running ads are likely performing):
 {comp_text}
 
-Apply Andromeda rules. Consider the optimization history to avoid repeating the same decision if it didn't improve metrics. Use competitor context when suggesting creative modifications. Return your JSON decision."""
+CRITICAL RULES:
+- The "Days running" value above is the authoritative campaign age. Never override it with inferences from spend or impressions volume.
+- Metrics show only the last 7-day window — low spend does not mean the campaign is new.
+- Consider the optimization history to avoid repeating the same decision if it did not improve metrics.
+- Use competitor context when suggesting creative modifications.
+Return your JSON decision."""
 
     # 3. Call Claude
     try:
