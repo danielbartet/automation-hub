@@ -15,7 +15,7 @@ from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.api.deps import get_session
 from app.core.config import settings
-from app.core.security import decrypt_token
+from app.core.security import decrypt_token, get_project_token
 from app.models.content import ContentPost
 from app.models.project import Project
 from app.services.claude.client import ClaudeClient
@@ -224,9 +224,8 @@ async def generate_content(
     competitor_ads: list[dict] = []
     if project.meta_access_token:
         from app.services.meta.ad_library import MetaAdLibraryService
-        from app.core.security import get_project_token
         try:
-            token = get_project_token(project)
+            token = await get_project_token(project, db)
             ad_lib = MetaAdLibraryService()
             competitor_ads = await ad_lib.get_competitor_ads_cached(db, project, token)
         except Exception:
@@ -584,7 +583,7 @@ async def create_content_manual(
 async def _publish_post_to_meta(post: ContentPost, project: Project, db: AsyncSession) -> None:
     """Publish a content post to Meta (Instagram + Facebook). Updates post.status in place."""
     try:
-        access_token = decrypt_token(project.meta_access_token) if project.meta_access_token else None
+        access_token = await get_project_token(project, db)
         if not access_token:
             raise ValueError("No Meta access token configured for this project")
 
@@ -881,7 +880,7 @@ async def retry_instagram(
     if not project:
         raise HTTPException(status_code=404, detail="Project not found")
 
-    access_token = decrypt_token(project.meta_access_token) if project.meta_access_token else None
+    access_token = await get_project_token(project, db)
     if not access_token:
         raise HTTPException(status_code=400, detail="No Meta access token configured for this project")
 
@@ -981,7 +980,7 @@ async def retry_facebook(
     if not project:
         raise HTTPException(status_code=404, detail="Project not found")
 
-    access_token = decrypt_token(project.meta_access_token) if project.meta_access_token else None
+    access_token = await get_project_token(project, db)
     if not access_token:
         raise HTTPException(status_code=400, detail="No Meta access token configured for this project")
 
@@ -1311,16 +1310,13 @@ async def import_from_meta(
     if not project:
         raise HTTPException(status_code=404, detail=f"Project '{project_slug}' not found")
 
-    # Resolve token: prefer project-level token, fall back to env META_ACCESS_TOKEN
-    raw_token = project.meta_access_token or settings.META_ACCESS_TOKEN
-    if not raw_token:
-        raise HTTPException(status_code=400, detail="Project has no Meta access token configured")
-
     if not project.facebook_page_id and not project.instagram_account_id:
         raise HTTPException(status_code=400, detail="Project has no Facebook Page ID or Instagram account ID configured")
 
-    # 2. Decrypt token and build Meta client
-    access_token = decrypt_token(raw_token)
+    # 2. Resolve token via 3-tier resolution and build Meta client
+    access_token = await get_project_token(project, db)
+    if not access_token:
+        raise HTTPException(status_code=400, detail="Project has no Meta access token configured")
     meta_client = MetaClient(access_token=access_token)
     pages_service = PagesService(client=meta_client)
     ig_service = InstagramService(client=meta_client)
@@ -1466,11 +1462,10 @@ async def import_instagram_posts(
             detail="Project has no instagram_account_id configured",
         )
 
-    # Resolve and decrypt access token
-    raw_token = project.meta_access_token or settings.META_ACCESS_TOKEN
-    if not raw_token:
+    # Resolve access token via 3-tier resolution
+    access_token = await get_project_token(project, db)
+    if not access_token:
         raise HTTPException(status_code=400, detail="Project has no Meta access token configured")
-    access_token = decrypt_token(raw_token)
 
     # 2. Fetch Instagram media with like/comment counts
     meta_client = MetaClient(access_token=access_token)
@@ -1581,10 +1576,9 @@ async def create_instagram_story(
             detail="Project has no instagram_account_id configured — required for Stories",
         )
 
-    raw_token = project.meta_access_token or settings.META_ACCESS_TOKEN
-    if not raw_token:
+    access_token = await get_project_token(project, db)
+    if not access_token:
         raise HTTPException(status_code=400, detail="Project has no Meta access token configured")
-    access_token = decrypt_token(raw_token)
 
     meta_client = MetaClient(access_token=access_token)
     ig_account_id = project.instagram_account_id
@@ -1761,7 +1755,7 @@ async def recommend_today(
             from app.services.meta.ad_library import MetaAdLibraryService
             competitors_list = [c.strip() for c in competitors_raw.split(",") if c.strip()]
             if competitors_list:
-                access_token = decrypt_token(project.meta_access_token)
+                access_token = await get_project_token(project, db)
                 ad_lib = MetaAdLibraryService()
                 competitor_ads = await ad_lib.get_competitor_ads(
                     access_token=access_token,

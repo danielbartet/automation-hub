@@ -1,6 +1,9 @@
 """Security utilities: Fernet encryption for sensitive fields."""
+import logging
 from cryptography.fernet import Fernet
 from app.core.config import settings
+
+logger = logging.getLogger(__name__)
 
 
 def _get_fernet() -> Fernet | None:
@@ -32,13 +35,50 @@ def decrypt_token(ciphertext: str) -> str:
     return ciphertext
 
 
-def get_project_token(project) -> str:
-    """Return the Meta access token for a project.
+async def get_project_token(project, db=None) -> str | None:
+    """Return the Meta access token for a project using three-tier resolution.
 
-    If the project has its own token stored (Fernet-encrypted), decrypt and
-    return it. Otherwise fall back to the global META_ACCESS_TOKEN from
-    settings.  decrypt_token() handles plaintext tokens gracefully.
+    Tier 1: project.meta_access_token (Fernet-encrypted) — decrypt and return.
+    Tier 2: UserMetaToken for project.owner_id — only when USER_META_TOKEN_ENABLED=True
+             and project.owner_id is set. Skipped if token is expired.
+    Tier 3: settings.META_ACCESS_TOKEN global fallback.
+
+    Returns None if all tiers yield nothing (caller handles the error).
     """
+    # Tier 1: project-level token
     if project.meta_access_token:
+        logger.debug("get_project_token: Tier 1 resolved for project %s", getattr(project, "id", "?"))
         return decrypt_token(project.meta_access_token)
-    return settings.META_ACCESS_TOKEN
+
+    # Tier 2: per-user token (feature-flagged)
+    if settings.USER_META_TOKEN_ENABLED and db is not None and project.owner_id:
+        from app.models.user_meta_token import UserMetaToken
+        from sqlalchemy import select
+        from datetime import datetime
+
+        result = await db.execute(
+            select(UserMetaToken).where(UserMetaToken.user_id == project.owner_id)
+        )
+        user_token = result.scalar_one_or_none()
+        if user_token:
+            # Check expiry — None means non-expiring
+            if user_token.expires_at is not None and user_token.expires_at <= datetime.utcnow():
+                logger.warning(
+                    "get_project_token: Tier 2 token for user %s is expired (expires_at=%s) — skipping",
+                    project.owner_id,
+                    user_token.expires_at,
+                )
+            else:
+                logger.debug(
+                    "get_project_token: Tier 2 resolved for project %s via owner %s",
+                    getattr(project, "id", "?"),
+                    project.owner_id,
+                )
+                return decrypt_token(user_token.encrypted_token)
+
+    # Tier 3: global settings fallback
+    if settings.META_ACCESS_TOKEN:
+        logger.debug("get_project_token: Tier 3 (global) resolved for project %s", getattr(project, "id", "?"))
+        return settings.META_ACCESS_TOKEN
+
+    return None

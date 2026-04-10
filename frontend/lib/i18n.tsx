@@ -633,6 +633,20 @@ export const translations = {
     health_page_active: "Active",
     health_page_inactive: "Inactive",
     health_not_configured: "Not configured",
+
+    // ── Settings — Meta Integration ───────────────────────────────────────────
+    settings_page_title: "Settings",
+    settings_meta_section_title: "Meta Integration",
+    settings_meta_section_desc: "Connect your personal Meta account to publish to Instagram and Facebook.",
+    settings_meta_status_connected: "Connected",
+    settings_meta_status_expired: "Expired — reconnect",
+    settings_meta_status_not_connected: "Not connected",
+    settings_meta_expires_at: (date: string) => `Expires ${date}`,
+    settings_meta_connect_btn: "Connect Meta Account",
+    settings_meta_reconnect_btn: "Reconnect Meta Account",
+    settings_meta_success: "Meta account connected successfully.",
+    settings_meta_error: "Failed to load Meta token status.",
+    nav_settings_meta: "Meta Account",
   },
 
   es: {
@@ -1258,6 +1272,20 @@ export const translations = {
     health_page_active: "Activa",
     health_page_inactive: "Inactiva",
     health_not_configured: "No configurado",
+
+    // ── Settings — Meta Integration ───────────────────────────────────────────
+    settings_page_title: "Configuración",
+    settings_meta_section_title: "Integración con Meta",
+    settings_meta_section_desc: "Conectá tu cuenta personal de Meta para publicar en Instagram y Facebook.",
+    settings_meta_status_connected: "Conectado",
+    settings_meta_status_expired: "Expirado — reconectar",
+    settings_meta_status_not_connected: "No conectado",
+    settings_meta_expires_at: (date: string) => `Expira ${date}`,
+    settings_meta_connect_btn: "Conectar cuenta de Meta",
+    settings_meta_reconnect_btn: "Reconectar cuenta de Meta",
+    settings_meta_success: "Cuenta de Meta conectada exitosamente.",
+    settings_meta_error: "Error al cargar el estado del token de Meta.",
+    nav_settings_meta: "Cuenta Meta",
   },
 } as const;
 

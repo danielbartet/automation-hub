@@ -4,7 +4,7 @@ from app.skills.base import BaseSkill
 from app.services.meta.client import MetaClient
 from app.services.meta.instagram import InstagramService
 from app.services.meta.pages import PagesService
-from app.core.security import decrypt_token
+from app.core.security import get_project_token
 
 
 class PublishPostSkill(BaseSkill):
@@ -18,7 +18,7 @@ class PublishPostSkill(BaseSkill):
     def description(self) -> str:
         return "Publish an approved ContentPost to Instagram and Facebook via Meta Graph API"
 
-    async def execute(self, payload: dict) -> dict:
+    async def execute(self, payload: dict, db=None) -> dict:
         """Publish a content post.
 
         Args:
@@ -27,11 +27,12 @@ class PublishPostSkill(BaseSkill):
                 "image_url": str | None,
                 "targets": list["instagram" | "facebook"]
             }
+            db: optional AsyncSession for three-tier token resolution
 
         Returns:
             {"instagram_media_id": str | None, "facebook_post_id": str | None, "status": "success" | "failed"}
         """
-        access_token = decrypt_token(self.project.meta_access_token or "")
+        access_token = await get_project_token(self.project, db) or ""
         client = MetaClient(access_token=access_token)
 
         caption = payload.get("caption", "")

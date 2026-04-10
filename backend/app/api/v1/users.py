@@ -1,4 +1,5 @@
 """User management endpoints — admin and super_admin."""
+from datetime import datetime
 from uuid import uuid4
 import bcrypt
 from fastapi import APIRouter, Depends, HTTPException
@@ -113,6 +114,28 @@ async def create_user(
 
     await db.commit()
     return user_to_dict(user, body.project_ids)
+
+
+class MetaTokenStatusResponse(BaseModel):
+    connected: bool
+    expires_at: datetime | None
+
+
+@router.get("/me/meta-token", response_model=MetaTokenStatusResponse)
+async def get_my_meta_token_status(
+    db: AsyncSession = Depends(get_session),
+    current_user=Depends(get_current_user),
+) -> MetaTokenStatusResponse:
+    """Return whether the current user has a personal Meta token stored."""
+    from app.models.user_meta_token import UserMetaToken
+    result = await db.execute(
+        select(UserMetaToken).where(UserMetaToken.user_id == current_user.id)
+    )
+    umt = result.scalar_one_or_none()
+    return MetaTokenStatusResponse(
+        connected=umt is not None,
+        expires_at=umt.expires_at if umt else None,
+    )
 
 
 class UpdateUserRequest(BaseModel):

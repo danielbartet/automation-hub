@@ -29,9 +29,9 @@ ACCOUNT_STATUS_MAP: dict[int, tuple[str, str, str]] = {
 }
 
 
-def _get_token(project: Project) -> str:
+async def _get_token(project: Project, db: AsyncSession) -> str | None:
     """Return the project Meta access token, fallback to global setting."""
-    return get_project_token(project)
+    return await get_project_token(project, db)
 
 
 async def _log_audit(
@@ -66,7 +66,7 @@ async def get_account_status(db: AsyncSession, project: Project) -> tuple[dict, 
     """Fetch ad account status. Returns (data, is_stale)."""
 
     async def _fetch() -> dict:
-        token = _get_token(project)
+        token = await _get_token(project, db)
         ad_account_id = (project.ad_account_id or "").removeprefix("act_")
         if not token or not ad_account_id:
             return {"error": "missing_credentials"}
@@ -102,7 +102,7 @@ async def get_campaign_stats(db: AsyncSession, project: Project) -> tuple[dict, 
     """Fetch campaign stats for last 7 days. Returns (data, is_stale)."""
 
     async def _fetch() -> dict:
-        token = _get_token(project)
+        token = await _get_token(project, db)
         ad_account_id = (project.ad_account_id or "").removeprefix("act_")
         if not token or not ad_account_id:
             return {"data": [], "error": "missing_credentials"}
@@ -140,7 +140,7 @@ async def get_token_status(db: AsyncSession, project: Project) -> tuple[dict, bo
     """Debug the project token via Meta. Returns (data, is_stale)."""
 
     async def _fetch() -> dict:
-        token = _get_token(project)
+        token = await _get_token(project, db)
         app_id = getattr(settings, "META_APP_ID", "")
         app_secret = getattr(settings, "META_APP_SECRET", "")
         if not token:
@@ -180,7 +180,7 @@ async def get_organic_stats(db: AsyncSession, project: Project) -> tuple[dict, b
     """Fetch Facebook page + Instagram account info. Returns (data, is_stale)."""
 
     async def _fetch() -> dict:
-        token = _get_token(project)
+        token = await _get_token(project, db)
         page_id = project.facebook_page_id or ""
         ig_id = project.instagram_account_id or ""
         if not token:

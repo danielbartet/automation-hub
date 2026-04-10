@@ -68,9 +68,9 @@ async def _get_project(slug: str, db: AsyncSession) -> Project:
     return project
 
 
-def _project_meta_creds(project: Project) -> tuple[str, str]:
+async def _project_meta_creds(project: Project, db: AsyncSession) -> tuple[str, str]:
     """Return (token, ad_account_id_without_prefix). Raises 400 if missing."""
-    token = get_project_token(project)
+    token = await get_project_token(project, db)
     ad_account_id = (project.ad_account_id or "").removeprefix("act_")
     if not token:
         raise HTTPException(status_code=400, detail="Project has no Meta access token configured")
@@ -162,7 +162,7 @@ async def list_audiences(
 ) -> list[dict]:
     """List all audiences for a project, refreshing size/status from Meta."""
     project = await _get_project(project_slug, db)
-    token = get_project_token(project)
+    token = await get_project_token(project, db)
 
     result = await db.execute(
         select(Audience)
@@ -199,7 +199,7 @@ async def create_website_audience(
 ) -> dict:
     """Create a website custom audience backed by a Meta Pixel."""
     project = await _get_project(project_slug, db)
-    token, ad_account_id = _project_meta_creds(project)
+    token, ad_account_id = await _project_meta_creds(project, db)
 
     # Resolve pixel_id — check content_config first, then direct field
     pixel_id = (project.content_config or {}).get("meta_pixel_id") or getattr(project, "meta_pixel_id", None)
@@ -265,7 +265,7 @@ async def create_customer_list_audience(
 ) -> dict:
     """Create a customer-list custom audience from a CSV of email addresses."""
     project = await _get_project(project_slug, db)
-    token, ad_account_id = _project_meta_creds(project)
+    token, ad_account_id = await _project_meta_creds(project, db)
 
     # Read and parse CSV
     content = await file.read()
@@ -357,7 +357,7 @@ async def create_engagement_audience(
 ) -> dict:
     """Create an engagement custom audience from Instagram or Facebook activity."""
     project = await _get_project(project_slug, db)
-    token, ad_account_id = _project_meta_creds(project)
+    token, ad_account_id = await _project_meta_creds(project, db)
 
     if body.platform == "instagram":
         source_id = project.instagram_account_id
@@ -450,7 +450,7 @@ async def create_lookalike_audience(
 ) -> list[dict]:
     """Create lookalike audiences (one per country) from a source audience."""
     project = await _get_project(project_slug, db)
-    token, ad_account_id = _project_meta_creds(project)
+    token, ad_account_id = await _project_meta_creds(project, db)
 
     # Load source audience from DB
     src_result = await db.execute(select(Audience).where(Audience.id == body.source_audience_id))
@@ -545,7 +545,7 @@ async def add_users_to_audience(
 ) -> dict:
     """Add contacts from a CSV file to an existing customer-list audience."""
     project = await _get_project(project_slug, db)
-    token = get_project_token(project)
+    token = await get_project_token(project, db)
     if not token:
         raise HTTPException(status_code=400, detail="Project has no Meta access token configured")
 
@@ -621,7 +621,7 @@ async def delete_audience(
 ) -> dict:
     """Delete an audience from DB and from Meta if it exists there."""
     project = await _get_project(project_slug, db)
-    token = get_project_token(project)
+    token = await get_project_token(project, db)
 
     result = await db.execute(
         select(Audience).where(Audience.id == audience_id, Audience.project_id == project.id)
@@ -647,7 +647,7 @@ async def sync_audiences(
 ) -> list[dict]:
     """Force-sync size and status for all audiences from Meta API."""
     project = await _get_project(project_slug, db)
-    token = get_project_token(project)
+    token = await get_project_token(project, db)
 
     result = await db.execute(
         select(Audience)

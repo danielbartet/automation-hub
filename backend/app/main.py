@@ -6,6 +6,7 @@ from fastapi.middleware.cors import CORSMiddleware
 from app.core.config import settings
 from app.api.v1.router import api_router
 import app.models.competitor_cache  # noqa: F401 — registers CompetitorResearchCache with SQLAlchemy before Project resolves relationships
+import app.models.user_meta_token  # noqa: F401 — registers UserMetaToken with SQLAlchemy at startup
 
 scheduler = None
 

@@ -3,7 +3,7 @@ import Link from "next/link";
 import { usePathname } from "next/navigation";
 import { useSession } from "next-auth/react";
 import { useEffect, useState } from "react";
-import { LayoutDashboard, FileText, Megaphone, FolderKanban, CalendarDays, UsersRound, Activity, Users2 } from "lucide-react";
+import { LayoutDashboard, FileText, Megaphone, FolderKanban, CalendarDays, UsersRound, Activity, Users2, Settings } from "lucide-react";
 import { getHealthSummary } from "@/lib/api";
 import { useT } from "@/lib/i18n";
 
@@ -23,6 +23,7 @@ export function Sidebar() {
     { href: "/dashboard/ads", label: t.nav_ads, icon: Megaphone },
     { href: "/dashboard/ads/audiences", label: t.nav_audiences, icon: Users2 },
     { href: "/dashboard/health", label: t.nav_health, icon: Activity },
+    { href: "/dashboard/settings", label: t.nav_settings_meta, icon: Settings },
   ];
 
   const token = session?.accessToken as string | undefined;

@@ -31,6 +31,7 @@ class Settings(BaseSettings):
     META_OAUTH_REDIRECT_URI: str = ""
     META_OAUTH_STATE_SECRET: str = "change-this-in-production"
     FRONTEND_URL: str = "https://hub.quantorialabs.com"
+    USER_META_TOKEN_ENABLED: bool = False
 
 
 settings = Settings()

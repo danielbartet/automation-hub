@@ -4,12 +4,12 @@ import json
 import logging
 from urllib.parse import quote
 
-from fastapi import APIRouter, Depends
+from fastapi import APIRouter, Depends, HTTPException
 from fastapi.responses import RedirectResponse
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy import select
 
-from app.api.deps import get_session
+from app.api.deps import get_session, get_current_user
 from app.core.config import settings
 from app.core.security import encrypt_token
 from app.models.project import Project
@@ -38,22 +38,33 @@ _META_OAUTH_SCOPES = (
 
 @router.get("/start")
 async def meta_oauth_start(
-    project_slug: str,
     db: AsyncSession = Depends(get_session),
+    current_user=Depends(get_current_user),
+    project_slug: str | None = None,
+    mode: str = "project",
 ) -> RedirectResponse:
-    """Initiate the Meta OAuth flow for the given project.
+    """Initiate the Meta OAuth flow.
 
-    Redirects the browser to the Meta authorization dialog.  Returns 404 if
-    no project with the given slug exists.
+    Supports two modes:
+    - ``mode="project"`` (default): connects a token to the given project. Requires
+      ``project_slug``. Redirects the browser to the Meta authorization dialog.
+      Returns 404 if no project with the given slug exists.
+    - ``mode="user"``: connects a personal Meta token to the authenticated user.
+      No ``project_slug`` needed. The token is stored in ``UserMetaToken``.
+
+    Both modes require authentication.
     """
-    result = await db.execute(select(Project).where(Project.slug == project_slug))
-    project = result.scalar_one_or_none()
-    if project is None:
-        # Return 404 as a plain JSON response — we're not inside a browser flow yet
-        from fastapi import HTTPException
-        raise HTTPException(status_code=404, detail=f"Project '{project_slug}' not found")
-
-    state = generate_state(project_slug)
+    if mode == "user":
+        state = generate_state(mode="user", user_id=current_user.id)
+    else:
+        # mode="project" — project_slug is required
+        if not project_slug:
+            raise HTTPException(status_code=400, detail="project_slug is required when mode='project'")
+        result = await db.execute(select(Project).where(Project.slug == project_slug))
+        project = result.scalar_one_or_none()
+        if project is None:
+            raise HTTPException(status_code=404, detail=f"Project '{project_slug}' not found")
+        state = generate_state(mode="project", slug=project_slug)
 
     authorize_url = (
         f"{_META_AUTHORIZE_URL}"
@@ -95,13 +106,72 @@ async def meta_oauth_callback(
 
     # --- Validate state ---
     try:
-        slug = validate_state(state or "")
+        payload = validate_state(state or "")
     except ValueError as exc:
         logger.warning("Meta OAuth invalid state: %s", exc)
         return RedirectResponse(
             url=f"{base_projects_url}?meta_error=invalid_state",
             status_code=302,
         )
+
+    oauth_mode = payload.get("mode", "project")
+
+    # =========================================================
+    # USER MODE — store token in UserMetaToken, skip asset discovery
+    # =========================================================
+    if oauth_mode == "user":
+        user_id = payload.get("user_id")
+
+        # --- Exchange authorization code for short-lived token ---
+        try:
+            short_token = await exchange_code(code or "")
+        except RuntimeError as exc:
+            logger.error("Meta OAuth token exchange error for user '%s': %s", user_id, exc)
+            return RedirectResponse(
+                url=f"{base_projects_url}?meta_error=token_exchange_failed",
+                status_code=302,
+            )
+
+        # --- Upgrade to long-lived token ---
+        try:
+            long_token, expires_at = await upgrade_to_long_lived(short_token)
+        except RuntimeError as exc:
+            logger.error("Meta OAuth token upgrade error for user '%s': %s", user_id, exc)
+            return RedirectResponse(
+                url=f"{base_projects_url}?meta_error=token_upgrade_failed",
+                status_code=302,
+            )
+
+        # --- UPSERT UserMetaToken ---
+        from app.models.user_meta_token import UserMetaToken
+        result = await db.execute(select(UserMetaToken).where(UserMetaToken.user_id == user_id))
+        umt = result.scalar_one_or_none()
+        if umt:
+            umt.encrypted_token = encrypt_token(long_token)
+            umt.expires_at = expires_at
+        else:
+            db.add(UserMetaToken(
+                user_id=user_id,
+                encrypted_token=encrypt_token(long_token),
+                expires_at=expires_at,
+            ))
+        await db.commit()
+
+        logger.info(
+            "Meta OAuth (user mode) complete for user '%s': expires=%s",
+            user_id,
+            expires_at,
+        )
+
+        return RedirectResponse(
+            url=f"{settings.FRONTEND_URL}/dashboard/settings?meta_connected=true",
+            status_code=302,
+        )
+
+    # =========================================================
+    # PROJECT MODE — existing behavior
+    # =========================================================
+    slug = payload.get("slug")
 
     # --- Load project ---
     result = await db.execute(select(Project).where(Project.slug == slug))

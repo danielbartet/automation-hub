@@ -19,15 +19,28 @@ META_BASE = "https://graph.facebook.com/v19.0"
 _STATE_TTL = 600
 
 
-def generate_state(slug: str) -> str:
+def generate_state(
+    mode: str = "project",
+    slug: str | None = None,
+    user_id: str | None = None,
+) -> str:
     """Generate a signed, base64url-encoded state parameter for the Meta OAuth flow.
 
     Security: HMAC-SHA256 signature prevents forgery. TTL prevents stale reuse.
     No in-memory nonce store — survives server restarts during the OAuth flow.
 
+    Args:
+        mode: ``"project"`` (default) or ``"user"``.
+        slug: Required when ``mode="project"`` — the project slug.
+        user_id: Required when ``mode="user"`` — the authenticated user's ID.
+
     Returns a string of the form ``<encoded_payload>.<hmac_signature>``.
     """
-    payload = {"slug": slug, "ts": int(time.time())}
+    if mode == "project":
+        payload: dict = {"mode": "project", "slug": slug, "ts": int(time.time())}
+    else:
+        payload = {"mode": "user", "user_id": user_id, "ts": int(time.time())}
+
     encoded = base64.urlsafe_b64encode(json.dumps(payload).encode()).decode()
     sig = hmac.new(
         settings.META_OAUTH_STATE_SECRET.encode(),
@@ -38,8 +51,12 @@ def generate_state(slug: str) -> str:
     return f"{encoded}.{sig}"
 
 
-def validate_state(state: str) -> str:
-    """Validate the state parameter returned by Meta and return the project slug.
+def validate_state(state: str) -> dict:
+    """Validate the state parameter returned by Meta and return the full payload dict.
+
+    Backward-compatible: if the payload has no ``mode`` key (old format), it is
+    treated as ``mode="project"`` and the dict will contain ``{"mode": "project",
+    "slug": ...}``.
 
     Raises:
         ValueError: With a descriptive message if validation fails for any reason.
@@ -72,11 +89,24 @@ def validate_state(state: str) -> str:
     if time.time() - payload.get("ts", 0) > _STATE_TTL:
         raise ValueError("state has expired (TTL exceeded)")
 
-    slug = payload.get("slug")
-    if not slug:
-        raise ValueError("state payload is missing the project slug")
+    # Backward compat: old payloads have no "mode" key — treat as project mode
+    if "mode" not in payload:
+        slug = payload.get("slug")
+        if not slug:
+            raise ValueError("state payload is missing the project slug")
+        return {"mode": "project", "slug": slug}
 
-    return slug
+    mode = payload.get("mode")
+    if mode == "project":
+        if not payload.get("slug"):
+            raise ValueError("state payload is missing the project slug")
+    elif mode == "user":
+        if not payload.get("user_id"):
+            raise ValueError("state payload is missing user_id")
+    else:
+        raise ValueError(f"state payload has unknown mode: {mode!r}")
+
+    return payload
 
 
 async def exchange_code(code: str) -> str:

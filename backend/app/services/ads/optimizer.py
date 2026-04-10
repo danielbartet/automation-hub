@@ -205,7 +205,7 @@ async def analyze_campaign(
     db: AsyncSession,
 ) -> dict:
     """Fetch metrics, call Claude, execute decision, log result."""
-    token = get_project_token(project)
+    token = await get_project_token(project, db)
 
     if not token or not campaign.meta_campaign_id:
         return {"skipped": True, "reason": "no token or meta_campaign_id"}

@@ -80,9 +80,9 @@ class UpdateStatusRequest(BaseModel):
     status: str  # active | paused
 
 
-async def fetch_live_campaign_statuses(project: Project) -> dict[str, str]:
+async def fetch_live_campaign_statuses(project: Project, db: AsyncSession) -> dict[str, str]:
     """Fetch live campaign statuses from Meta API keyed by meta_campaign_id."""
-    token = get_project_token(project)
+    token = await get_project_token(project, db)
     ad_account_id = (project.ad_account_id or "").removeprefix("act_")
     if not token or not ad_account_id:
         return {}
@@ -120,7 +120,7 @@ async def list_campaigns(project_id: int, db: AsyncSession = Depends(get_session
 
     live_statuses: dict[str, str] = {}
     if project:
-        live_statuses = await fetch_live_campaign_statuses(project)
+        live_statuses = await fetch_live_campaign_statuses(project, db)
 
     output = []
     for c in campaigns:
@@ -262,7 +262,7 @@ async def create_campaign(
     if not project:
         raise HTTPException(404, f"Project '{project_slug}' not found")
 
-    token = get_project_token(project)
+    token = await get_project_token(project, db)
     ad_account_id = (project.ad_account_id or "").removeprefix("act_")
     facebook_page_id = project.facebook_page_id or ""
 
@@ -438,7 +438,7 @@ async def update_campaign_status(
 
     proj_result = await db.execute(select(Project).where(Project.id == campaign.project_id))
     project = proj_result.scalar_one_or_none()
-    token = get_project_token(project) if project else ""
+    token = await get_project_token(project, db) if project else ""
 
     meta_status = "ACTIVE" if body.status == "active" else "PAUSED"
 
@@ -510,7 +510,7 @@ async def get_campaign_detail(
         proj_result = await db.execute(select(Project).limit(1))
         project = proj_result.scalar_one_or_none()
 
-    token = get_project_token(project) if project else ""
+    token = await get_project_token(project, db) if project else ""
     ad_account_id = ((project.ad_account_id or "") if project else "").removeprefix("act_")
 
     meta_campaign_id = (campaign.meta_campaign_id if campaign else None) or campaign_id
@@ -882,7 +882,7 @@ async def import_campaigns(
     if not project:
         raise HTTPException(404, f"Project '{project_slug}' not found")
 
-    token = get_project_token(project)
+    token = await get_project_token(project, db)
     ad_account_id = (project.ad_account_id or "").removeprefix("act_")
 
     if not token:
@@ -1232,7 +1232,7 @@ async def refresh_creative(
     if not project:
         raise HTTPException(404, "Project not found")
 
-    token = get_project_token(project)
+    token = await get_project_token(project, db)
     ad_account_id = (project.ad_account_id or "").removeprefix("act_")
     facebook_page_id = project.facebook_page_id or ""
 
@@ -1321,7 +1321,7 @@ async def update_campaign_budget(
 
     proj_result = await db.execute(select(Project).where(Project.id == campaign.project_id))
     project = proj_result.scalar_one_or_none()
-    token = get_project_token(project) if project else ""
+    token = await get_project_token(project, db) if project else ""
 
     if token and campaign.meta_adset_id:
         await meta_service.update_adset_budget(token, campaign.meta_adset_id, body.daily_budget)
@@ -1372,7 +1372,7 @@ async def optimizer_approve(
 
     proj_result = await db.execute(select(Project).where(Project.id == campaign.project_id))
     project = proj_result.scalar_one_or_none()
-    token = get_project_token(project) if project else ""
+    token = await get_project_token(project, db) if project else ""
 
     meta_svc = MetaCampaignService()
     result_msg = ""

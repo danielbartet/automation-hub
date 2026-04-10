@@ -105,8 +105,8 @@ async def fetch_campaign_insights(client: httpx.AsyncClient, campaign_id: str, t
         return {}
 
 
-async def fetch_meta_ads_data(project: Project) -> dict:
-    token = get_project_token(project)
+async def fetch_meta_ads_data(project: Project, db: AsyncSession) -> dict:
+    token = await get_project_token(project, db)
     ad_account_id = (project.ad_account_id or "").removeprefix("act_")
 
     if not token or not ad_account_id:
@@ -196,7 +196,7 @@ async def get_dashboard_kpis(project_slug: str, db: AsyncSession = Depends(get_s
         raise HTTPException(status_code=404, detail=f"Project '{project_slug}' not found")
 
     # Fetch real Meta Ads data
-    meta_ads = await fetch_meta_ads_data(project)
+    meta_ads = await fetch_meta_ads_data(project, db)
     total_spend_month = meta_ads["totals"]["spend_this_month"]
 
     # Content stats
