@@ -343,6 +343,7 @@ Return your JSON decision."""
 
     # 4. Create notifications instead of auto-executing
     from app.services.notifications import NotificationService
+    from app.models.notification import Notification
 
     notification_svc = NotificationService(db)
     action_taken = "NOTIFICATION_SENT"
@@ -350,43 +351,63 @@ Return your JSON decision."""
     # 5. Detect fatigue independently of Claude's decision
     fatigue_info = _detect_fatigue(metrics, days_since_created)
 
+    # Check for existing pending notification for this campaign (avoid duplicates)
+    existing_notif_result = await db.execute(
+        select(Notification).where(
+            Notification.project_id == campaign.project_id,
+            Notification.type.in_(["optimizer_scale", "optimizer_pause"]),
+            Notification.is_read == False,  # noqa: E712
+        ).order_by(Notification.created_at.desc())
+    )
+    existing_notifs = existing_notif_result.scalars().all()
+    pending_campaign_ids = {
+        (n.action_data or {}).get("campaign_id")
+        for n in existing_notifs
+    }
+
     try:
         if decision == "SCALE":
-            new_budget = round(old_budget * analysis.get("new_budget_multiplier", 1.2), 2)
-            new_budget = max(new_budget, 10.0)
-            approval_token = str(uuid_module.uuid4())[:16]
-            await notification_svc.create(
-                type="optimizer_scale",
-                title=f"Escalar presupuesto recomendado — {campaign.name}",
-                message=f"Presupuesto: ${old_budget}/día → ${new_budget}/día. {analysis.get('rationale', '')}",
-                project_id=campaign.project_id,
-                action_url=f"/dashboard/ads?campaign={campaign.id}",
-                action_label="Ver campaña",
-                action_data={
-                    "campaign_id": campaign.id,
-                    "approval_token": approval_token,
-                    "action": "scale",
-                    "current_budget": old_budget,
-                    "new_budget": new_budget,
-                },
-            )
+            if campaign.id in pending_campaign_ids:
+                action_taken = "NO_ACTION"  # already has a pending SCALE/PAUSE notification
+            else:
+                new_budget = round(old_budget * analysis.get("new_budget_multiplier", 1.2), 2)
+                new_budget = max(new_budget, 10.0)
+                approval_token = str(uuid_module.uuid4())[:16]
+                await notification_svc.create(
+                    type="optimizer_scale",
+                    title=f"Escalar presupuesto recomendado — {campaign.name}",
+                    message=f"Presupuesto: ${old_budget}/día → ${new_budget}/día. {analysis.get('rationale', '')}",
+                    project_id=campaign.project_id,
+                    action_url=f"/dashboard/ads?campaign={campaign.id}",
+                    action_label="Ver campaña",
+                    action_data={
+                        "campaign_id": campaign.id,
+                        "approval_token": approval_token,
+                        "action": "scale",
+                        "current_budget": old_budget,
+                        "new_budget": new_budget,
+                    },
+                )
 
         elif decision == "PAUSE":
-            approval_token = str(uuid_module.uuid4())[:16]
-            spend = float(metrics.get("spend", 0))
-            await notification_svc.create(
-                type="optimizer_pause",
-                title=f"Pausar campaña recomendado — {campaign.name}",
-                message=f"{analysis.get('rationale', '')} Gasto: ${spend:.2f}",
-                project_id=campaign.project_id,
-                action_url=f"/dashboard/ads?campaign={campaign.id}",
-                action_label="Ver campaña",
-                action_data={
-                    "campaign_id": campaign.id,
-                    "approval_token": approval_token,
-                    "action": "pause",
-                },
-            )
+            if campaign.id in pending_campaign_ids:
+                action_taken = "NO_ACTION"  # already has a pending SCALE/PAUSE notification
+            else:
+                approval_token = str(uuid_module.uuid4())[:16]
+                spend = float(metrics.get("spend", 0))
+                await notification_svc.create(
+                    type="optimizer_pause",
+                    title=f"Pausar campaña recomendado — {campaign.name}",
+                    message=f"{analysis.get('rationale', '')} Gasto: ${spend:.2f}",
+                    project_id=campaign.project_id,
+                    action_url=f"/dashboard/ads?campaign={campaign.id}",
+                    action_label="Ver campaña",
+                    action_data={
+                        "campaign_id": campaign.id,
+                        "approval_token": approval_token,
+                        "action": "pause",
+                    },
+                )
 
         elif decision == "MODIFY":
             action_taken = "RECOMMENDATIONS_SENT"
