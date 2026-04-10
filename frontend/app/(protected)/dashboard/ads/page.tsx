@@ -116,7 +116,8 @@ export default function AdsPage() {
   const [recsToast, setRecsToast] = useState<string | null>(null);
 
   useEffect(() => {
-    fetchProjects()
+    const token = (session as any)?.accessToken as string | undefined;
+    fetchProjects(token)
       .then((list: Project[]) => {
         const arr = Array.isArray(list) ? list : [];
         setProjects(arr);
@@ -124,7 +125,7 @@ export default function AdsPage() {
       })
       .catch((err) => setError(err.message))
       .finally(() => setLoadingProjects(false));
-  }, []);
+  }, [session]);
 
   const loadData = useCallback(() => {
     if (!selectedSlug) return;

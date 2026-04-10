@@ -383,7 +383,7 @@ export default function UsersPage() {
     try {
       const [usersData, projectsData] = await Promise.all([
         fetchUsers(token),
-        fetchProjects(),
+        fetchProjects(token),
       ]);
       setUsers(usersData || []);
       setProjects(projectsData || []);

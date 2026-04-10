@@ -98,14 +98,15 @@ export default function CalendarPage() {
   const [selectedDay, setSelectedDay] = useState<Date | null>(null);
 
   useEffect(() => {
-    fetchProjects()
+    const token = (session as any)?.accessToken as string | undefined;
+    fetchProjects(token)
       .then((data: Project[]) => {
         const list = Array.isArray(data) ? data : [];
         setProjects(list);
         if (list.length > 0) setSelectedProject(list[0]);
       })
       .catch(console.error);
-  }, []);
+  }, [session]);
 
   const loadPosts = async (project: Project, date: Date, viewMode: "week" | "month") => {
     if (!project) return;

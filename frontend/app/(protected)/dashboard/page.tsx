@@ -1,6 +1,7 @@
 "use client";
 
 import { useEffect, useState, useCallback } from "react";
+import { useSession } from "next-auth/react";
 import { useSearchParams, useRouter } from "next/navigation";
 import { Header } from "@/components/layout/Header";
 import { KPICard } from "@/components/dashboard/KPICard";
@@ -84,6 +85,7 @@ function formatDate(dateStr: string) {
 
 export default function DashboardPage() {
   const t = useT();
+  const { data: session } = useSession();
   const searchParams = useSearchParams();
   const router = useRouter();
   const projectParam = searchParams.get("project");
@@ -96,7 +98,8 @@ export default function DashboardPage() {
   const [error, setError] = useState<string | null>(null);
 
   useEffect(() => {
-    fetchProjects()
+    const token = (session as any)?.accessToken as string | undefined;
+    fetchProjects(token)
       .then((list: Project[]) => {
         const arr = Array.isArray(list) ? list : [];
         setProjects(arr);
@@ -107,7 +110,7 @@ export default function DashboardPage() {
       .catch((err) => setError(err.message))
       .finally(() => setLoadingProjects(false));
   // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, []);
+  }, [session]);
 
   const loadData = useCallback(() => {
     if (!selectedSlug) return;

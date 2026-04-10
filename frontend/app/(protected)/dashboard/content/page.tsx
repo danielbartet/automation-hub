@@ -419,7 +419,8 @@ export default function ContentPage() {
   }, [searchParams]);
 
   useEffect(() => {
-    fetchProjects()
+    const token = (session as any)?.accessToken as string | undefined;
+    fetchProjects(token)
       .then((data: Project[]) => {
         const list = Array.isArray(data) ? data : [];
         setProjects(list);
@@ -430,7 +431,7 @@ export default function ContentPage() {
       })
       .catch((err) => setError(err.message))
       .finally(() => setLoadingProjects(false));
-  }, []);
+  }, [session]);
 
   const loadContent = useCallback(() => {
     if (!selectedProjectSlug) return;

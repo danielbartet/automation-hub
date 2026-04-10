@@ -102,7 +102,8 @@ export default function AudiencesPage() {
   const [addContactsError, setAddContactsError] = useState<string | null>(null);
 
   useEffect(() => {
-    fetchProjects()
+    const token = (session as any)?.accessToken as string | undefined;
+    fetchProjects(token)
       .then((list: Project[]) => {
         const arr = Array.isArray(list) ? list : [];
         setProjects(arr);
@@ -110,7 +111,7 @@ export default function AudiencesPage() {
       })
       .catch((err: Error) => setError(err.message))
       .finally(() => setLoadingProjects(false));
-  }, []);
+  }, [session]);
 
   const loadAudiences = useCallback(async () => {
     if (!selectedSlug || !token) return;
