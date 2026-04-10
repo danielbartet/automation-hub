@@ -448,6 +448,21 @@ export const translations = {
     overview_status_published: "Published",
     overview_status_draft: "Draft",
 
+    // ── WhatToPostToday widget ────────────────────────────────────────────────
+    what_to_post_title: "What should I post today?",
+    what_to_post_get_recommendation: "Get recommendation",
+    what_to_post_analyzing: "Analyzing your history...",
+    what_to_post_error: "Could not get the recommendation. Please try again.",
+    what_to_post_generate_now: "Generate now",
+    what_to_post_another_suggestion: "Another suggestion",
+    what_to_post_plan_week: "Plan the week",
+    what_to_post_footer: "Recommendation based on your history and market analysis.",
+    what_to_post_best_time: "Best time:",
+    what_to_post_avoid_today: "Avoid today:",
+    what_to_post_urgency_high: "Best to post today",
+    what_to_post_urgency_low: "You can wait if content isn't ready",
+    what_to_post_urgency_medium: "Good time to post",
+
     // ── Users settings page ──────────────────────────────────────────────────
     users_page_title: "Users",
     users_page_subtitle: "Manage user accounts and permissions",
@@ -1057,6 +1072,21 @@ export const translations = {
     overview_status_pending: "Pendiente",
     overview_status_published: "Publicado",
     overview_status_draft: "Borrador",
+
+    // ── WhatToPostToday widget ────────────────────────────────────────────────
+    what_to_post_title: "¿Qué publico hoy?",
+    what_to_post_get_recommendation: "Obtener recomendación",
+    what_to_post_analyzing: "Analizando tu historial...",
+    what_to_post_error: "No se pudo obtener la recomendación. Intenta de nuevo.",
+    what_to_post_generate_now: "Generar ahora",
+    what_to_post_another_suggestion: "Otra sugerencia",
+    what_to_post_plan_week: "Planificar la semana",
+    what_to_post_footer: "Recomendación basada en tu historial y análisis del mercado.",
+    what_to_post_best_time: "Mejor hora:",
+    what_to_post_avoid_today: "Evitar hoy:",
+    what_to_post_urgency_high: "Conviene publicar hoy",
+    what_to_post_urgency_low: "Podés esperar si no tenés contenido listo",
+    what_to_post_urgency_medium: "Buen momento para publicar",
 
     // ── Users settings page ──────────────────────────────────────────────────
     users_page_title: "Usuarios",

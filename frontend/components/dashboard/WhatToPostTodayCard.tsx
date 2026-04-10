@@ -2,6 +2,7 @@
 import { useState, useEffect } from "react";
 import { Calendar, Sparkles, Clock, AlertTriangle, RefreshCw, CalendarDays, Loader2 } from "lucide-react";
 import { recommendToday } from "@/lib/api";
+import { useT, useLang } from "@/lib/i18n";
 
 type RecommendationData = Awaited<ReturnType<typeof recommendToday>>;
 
@@ -11,12 +12,21 @@ interface WhatToPostTodayCardProps {
   onPlanWeek: () => void;
 }
 
-const FORMAT_LABELS: Record<string, string> = {
-  carousel_6_slides: "Carrusel",
-  single_image: "Imagen",
-  text_post: "Texto",
-  story: "Historia",
-  reel: "Reel",
+const FORMAT_LABELS: Record<string, Record<string, string>> = {
+  en: {
+    carousel_6_slides: "Carousel",
+    single_image: "Image",
+    text_post: "Text",
+    story: "Story",
+    reel: "Reel",
+  },
+  es: {
+    carousel_6_slides: "Carrusel",
+    single_image: "Imagen",
+    text_post: "Texto",
+    story: "Historia",
+    reel: "Reel",
+  },
 };
 
 const ANGLE_COLORS: Record<string, string> = {
@@ -28,8 +38,9 @@ const ANGLE_COLORS: Record<string, string> = {
   Identity: "bg-violet-900/50 text-violet-300 border-violet-700",
 };
 
-function getTodayLabel() {
-  return new Date().toLocaleDateString("es-ES", {
+function getTodayLabel(lang: string) {
+  const locale = lang === "es" ? "es-ES" : "en-US";
+  return new Date().toLocaleDateString(locale, {
     weekday: "long",
     day: "numeric",
     month: "long",
@@ -37,6 +48,8 @@ function getTodayLabel() {
 }
 
 export function WhatToPostTodayCard({ projectSlug, onGenerateContent, onPlanWeek }: WhatToPostTodayCardProps) {
+  const t = useT();
+  const { lang } = useLang();
   const [state, setState] = useState<"collapsed" | "loading" | "recommendation">("collapsed");
   const [data, setData] = useState<RecommendationData | null>(null);
   const [error, setError] = useState<string | null>(null);
@@ -55,7 +68,7 @@ export function WhatToPostTodayCard({ projectSlug, onGenerateContent, onPlanWeek
       setData(result);
       setState("recommendation");
     } catch {
-      setError("No se pudo obtener la recomendación. Intenta de nuevo.");
+      setError(t.what_to_post_error);
       setState("collapsed");
     }
   };
@@ -74,12 +87,13 @@ export function WhatToPostTodayCard({ projectSlug, onGenerateContent, onPlanWeek
 
   const urgencyDot =
     urgency === "high"
-      ? { color: "#ef4444", label: "Conviene publicar hoy" }
+      ? { color: "#ef4444", label: t.what_to_post_urgency_high }
       : urgency === "low"
-      ? { color: "#9ca3af", label: "Podés esperar si no tenés contenido listo" }
-      : { color: "#f59e0b", label: "Buen momento para publicar" };
+      ? { color: "#9ca3af", label: t.what_to_post_urgency_low }
+      : { color: "#f59e0b", label: t.what_to_post_urgency_medium };
 
-  const formatLabel = data ? (FORMAT_LABELS[data.recommendation.format] ?? data.recommendation.format) : "";
+  const formatLabels = FORMAT_LABELS[lang] ?? FORMAT_LABELS.en;
+  const formatLabel = data ? (formatLabels[data.recommendation.format] ?? data.recommendation.format) : "";
   const angleKey = data?.recommendation.content_angle ?? "";
   const angleClass = ANGLE_COLORS[angleKey] ?? "bg-gray-800 text-gray-300 border-gray-600";
 
@@ -93,8 +107,8 @@ export function WhatToPostTodayCard({ projectSlug, onGenerateContent, onPlanWeek
         <div className="flex items-center gap-3">
           <Calendar className="h-5 w-5 flex-shrink-0" style={{ color: "#7c3aed" }} />
           <div>
-            <p className="text-sm font-semibold text-white">¿Qué publico hoy?</p>
-            <p className="text-xs" style={{ color: "#9ca3af" }}>{getTodayLabel()}</p>
+            <p className="text-sm font-semibold text-white">{t.what_to_post_title}</p>
+            <p className="text-xs" style={{ color: "#9ca3af" }}>{getTodayLabel(lang)}</p>
           </div>
         </div>
         {state !== "recommendation" && (
@@ -107,7 +121,7 @@ export function WhatToPostTodayCard({ projectSlug, onGenerateContent, onPlanWeek
             onMouseLeave={(e) => { (e.currentTarget as HTMLButtonElement).style.backgroundColor = "#7c3aed"; }}
           >
             <Sparkles className="h-4 w-4" />
-            Obtener recomendación
+            {t.what_to_post_get_recommendation}
           </button>
         )}
       </div>
@@ -116,7 +130,7 @@ export function WhatToPostTodayCard({ projectSlug, onGenerateContent, onPlanWeek
       {state === "loading" && (
         <div className="px-6 pb-5 flex items-center gap-3" style={{ borderTop: "1px solid #1a1a1a" }}>
           <Loader2 className="h-4 w-4 animate-spin flex-shrink-0" style={{ color: "#9ca3af" }} />
-          <p className="text-sm italic" style={{ color: "#9ca3af" }}>Analizando tu historial...</p>
+          <p className="text-sm italic" style={{ color: "#9ca3af" }}>{t.what_to_post_analyzing}</p>
         </div>
       )}
 
@@ -184,7 +198,7 @@ export function WhatToPostTodayCard({ projectSlug, onGenerateContent, onPlanWeek
             <div className="flex items-center gap-1.5">
               <Clock className="h-3.5 w-3.5 flex-shrink-0" style={{ color: "#9ca3af" }} />
               <span className="text-xs" style={{ color: "#9ca3af" }}>
-                Mejor hora: {data.recommendation.best_time_to_post}
+                {t.what_to_post_best_time} {data.recommendation.best_time_to_post}
               </span>
             </div>
 
@@ -193,7 +207,7 @@ export function WhatToPostTodayCard({ projectSlug, onGenerateContent, onPlanWeek
               <div className="flex items-start gap-1.5">
                 <AlertTriangle className="h-3.5 w-3.5 flex-shrink-0 mt-0.5" style={{ color: "#f59e0b" }} />
                 <span className="text-xs" style={{ color: "#f59e0b" }}>
-                  Evitar hoy: {data.recommendation.what_to_avoid}
+                  {t.what_to_post_avoid_today} {data.recommendation.what_to_avoid}
                 </span>
               </div>
             )}
@@ -209,7 +223,7 @@ export function WhatToPostTodayCard({ projectSlug, onGenerateContent, onPlanWeek
               onMouseLeave={(e) => { (e.currentTarget as HTMLButtonElement).style.backgroundColor = "#7c3aed"; }}
             >
               <Sparkles className="h-4 w-4" />
-              Generar ahora
+              {t.what_to_post_generate_now}
             </button>
 
             <button
@@ -230,7 +244,7 @@ export function WhatToPostTodayCard({ projectSlug, onGenerateContent, onPlanWeek
               }}
             >
               <RefreshCw className="h-4 w-4" />
-              Otra sugerencia
+              {t.what_to_post_another_suggestion}
             </button>
 
             <button
@@ -251,11 +265,11 @@ export function WhatToPostTodayCard({ projectSlug, onGenerateContent, onPlanWeek
               }}
             >
               <CalendarDays className="h-4 w-4" />
-              Planificar la semana
+              {t.what_to_post_plan_week}
             </button>
 
             <p className="text-xs text-center mt-1" style={{ color: "#6b7280" }}>
-              Recomendación basada en tu historial y análisis del mercado.
+              {t.what_to_post_footer}
             </p>
           </div>
         </div>
