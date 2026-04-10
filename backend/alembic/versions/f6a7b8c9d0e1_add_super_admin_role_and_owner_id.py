@@ -20,10 +20,14 @@ depends_on: Union[str, Sequence[str], None] = None
 
 def upgrade() -> None:
     # Add owner_id FK column to projects (nullable for existing rows)
-    op.add_column(
-        'projects',
-        sa.Column('owner_id', sa.String(36), sa.ForeignKey('users.id', ondelete='SET NULL'), nullable=True)
-    )
+    # Idempotent: skip if column already exists (handles container restarts)
+    conn = op.get_bind()
+    columns = [row[1] for row in conn.execute(sa.text("PRAGMA table_info(projects)")).fetchall()]
+    if 'owner_id' not in columns:
+        op.add_column(
+            'projects',
+            sa.Column('owner_id', sa.String(36), sa.ForeignKey('users.id', ondelete='SET NULL'), nullable=True)
+        )
     # role is stored as a plain VARCHAR — no DB-level enum change needed.
     # The new 'super_admin' value is valid as-is.
 
