@@ -1,5 +1,7 @@
 import httpx
-from datetime import datetime, timezone
+from datetime import datetime, timedelta, timezone
+from sqlalchemy.ext.asyncio import AsyncSession
+from sqlalchemy import select
 
 
 class MetaAdLibraryService:
@@ -59,8 +61,10 @@ class MetaAdLibraryService:
                         titles = ad.get("ad_creative_link_titles", [])
                         all_ads.append({
                             "competitor": page_name,
+                            "page_name": ad.get("page_name", page_name),
                             "body": bodies[0] if bodies else "",
                             "title": titles[0] if titles else "",
+                            "ad_creative_bodies": bodies,
                             "days_active": days_active,
                             "platforms": ad.get("publisher_platforms", []),
                             "snapshot_url": ad.get("ad_snapshot_url", "")
@@ -71,6 +75,60 @@ class MetaAdLibraryService:
 
         all_ads.sort(key=lambda x: x["days_active"], reverse=True)
         return all_ads[:20]
+
+    async def get_competitor_ads_cached(
+        self,
+        db: AsyncSession,
+        project,
+        access_token: str,
+    ) -> list[dict]:
+        """
+        Returns competitor ads for a project, using a 48-hour cache stored in
+        competitor_research_cache. Fetches fresh data if the cache is stale or missing.
+        """
+        from app.models.competitor_cache import CompetitorResearchCache
+
+        cutoff = datetime.now(timezone.utc) - timedelta(hours=48)
+
+        # Check cache
+        result = await db.execute(
+            select(CompetitorResearchCache).where(
+                CompetitorResearchCache.project_id == project.id
+            )
+        )
+        cache = result.scalar_one_or_none()
+
+        if cache and cache.fetched_at > cutoff:
+            return cache.research_json.get("ads", [])
+
+        # Fetch fresh data
+        config = project.content_config or {}
+        competitors_raw = config.get("competitors", "")
+        if not competitors_raw:
+            return []
+
+        competitors_list = [
+            c.strip().lstrip("@")
+            for c in competitors_raw.replace("\n", ",").split(",")
+            if c.strip()
+        ]
+        ads = await self.get_competitor_ads(access_token=access_token, competitors=competitors_list)
+
+        # Upsert cache
+        now = datetime.now(timezone.utc)
+        if cache:
+            cache.research_json = {"ads": ads}
+            cache.fetched_at = now
+        else:
+            cache = CompetitorResearchCache(
+                project_id=project.id,
+                research_json={"ads": ads},
+                fetched_at=now,
+            )
+            db.add(cache)
+        await db.commit()
+
+        return ads
 
     def _days_since(self, date_str: str) -> int:
         if not date_str:

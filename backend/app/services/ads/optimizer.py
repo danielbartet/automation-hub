@@ -8,7 +8,9 @@ from sqlalchemy import select
 from app.models.ad_campaign import AdCampaign
 from app.models.project import Project
 from app.models.optimization_log import CampaignOptimizationLog
+from app.models.competitor_cache import CompetitorResearchCache  # noqa: F401 — ensures model is registered
 from app.services.ads.meta_campaign import MetaCampaignService
+from app.services.meta.ad_library import MetaAdLibraryService
 from app.services.claude.client import ClaudeClient
 from app.core.config import settings
 from app.core.security import get_project_token
@@ -48,6 +50,7 @@ async def generate_creative_brief(
     current_ad: dict,
     metrics: dict,
     project: Project,
+    competitor_ads: list[dict] = None,
 ) -> dict:
     """Call Claude to generate an actionable creative replacement brief for a fatigued ad."""
     language = (project.content_config or {}).get("language", "es")
@@ -57,6 +60,20 @@ async def generate_creative_brief(
     cost_per_result = metrics.get("cost_per_result", 0)
     cpl_7d_ago = metrics.get("cpl_7d_ago", 0)
     days_running = metrics.get("days_running", 0)
+
+    # Build competitor context block
+    if competitor_ads:
+        comp_lines = [
+            f"- {ad.get('page_name', ad.get('competitor', '?'))}: \"{ad.get('body', ad.get('ad_creative_bodies', [''])[0] if ad.get('ad_creative_bodies') else '')[:100]}\""
+            for ad in competitor_ads[:4]
+        ]
+        comp_block = (
+            "COMPETITOR CREATIVES CURRENTLY RUNNING:\n"
+            + "\n".join(comp_lines)
+            + "\nYour replacement must use a different angle than what competitors are running."
+        )
+    else:
+        comp_block = ""
 
     prompt = f"""You are a Meta Ads creative strategist expert in the Andromeda algorithm.
 
@@ -75,6 +92,8 @@ Brand:
 - Product: {(project.content_config or {}).get('core_message')}
 - Audience: {(project.content_config or {}).get('target_audience')}
 - Language: {language}
+
+{comp_block}
 
 The creative is fatigued. Generate a replacement brief.
 
@@ -235,6 +254,35 @@ async def analyze_campaign(
             "fatigue_detected": False,
         }
 
+    # 2b. Fetch last 3 optimization decisions for this campaign
+    history_result = await db.execute(
+        select(CampaignOptimizationLog)
+        .where(CampaignOptimizationLog.campaign_id == campaign.id)
+        .order_by(CampaignOptimizationLog.checked_at.desc())
+        .limit(3)
+    )
+    history = history_result.scalars().all()
+    history_text = "\n".join(
+        [f"- {h.checked_at.strftime('%Y-%m-%d')}: {h.decision} — {h.rationale}" for h in history]
+    ) or "No previous optimizations"
+
+    # 2c. Fetch competitor ads (cached, 48h TTL)
+    competitor_ads: list[dict] = []
+    try:
+        ad_lib = MetaAdLibraryService()
+        competitor_ads = await ad_lib.get_competitor_ads_cached(db, project, token)
+    except Exception:
+        competitor_ads = []
+
+    if competitor_ads:
+        comp_lines = [
+            f"- {ad.get('page_name', ad.get('competitor', '?'))}: {(ad.get('body') or (ad.get('ad_creative_bodies') or ['?'])[0])[:80]}"
+            for ad in competitor_ads[:5]
+        ]
+        comp_text = "\n".join(comp_lines)
+    else:
+        comp_text = "No competitor data available"
+
     prompt = f"""Analyze this Meta Ads campaign and decide what action to take.
 
 CAMPAIGN INFO:
@@ -255,7 +303,13 @@ LAST 7 DAYS METRICS:
 - Actions: {json.dumps(metrics.get('actions', []))}
 - Cost per action: {json.dumps(metrics.get('cost_per_action_type', []))}
 
-Apply Andromeda rules and return your JSON decision."""
+OPTIMIZATION HISTORY (last 3 decisions):
+{history_text}
+
+COMPETITOR ADS (currently active — longer-running ads are likely performing):
+{comp_text}
+
+Apply Andromeda rules. Consider the optimization history to avoid repeating the same decision if it didn't improve metrics. Use competitor context when suggesting creative modifications. Return your JSON decision."""
 
     # 3. Call Claude
     try:
@@ -343,6 +397,7 @@ Apply Andromeda rules and return your JSON decision."""
                 metrics=metrics,
                 fatigue_info=fatigue_info,
                 notification_svc=notification_svc,
+                competitor_ads=competitor_ads,
             )
 
     except Exception as e:
@@ -383,6 +438,7 @@ async def _create_fatigue_notification(
     metrics: dict,
     fatigue_info: dict,
     notification_svc,
+    competitor_ads: list[dict] = None,
 ) -> None:
     """Generate creative brief and create campaign_fatigued notification + Telegram message."""
     # Determine current ad info (use campaign stored copy info as fallback)
@@ -411,6 +467,7 @@ async def _create_fatigue_notification(
             current_ad=current_ad,
             metrics=enriched_metrics,
             project=project,
+            competitor_ads=competitor_ads,
         )
     except Exception:
         brief = {

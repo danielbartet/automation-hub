@@ -371,6 +371,9 @@ async def generate_content(
         db_format = "text_post"
 
     # 10. Save to DB
+    # Extract narrative_angle from generated content (set by generate_content_by_type)
+    detected_angle = content.get("narrative_angle") if isinstance(content, dict) else None
+
     post = ContentPost(
         project_id=project.id,
         format=db_format,
@@ -379,6 +382,7 @@ async def generate_content(
         image_url=image_url or None,
         image_urls=json.dumps(image_urls) if image_urls else None,
         caption=caption,
+        narrative_angle=detected_angle,
     )
     db.add(post)
     await db.commit()
@@ -1661,6 +1665,7 @@ async def recommend_today(
             "format": p.format or "",
             "content": p.content or {},
             "status": p.status or "",
+            "narrative_angle": p.narrative_angle or "",
         }
         for p in recent_posts_raw
     ]

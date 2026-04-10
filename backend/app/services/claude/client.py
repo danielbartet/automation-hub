@@ -3,6 +3,35 @@ import json
 from anthropic import Anthropic
 from app.core.config import settings
 
+VALID_ANGLES = ("Transformation", "Educational", "Social Proof", "Urgency", "Identity", "Comparative")
+
+
+def _detect_angle_from_content(data: dict) -> str:
+    """
+    Infer a narrative angle from generated content using keyword matching.
+    Falls back to 'Educational' when no clear signal is found.
+    """
+    text = " ".join([
+        data.get("topic", ""),
+        data.get("category", ""),
+        " ".join(
+            (s.get("headline", "") + " " + s.get("body", "") + " " + s.get("subtext", ""))
+            for s in data.get("slides", [])
+        ),
+    ]).lower()
+
+    if any(kw in text for kw in ("transform", "cambio", "antes", "after", "journey", "resultado")):
+        return "Transformation"
+    if any(kw in text for kw in ("proof", "testimonio", "resultado", "clients", "clientes", "usuarios")):
+        return "Social Proof"
+    if any(kw in text for kw in ("urgent", "ahora", "hoy", "warning", "riesgo", "verdad incómoda", "stop")):
+        return "Urgency"
+    if any(kw in text for kw in ("identidad", "comunidad", "somos", "nosotros", "quien", "valores")):
+        return "Identity"
+    if any(kw in text for kw in ("vs", "versus", "comparar", "antes vs", "old way", "nuevo", "diferencia")):
+        return "Comparative"
+    return "Educational"
+
 
 class ClaudeClient:
     """Wrapper for Anthropic Claude API calls."""
@@ -98,6 +127,7 @@ Always respond with a valid JSON object and nothing else:
 {{
   "category": "string (one of the categories above)",
   "topic": "string (specific topic of this content)",
+  "narrative_angle": "one of: Transformation | Educational | Social Proof | Urgency | Identity | Comparative",
   "slides": [
     {{"slide_number": 1, "type": "hook", "headline": "max 8 words", "subtext": "max 20 words"}},
     {{"slide_number": 2, "type": "content", "headline": "max 6 words", "body": "max 40 words"}},
@@ -180,7 +210,16 @@ RULES:
             if content.startswith("json"):
                 content = content[4:]
             content = content.rsplit("```", 1)[0].strip()
-        return json.loads(content)
+        result = json.loads(content)
+
+        # Extract or infer the narrative angle and attach it to the response dict
+        raw_angle = result.get("narrative_angle", "")
+        if raw_angle in VALID_ANGLES:
+            result["narrative_angle"] = raw_angle
+        else:
+            result["narrative_angle"] = _detect_angle_from_content(result)
+
+        return result
 
     def _build_single_image_system_prompt(self, project) -> str:
         config = project.content_config or {}
@@ -298,15 +337,19 @@ RULES:
         date_str = now.strftime("%d/%m/%Y")
         time_str = now.strftime("%H:%M")
 
-        # Build recent posts summary
+        # Build recent posts summary (includes narrative_angle for tracking)
+        recent_angles: list[str] = []
         if recent_posts:
             posts_lines = []
             for p in recent_posts:
                 topic = ""
                 if p.get("content") and isinstance(p["content"], dict):
                     topic = p["content"].get("topic", p["content"].get("category", ""))
+                angle = p.get("narrative_angle", "")
+                if angle:
+                    recent_angles.append(angle)
                 posts_lines.append(
-                    f"- {p.get('created_at', 'N/A')} | {p.get('format', 'N/A')} | {topic} | {p.get('status', 'N/A')}"
+                    f"- {p.get('created_at', 'N/A')} | {p.get('format', 'N/A')} | {angle or 'Unknown'} | {topic} | {p.get('status', 'N/A')}"
                 )
             posts_summary = "\n".join(posts_lines)
         else:
@@ -324,6 +367,13 @@ RULES:
         else:
             comp_summary = "No hay datos de competidores disponibles."
 
+        # Build angle avoidance instruction based on last 3 posts
+        recent_3_angles = recent_angles[:3]
+        if recent_3_angles:
+            angle_avoidance = f"CRITICAL: You MUST avoid these recently used angles: {', '.join(recent_3_angles)}. Choose from the remaining angles only."
+        else:
+            angle_avoidance = "No angle history — choose freely based on the day of week guidelines."
+
         system_prompt = f"""You are a social media strategist expert for {language} content.
 You specialize in maximizing organic reach on Instagram and Facebook for {brand_name}.
 You always respond with valid JSON only, no markdown, no explanations outside the JSON.
@@ -332,6 +382,8 @@ CRITICAL JSON RULES: All string values must be on a single line. Never include l
 Apply the 6 Narrative Angles framework when recommending content:
 1. Transformation, 2. Educational, 3. Social Proof,
 4. Urgency/Uncomfortable Truths, 5. Identity/Community, 6. Comparative
+
+{angle_avoidance}
 
 Check the last 6 posts' angles. Recommend the angle that:
 a) Has not been used recently (avoid repetition)
