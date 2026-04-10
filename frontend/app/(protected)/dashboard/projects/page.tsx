@@ -124,11 +124,12 @@ function ProjectsPageInner() {
   }, [toast]);
 
   useEffect(() => {
-    fetchProjects()
+    const token = (session as any)?.accessToken as string | undefined;
+    fetchProjects(token)
       .then((data) => setProjects(Array.isArray(data) ? data : []))
       .catch((err) => setError(err.message))
       .finally(() => setLoading(false));
-  }, []);
+  }, [session]);
 
   const handleProjectUpdated = (updated: Project) => {
     setProjects((prev) => prev.map((p) => (p.id === updated.id ? updated : p)));
@@ -143,7 +144,8 @@ function ProjectsPageInner() {
     if (!deletingProject) return;
     setDeleteLoading(true);
     try {
-      await deleteProject(deletingProject.slug);
+      const token = (session as any)?.accessToken as string | undefined;
+      await deleteProject(deletingProject.slug, token);
       setProjects((prev) => prev.filter((p) => p.id !== deletingProject.id));
       setToast({ type: "success", message: t.projects_toast_deleted(deletingProject.name) });
       setDeletingProject(null);

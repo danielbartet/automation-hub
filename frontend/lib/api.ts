@@ -8,15 +8,18 @@ export async function fetchDashboard(projectSlug: string) {
   return res.json();
 }
 
-export async function fetchProjects() {
-  const res = await fetch(`${API_BASE}/api/v1/projects/`, { cache: "no-store" });
+export async function fetchProjects(token?: string) {
+  const headers: HeadersInit = token ? { Authorization: `Bearer ${token}` } : {};
+  const res = await fetch(`${API_BASE}/api/v1/projects/`, { headers, cache: "no-store" });
   if (!res.ok) throw new Error("Failed to fetch projects");
   return res.json();
 }
 
-export async function deleteProject(slug: string) {
+export async function deleteProject(slug: string, token?: string) {
+  const headers: HeadersInit = token ? { Authorization: `Bearer ${token}` } : {};
   const res = await fetch(`${API_BASE}/api/v1/projects/${slug}`, {
     method: "DELETE",
+    headers,
   });
   if (!res.ok) {
     const err = await res.json().catch(() => ({}));
@@ -24,14 +27,15 @@ export async function deleteProject(slug: string) {
   }
 }
 
-export async function createProject(data: {
+export async function createProject(token: string | undefined, data: {
   name: string;
   slug: string;
   content_config?: Record<string, unknown>;
 }) {
+  const headers: HeadersInit = { "Content-Type": "application/json", ...(token ? { Authorization: `Bearer ${token}` } : {}) };
   const res = await fetch(`${API_BASE}/api/v1/projects/`, {
     method: "POST",
-    headers: { "Content-Type": "application/json" },
+    headers,
     body: JSON.stringify(data),
   });
   if (!res.ok) {

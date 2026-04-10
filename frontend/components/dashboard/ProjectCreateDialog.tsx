@@ -1,5 +1,6 @@
 "use client";
 import { useState } from "react";
+import { useSession } from "next-auth/react";
 import { X, Loader2 } from "lucide-react";
 import { createProject } from "@/lib/api";
 import { useT } from "@/lib/i18n";
@@ -30,6 +31,7 @@ function toSlug(name: string) {
 
 export function ProjectCreateDialog({ onClose, onSuccess }: Props) {
   const t = useT();
+  const { data: session } = useSession();
   const [name, setName] = useState("");
   const [slug, setSlug] = useState("");
   const [slugManual, setSlugManual] = useState(false);
@@ -52,7 +54,8 @@ export function ProjectCreateDialog({ onClose, onSuccess }: Props) {
     setLoading(true);
     setError(null);
     try {
-      const project = await createProject({
+      const token = (session as any)?.accessToken as string | undefined;
+      const project = await createProject(token, {
         name: name.trim(),
         slug: slug.trim(),
         content_config: { language, brand_name: name.trim() },
