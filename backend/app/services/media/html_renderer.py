@@ -263,6 +263,336 @@ class HTMLSlideRenderer(BaseImageProvider):
         </div>
         """
 
+    # ------------------------------------------------------------------ #
+    # Single-image layout (1080×1080 square)
+    # ------------------------------------------------------------------ #
+
+    def _single_image_layout(self, slide_data: dict, mc: dict) -> str:
+        """Full-bleed typographic single-image layout."""
+        headline = self._escape(slide_data.get("headline", ""))
+        subtext = self._escape(slide_data.get("subtext", ""))
+        cta = self._escape(slide_data.get("cta", ""))
+        brand = self._escape(mc.get("brand_handle", mc.get("brand_name", "")))
+        primary = mc.get("image_primary_color", mc.get("primary_color", "#00FF41"))
+        bg = mc.get("image_bg_color", mc.get("bg_color", "#0a0a0a"))
+
+        return f"""
+        <style>
+        .si-wrap {{
+            flex: 1;
+            display: flex;
+            flex-direction: column;
+            justify-content: center;
+            align-items: center;
+            padding: 80px 72px;
+            text-align: center;
+            gap: 0;
+        }}
+        .si-bar {{
+            width: 80px;
+            height: 6px;
+            background: {primary};
+            border-radius: 3px;
+            margin-bottom: 52px;
+        }}
+        .si-headline {{
+            font-size: 88px;
+            font-weight: 900;
+            line-height: 1.05;
+            color: var(--secondary);
+            letter-spacing: -2px;
+            text-transform: uppercase;
+            margin-bottom: 36px;
+        }}
+        .si-subtext {{
+            font-size: 34px;
+            font-weight: 400;
+            line-height: 1.5;
+            color: var(--secondary);
+            opacity: 0.75;
+            margin-bottom: 64px;
+            max-width: 800px;
+        }}
+        .si-cta {{
+            display: inline-block;
+            padding: 20px 48px;
+            background: {primary};
+            color: {bg};
+            font-size: 26px;
+            font-weight: 700;
+            letter-spacing: 2px;
+            text-transform: uppercase;
+            border-radius: 4px;
+            margin-bottom: 48px;
+        }}
+        .si-brand {{
+            font-size: 22px;
+            font-weight: 600;
+            color: {primary};
+            letter-spacing: 3px;
+            text-transform: uppercase;
+            margin-top: auto;
+        }}
+        </style>
+        <div class="si-wrap">
+            <div class="si-bar"></div>
+            <div class="si-headline">{headline}</div>
+            {'<div class="si-subtext">' + subtext + '</div>' if subtext else ''}
+            {'<div class="si-cta">' + cta + '</div>' if cta else ''}
+            <div class="si-brand">@{brand}</div>
+        </div>
+        """
+
+    def _build_single_image_html(self, slide_data: dict, mc: dict) -> str:
+        """Assemble complete HTML for a single-image post (1080×1080)."""
+        base_css = self._base_css(mc)
+        inner = self._single_image_layout(slide_data, mc)
+        return f"""<!DOCTYPE html>
+<html lang="es">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=1080, height=1080">
+<style>
+{base_css}
+</style>
+</head>
+<body>
+<div class="slide">
+{inner}
+</div>
+</body>
+</html>"""
+
+    async def render_single_image(self, slide_data: dict, media_config: dict) -> str:
+        """Render a single-image post to a 1080×1080 PNG and upload to S3.
+
+        slide_data keys: headline, subtext, cta
+        """
+        from app.services.storage.s3 import S3Service
+
+        html_content = self._build_single_image_html(slide_data, media_config)
+        try:
+            png_bytes = await self._html_to_png(html_content)
+        except Exception as exc:
+            logger.error("Playwright render failed for single_image: %s", exc)
+            raise
+
+        s3 = S3Service()
+        url = await s3.upload_bytes(png_bytes, folder="generated/single")
+        logger.info("HTMLSlideRenderer uploaded single_image: %s", url)
+        return url
+
+    # ------------------------------------------------------------------ #
+    # Story-vertical layout (1080×1920, 9:16)
+    # ------------------------------------------------------------------ #
+
+    def _story_layout(self, slide_data: dict, mc: dict) -> str:
+        """Vertical story layout — hook / body / CTA in three zones."""
+        hook = self._escape(slide_data.get("hook_text", slide_data.get("headline", "")))
+        body = self._escape(slide_data.get("body_text", slide_data.get("subtext", "")))
+        cta = self._escape(slide_data.get("cta_text", slide_data.get("cta", "")))
+        brand = self._escape(mc.get("brand_handle", mc.get("brand_name", "")))
+        primary = mc.get("image_primary_color", mc.get("primary_color", "#00FF41"))
+        bg = mc.get("image_bg_color", mc.get("bg_color", "#0a0a0a"))
+
+        return f"""
+        <style>
+        .story-wrap {{
+            flex: 1;
+            display: flex;
+            flex-direction: column;
+            justify-content: space-between;
+            padding: 120px 80px 100px;
+        }}
+        .story-top {{
+            display: flex;
+            flex-direction: column;
+            align-items: flex-start;
+        }}
+        .story-brand {{
+            font-size: 28px;
+            font-weight: 700;
+            color: {primary};
+            letter-spacing: 3px;
+            text-transform: uppercase;
+            margin-bottom: 48px;
+        }}
+        .story-hook {{
+            font-size: 96px;
+            font-weight: 900;
+            line-height: 1.0;
+            color: var(--secondary);
+            letter-spacing: -2px;
+            text-transform: uppercase;
+        }}
+        .story-mid {{
+            font-size: 44px;
+            font-weight: 400;
+            line-height: 1.5;
+            color: var(--secondary);
+            opacity: 0.85;
+        }}
+        .story-bottom {{
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            gap: 20px;
+        }}
+        .story-cta {{
+            display: inline-block;
+            padding: 24px 60px;
+            background: {primary};
+            color: {bg};
+            font-size: 30px;
+            font-weight: 700;
+            letter-spacing: 2px;
+            text-transform: uppercase;
+            border-radius: 60px;
+            text-align: center;
+        }}
+        .story-swipe {{
+            font-size: 22px;
+            color: var(--secondary);
+            opacity: 0.5;
+            letter-spacing: 1px;
+        }}
+        </style>
+        <div class="story-wrap">
+            <div class="story-top">
+                <div class="story-brand">@{brand}</div>
+                <div class="story-hook">{hook}</div>
+            </div>
+            <div class="story-mid">{body}</div>
+            <div class="story-bottom">
+                {'<div class="story-cta">' + cta + '</div>' if cta else ''}
+                <div class="story-swipe">↑ deslizá para más</div>
+            </div>
+        </div>
+        """
+
+    def _base_css_story(self, mc: dict) -> str:
+        """Like _base_css but sized for 1080×1920 story canvas."""
+        bg = mc.get("image_bg_color", mc.get("bg_color", "#0a0a0a"))
+        primary = mc.get("image_primary_color", mc.get("primary_color", "#00FF41"))
+        secondary = mc.get("image_secondary_color", mc.get("secondary_color", "#ffffff"))
+        accent = mc.get("accent_color", primary)
+        font_family = mc.get("image_fonts", mc.get("fonts", "'Space Grotesk', sans-serif"))
+
+        return f"""
+        @font-face {{
+            font-family: 'Space Grotesk';
+            font-weight: 400;
+            src: url('file:///app/fonts/SpaceGrotesk-Regular.ttf') format('truetype');
+        }}
+        @font-face {{
+            font-family: 'Space Grotesk';
+            font-weight: 700;
+            src: url('file:///app/fonts/SpaceGrotesk-Bold.ttf') format('truetype');
+        }}
+        @font-face {{
+            font-family: 'Space Grotesk';
+            font-weight: 600;
+            src: url('file:///app/fonts/SpaceGrotesk-SemiBold.ttf') format('truetype');
+        }}
+        *, *::before, *::after {{ box-sizing: border-box; margin: 0; padding: 0; }}
+        :root {{
+            --bg: {bg};
+            --primary: {primary};
+            --secondary: {secondary};
+            --accent: {accent};
+            --font: {font_family};
+        }}
+        html, body {{
+            width: 1080px;
+            height: 1920px;
+            background: var(--bg);
+            color: var(--secondary);
+            font-family: var(--font);
+            -webkit-font-smoothing: antialiased;
+            overflow: hidden;
+        }}
+        .slide {{
+            width: 1080px;
+            height: 1920px;
+            display: flex;
+            flex-direction: column;
+            position: relative;
+            overflow: hidden;
+            background: var(--bg);
+        }}
+        """
+
+    def _build_story_html(self, slide_data: dict, mc: dict) -> str:
+        """Assemble complete HTML for a story post (1080×1920)."""
+        base_css = self._base_css_story(mc)
+        inner = self._story_layout(slide_data, mc)
+        return f"""<!DOCTYPE html>
+<html lang="es">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=1080, height=1920">
+<style>
+{base_css}
+</style>
+</head>
+<body>
+<div class="slide">
+{inner}
+</div>
+</body>
+</html>"""
+
+    async def _html_to_png_story(self, html: str) -> bytes:
+        """Render HTML to a 1080×1920 PNG using Playwright (story format)."""
+        import tempfile
+        import os
+        from playwright.async_api import async_playwright
+
+        with tempfile.NamedTemporaryFile(
+            mode='w',
+            suffix='.html',
+            delete=False,
+            encoding='utf-8',
+        ) as f:
+            f.write(html)
+            tmp_path = f.name
+
+        try:
+            async with async_playwright() as p:
+                browser = await p.chromium.launch(
+                    args=["--no-sandbox", "--disable-setuid-sandbox", "--disable-dev-shm-usage"],
+                )
+                page = await browser.new_page(viewport={"width": 1080, "height": 1920})
+                await page.goto(f"file://{tmp_path}", wait_until="domcontentloaded")
+                await page.wait_for_timeout(800)
+                png_bytes = await page.screenshot(
+                    type="png",
+                    clip={"x": 0, "y": 0, "width": 1080, "height": 1920},
+                )
+                await browser.close()
+                return png_bytes
+        finally:
+            os.unlink(tmp_path)
+
+    async def render_story(self, slide_data: dict, media_config: dict) -> str:
+        """Render a story post to a 1080×1920 PNG and upload to S3.
+
+        slide_data keys: hook_text, body_text, cta_text
+        """
+        from app.services.storage.s3 import S3Service
+
+        html_content = self._build_story_html(slide_data, media_config)
+        try:
+            png_bytes = await self._html_to_png_story(html_content)
+        except Exception as exc:
+            logger.error("Playwright render failed for story: %s", exc)
+            raise
+
+        s3 = S3Service()
+        url = await s3.upload_bytes(png_bytes, folder="generated/stories")
+        logger.info("HTMLSlideRenderer uploaded story: %s", url)
+        return url
+
     async def _build_html_with_claude(self, slide_data: dict, mc: dict) -> str:
         """Generate complete slide HTML using Claude API.
 

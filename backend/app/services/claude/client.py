@@ -3,6 +3,8 @@ import json
 from anthropic import Anthropic
 from app.core.config import settings
 
+VALID_FORMATS = ("carousel_6_slides", "single_image", "story_vertical")
+
 VALID_ANGLES = ("Transformation", "Educational", "Social Proof", "Urgency", "Identity", "Comparative")
 
 
@@ -158,13 +160,18 @@ RULES:
         content_type: str = "carousel_6_slides",
         category: str | None = None,
         hint: str | None = None,
+        competitor_ads: list[dict] | None = None,
     ) -> dict:
         """Generate content for a project based on content_type.
 
-        Supports: carousel_6_slides | single_image | text_post
+        Supports: carousel_6_slides | single_image | story_vertical | story | text_post
         Optional category and hint are injected into the user message when provided.
+        competitor_ads: optional list of competitor ad dicts — injected as context when present.
         """
-        if content_type == "single_image":
+        if content_type in ("story", "story_vertical"):
+            system_prompt = self._build_story_system_prompt(project)
+            user_msg = f"Generate one story post for {project.name} following your instructions exactly."
+        elif content_type in ("single_image", "image"):
             system_prompt = self._build_single_image_system_prompt(project)
             user_msg = f"Generate one single-image post for {project.name} following your instructions exactly."
         elif content_type == "text_post":
@@ -183,6 +190,19 @@ RULES:
             extras.append(f"IMPORTANT: Generate content specifically about this topic: {hint}. Keep this as the main subject while following all brand guidelines.")
         if extras:
             user_msg += " " + " | ".join(extras)
+
+        # Append competitor context block
+        if competitor_ads:
+            comp_lines = []
+            for ad in competitor_ads[:4]:
+                page = ad.get("page_name", "?")
+                body = (ad.get("ad_creative_bodies") or [""])[0][:80]
+                comp_lines.append(f"- {page}: \"{body}\"")
+            comp_block = "\n\nCOMPETITOR ADS CURRENTLY RUNNING (use OPPOSITE angle and messaging):\n" + "\n".join(comp_lines)
+        else:
+            comp_block = ""
+
+        user_msg += comp_block
 
         response = self.client.messages.create(
             model=self.MODEL,
@@ -224,42 +244,82 @@ RULES:
     def _build_single_image_system_prompt(self, project) -> str:
         config = project.content_config or {}
         brand_name = config.get("brand_name", project.name)
-        tone = config.get("tone", "professional, clear")
+        tone = config.get("tone", "professional")
         core_message = config.get("core_message", "")
-        target_audience = config.get("target_audience", "general audience")
-        language = config.get("language", "en")
-        additional_rules = config.get("additional_rules", [])
-        rules_text = "\n".join([f"- {rule}" for rule in additional_rules]) if additional_rules else ""
+        target_audience = config.get("target_audience", "")
+        language = config.get("language", "es")
 
-        return f"""You are the content generation system for {brand_name}.
+        return f"""You are a Senior Social Media Copywriter specialized in high-impact single-image posts.
 
-BRAND POSITIONING:
-- Brand name: {brand_name}
-- Core message: {core_message}
-- Target audience: {target_audience}
+SINGLE IMAGE RULES:
+- ONE bold idea. No explanations, no lists.
+- Headline: max 8 words — must stop the scroll instantly
+- Subtext: max 20 words — one supporting detail or stat
+- CTA: max 10 words — single clear action
+- Score 3U+ on 4U scale (Urgent, Unique, Ultra-specific, Useful)
+- The image concept must be specific and actionable for a designer
 
-TONE:
-{tone}
+BRAND: {brand_name}
+TONE: {tone}
+CORE MESSAGE: {core_message}
+AUDIENCE: {target_audience}
 
-{f"ADDITIONAL RULES:{chr(10)}{rules_text}" if rules_text else ""}
-
-OUTPUT FORMAT:
-Always respond with a valid JSON object and nothing else:
+OUTPUT FORMAT — valid JSON only:
 {{
   "format": "single_image",
-  "category": "string (topic category)",
-  "topic": "string (specific topic of this post)",
-  "headline": "max 10 words — one strong hook line",
-  "subtext": "max 20 words — supporting idea",
-  "caption": "max 150 chars — social media caption",
-  "hashtags": ["tag1", "tag2", "tag3", "tag4", "tag5"]
+  "narrative_angle": "one of: Transformation | Educational | Social Proof | Urgency | Identity | Comparative",
+  "category": "string",
+  "topic": "string",
+  "headline": "max 8 words",
+  "subtext": "max 20 words",
+  "cta": "max 10 words",
+  "image_concept": "specific visual description for designer — what to show, mood, composition",
+  "caption": "150-200 chars",
+  "hashtags": ["tag1", "tag2", "tag3"]
 }}
 
-RULES:
-- Always return valid JSON, nothing else before or after
-- Generate ALL content in: {language}
-- Headline must stop the scroll in under 2 seconds
-- Never use generic or cliché phrases"""
+Generate ALL content in: {language}
+Return valid JSON only, nothing else."""
+
+    def _build_story_system_prompt(self, project) -> str:
+        config = project.content_config or {}
+        brand_name = config.get("brand_name", project.name)
+        tone = config.get("tone", "professional")
+        core_message = config.get("core_message", "")
+        target_audience = config.get("target_audience", "")
+        language = config.get("language", "es")
+
+        return f"""You are a Senior Social Media Copywriter specialized in Instagram/Facebook Stories.
+
+STORY RULES:
+- Vertical format (9:16). Minimal text — max 3 lines visible.
+- Conversational, personal, direct — like talking to a friend
+- Hook in first 0.5 seconds — use a question or bold claim
+- One CTA that feels natural, not salesy (swipe up, DM, reply)
+- Visual must work without sound
+
+BRAND: {brand_name}
+TONE: {tone}
+CORE MESSAGE: {core_message}
+AUDIENCE: {target_audience}
+
+OUTPUT FORMAT — valid JSON only:
+{{
+  "format": "story_vertical",
+  "narrative_angle": "one of: Transformation | Educational | Social Proof | Urgency | Identity | Comparative",
+  "category": "string",
+  "topic": "string",
+  "hook_text": "bold opening line, max 6 words",
+  "body_text": "1-2 lines max, conversational",
+  "cta_text": "natural CTA, max 8 words",
+  "background_concept": "color/gradient/image description for the story background",
+  "sticker_suggestion": "optional interactive element (poll, question, slider)",
+  "caption": "80-120 chars (stories don't need long captions)",
+  "hashtags": ["tag1", "tag2", "tag3"]
+}}
+
+Generate ALL content in: {language}
+Return valid JSON only, nothing else."""
 
     def _build_text_post_system_prompt(self, project) -> str:
         config = project.content_config or {}
@@ -395,7 +455,13 @@ b) Matches the day of week:
    Sunday: reflective identity content
 
 Rate the suggested hook with the 4U scale before including it.
-Only suggest hooks that score 3U or higher."""
+Only suggest hooks that score 3U or higher.
+
+FORMAT SELECTION RULES — choose the best format for today:
+- carousel_6_slides: educational deep-dives, frameworks, step-by-step content, transformation stories. Best Tuesday/Wednesday/Thursday.
+- single_image: bold statements, quotes, uncomfortable truths, social proof with one strong stat. Best Monday/Friday.
+- story_vertical: casual/personal content, behind-the-scenes, community building, time-sensitive CTAs. Best any day for warm audiences.
+Consider what formats competitors are using — differentiate when possible."""
 
         user_prompt = f"""Today is {weekday}, {date_str} at {time_str} UTC.
 
@@ -431,8 +497,8 @@ Return ONLY valid JSON (no markdown, no code blocks):
   "urgency": "high",
   "urgency_reason": "string",
   "recommendation": {{
-    "format": "carousel_6_slides",
-    "format_reason": "why this format today",
+    "format": "carousel_6_slides | single_image | story_vertical",
+    "format_reason": "why this format fits today's angle and audience temperature",
     "content_angle": "Logical",
     "angle_reason": "why this angle",
     "suggested_category": "{content_categories[0] if content_categories else ''}",
@@ -452,7 +518,8 @@ Return ONLY valid JSON (no markdown, no code blocks):
     {{
       "label": "Generar este contenido ahora",
       "action": "generate",
-      "topic_hint": "the suggested_topic value here"
+      "topic_hint": "the suggested_topic value here",
+      "format_hint": "the recommended format value here"
     }},
     {{
       "label": "Ver otra sugerencia",

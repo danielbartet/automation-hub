@@ -220,6 +220,18 @@ async def generate_content(
                 detail=f"Category '{body.category}' not in project content_categories",
             )
 
+    # 4b. Fetch competitor research from cache (48h TTL, no fresh fetch here)
+    competitor_ads: list[dict] = []
+    if project.meta_access_token:
+        from app.services.meta.ad_library import MetaAdLibraryService
+        from app.core.security import get_project_token
+        try:
+            token = get_project_token(project)
+            ad_lib = MetaAdLibraryService()
+            competitor_ads = await ad_lib.get_competitor_ads_cached(db, project, token)
+        except Exception:
+            competitor_ads = []  # never block generation due to competitor fetch failure
+
     # 5. Generate content with Claude
     try:
         content = await claude_client.generate_content_by_type(
@@ -227,6 +239,7 @@ async def generate_content(
             content_type=body.content_type,
             category=body.category,
             hint=body.hint,
+            competitor_ads=competitor_ads if competitor_ads else None,
         )
     except Exception as e:
         raise HTTPException(status_code=503, detail=f"Claude generation failed: {str(e)}")
@@ -324,7 +337,7 @@ async def generate_content(
                         image_url = image_urls[0]
                         await db.commit()
 
-    elif body.content_type == "single_image":
+    elif body.content_type in ("single_image", "image"):
         # Always use project media_config as source of truth.
         # image_mode="placeholder" is the only allowed override (for testing/fallback).
         if body.image_mode == "placeholder":
@@ -335,9 +348,37 @@ async def generate_content(
         try:
             headline = content.get("headline", "")
             subtext = content.get("subtext", "")
+            cta = content.get("cta", "")
             image_prompt = f"{headline}. {subtext}. Brand: {project.name}.".strip()
 
-            if effective_provider != "placeholder" and (project.credits_balance or 0) >= 10:
+            if effective_provider in ("html", None, "") or effective_provider not in ("ideogram", "placeholder"):
+                # HTML renderer path for single_image
+                from app.services.media.html_renderer import HTMLSlideRenderer
+                renderer = HTMLSlideRenderer()
+                effective_media_config = dict(media_config)
+                if not effective_media_config.get("brand_handle"):
+                    effective_media_config["brand_handle"] = project_slug.replace("-", "")
+                slide_data = {
+                    "headline": headline,
+                    "subtext": subtext,
+                    "cta": cta,
+                }
+                try:
+                    url = await renderer.render_single_image(slide_data, effective_media_config)
+                    image_url = url
+                    image_urls = [url]
+                    project.credits_balance = max(0, (project.credits_balance or 0) - 5)
+                    project.credits_used_this_month = (project.credits_used_this_month or 0) + 5
+                    await db.commit()
+                except Exception as e:
+                    logger.warning(f"HTML render failed for single_image, using placeholder: {e}")
+                    try:
+                        placeholder_url = await get_s3_service().upload_placeholder_image(project_slug)
+                        image_url = placeholder_url
+                        image_urls = [placeholder_url]
+                    except Exception:
+                        pass
+            elif effective_provider != "placeholder" and (project.credits_balance or 0) >= 10:
                 provider = get_image_provider(effective_provider)
                 image_url = await provider.generate_image(
                     prompt=image_prompt,
@@ -358,15 +399,56 @@ async def generate_content(
         except Exception as e:
             logger.warning(f"Image provider failed for single_image, falling back to placeholder: {e}")
 
+    elif body.content_type in ("story", "story_vertical"):
+        # Story vertical rendering — 1080×1920
+        try:
+            from app.services.media.html_renderer import HTMLSlideRenderer
+            renderer = HTMLSlideRenderer()
+            effective_media_config = dict(media_config)
+            if not effective_media_config.get("brand_handle"):
+                effective_media_config["brand_handle"] = project_slug.replace("-", "")
+            slide_data = {
+                "hook_text": content.get("hook_text", content.get("headline", "")),
+                "body_text": content.get("body_text", content.get("subtext", "")),
+                "cta_text": content.get("cta_text", content.get("cta", "")),
+            }
+            if body.image_mode != "placeholder":
+                url = await renderer.render_story(slide_data, effective_media_config)
+                image_url = url
+                image_urls = [url]
+                project.credits_balance = max(0, (project.credits_balance or 0) - 5)
+                project.credits_used_this_month = (project.credits_used_this_month or 0) + 5
+                await db.commit()
+            else:
+                try:
+                    placeholder_url = await get_s3_service().upload_placeholder_image(project_slug)
+                    image_url = placeholder_url
+                    image_urls = [placeholder_url]
+                except Exception:
+                    pass
+        except Exception as e:
+            logger.warning(f"HTML render failed for story_vertical, using placeholder: {e}")
+            try:
+                placeholder_url = await get_s3_service().upload_placeholder_image(project_slug)
+                image_url = placeholder_url
+                image_urls = [placeholder_url]
+            except Exception:
+                pass
+
     # text_post: no image needed
 
     webhook_triggered = False
 
-    # 8. Determine DB format field
-    if body.content_type == "carousel_6_slides":
+    # 8. Determine DB format field — prefer format from generated content, fall back to request type
+    generated_format = content.get("format", "") if isinstance(content, dict) else ""
+    if generated_format in ("single_image", "story_vertical", "text_post"):
+        db_format = generated_format
+    elif body.content_type == "carousel_6_slides":
         db_format = "carousel"
-    elif body.content_type == "single_image":
+    elif body.content_type in ("single_image", "image"):
         db_format = "single_image"
+    elif body.content_type in ("story", "story_vertical"):
+        db_format = "story_vertical"
     else:
         db_format = "text_post"
 
