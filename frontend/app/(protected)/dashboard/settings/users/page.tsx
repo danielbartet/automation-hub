@@ -11,7 +11,7 @@ interface User {
   id: string;
   name: string;
   email: string;
-  role: "admin" | "operator" | "client";
+  role: "super_admin" | "admin" | "operator" | "client";
   is_active: boolean;
 }
 
@@ -25,12 +25,14 @@ interface UserFormData {
 }
 
 const ROLE_LABELS: Record<string, string> = {
+  super_admin: "Super Admin",
   admin: "Admin",
   operator: "Operator",
   client: "Client",
 };
 
 const ROLE_COLORS: Record<string, string> = {
+  super_admin: "bg-red-900/50 text-red-300 border border-red-700",
   admin: "bg-purple-900/50 text-purple-300 border border-purple-700",
   operator: "bg-blue-900/50 text-blue-300 border border-blue-700",
   client: "bg-gray-700 text-gray-300 border border-gray-600",
@@ -47,11 +49,12 @@ function Badge({ role }: { role: string }) {
 interface CreateModalProps {
   token: string;
   projects: Project[];
+  currentUserRole: string;
   onClose: () => void;
   onCreated: () => void;
 }
 
-function CreateUserModal({ token, projects, onClose, onCreated }: CreateModalProps) {
+function CreateUserModal({ token, projects, currentUserRole, onClose, onCreated }: CreateModalProps) {
   const t = useT();
   const [form, setForm] = useState<UserFormData>({
     name: "",
@@ -140,7 +143,9 @@ function CreateUserModal({ token, projects, onClose, onCreated }: CreateModalPro
               onChange={e => setForm(p => ({ ...p, role: e.target.value }))}
               className="w-full px-3 py-2 bg-gray-800 border border-gray-700 rounded-md text-white focus:outline-none focus:ring-2 focus:ring-blue-500"
             >
-              <option value="admin">Admin</option>
+              {currentUserRole === "super_admin" && (
+                <option value="admin">Admin</option>
+              )}
               <option value="operator">Operator</option>
               <option value="client">Client</option>
             </select>
@@ -210,11 +215,12 @@ interface EditModalProps {
   user: User;
   token: string;
   projects: Project[];
+  currentUserRole: string;
   onClose: () => void;
   onUpdated: () => void;
 }
 
-function EditUserModal({ user, token, projects, onClose, onUpdated }: EditModalProps) {
+function EditUserModal({ user, token, projects, currentUserRole, onClose, onUpdated }: EditModalProps) {
   const t = useT();
   const [role, setRole] = useState(user.role);
   const [isActive, setIsActive] = useState(user.is_active);
@@ -271,7 +277,9 @@ function EditUserModal({ user, token, projects, onClose, onUpdated }: EditModalP
               onChange={e => setRole(e.target.value as User["role"])}
               className="w-full px-3 py-2 bg-gray-800 border border-gray-700 rounded-md text-white focus:outline-none focus:ring-2 focus:ring-blue-500"
             >
-              <option value="admin">Admin</option>
+              {currentUserRole === "super_admin" && (
+                <option value="admin">Admin</option>
+              )}
               <option value="operator">Operator</option>
               <option value="client">Client</option>
             </select>
@@ -359,12 +367,15 @@ export default function UsersPage() {
   const [showCreate, setShowCreate] = useState(false);
   const [editingUser, setEditingUser] = useState<User | null>(null);
 
+  const currentUserRole = session?.user?.role || "";
+  const isAdminOrAbove = currentUserRole === "admin" || currentUserRole === "super_admin";
+
   // Redirect non-admins
   useEffect(() => {
-    if (status === "authenticated" && session?.user?.role !== "admin") {
+    if (status === "authenticated" && !isAdminOrAbove) {
       router.push("/dashboard");
     }
-  }, [status, session, router]);
+  }, [status, session, router, isAdminOrAbove]);
 
   const loadData = async () => {
     if (!token) return;
@@ -395,7 +406,7 @@ export default function UsersPage() {
     );
   }
 
-  if (session?.user?.role !== "admin") {
+  if (!isAdminOrAbove) {
     return (
       <div className="flex flex-col items-center justify-center min-h-screen gap-3" style={{ backgroundColor: "#0a0a0a" }}>
         <ShieldAlert className="h-10 w-10 text-red-400" />
@@ -489,6 +500,7 @@ export default function UsersPage() {
         <CreateUserModal
           token={token}
           projects={projects}
+          currentUserRole={currentUserRole}
           onClose={() => setShowCreate(false)}
           onCreated={loadData}
         />
@@ -499,6 +511,7 @@ export default function UsersPage() {
           user={editingUser}
           token={token}
           projects={projects}
+          currentUserRole={currentUserRole}
           onClose={() => setEditingUser(null)}
           onUpdated={loadData}
         />

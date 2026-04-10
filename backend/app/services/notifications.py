@@ -32,9 +32,9 @@ class NotificationService:
         if user_id:
             target_user_ids = [user_id]
         else:
-            # All admins
+            # All super_admins and admins
             admin_result = await self.db.execute(
-                select(User.id).where(User.role == "admin", User.is_active == True)
+                select(User.id).where(User.role.in_(["admin", "super_admin"]), User.is_active == True)
             )
             target_user_ids.extend(row[0] for row in admin_result.fetchall())
 

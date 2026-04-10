@@ -58,3 +58,13 @@ def require_role(*roles: str):
             raise HTTPException(status_code=403, detail="Insufficient permissions")
         return current_user
     return dependency
+
+
+def require_admin():
+    """Allow both admin and super_admin."""
+    return require_role("admin", "super_admin")
+
+
+def require_super_admin():
+    """Allow only super_admin."""
+    return require_role("super_admin")

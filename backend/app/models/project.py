@@ -1,6 +1,6 @@
 """Project model — one row per managed project/niche."""
 from datetime import datetime
-from sqlalchemy import Boolean, DateTime, Integer, JSON, String, Text, func
+from sqlalchemy import Boolean, DateTime, ForeignKey, Integer, JSON, String, Text, func
 from sqlalchemy.orm import Mapped, mapped_column
 from app.core.database import Base
 
@@ -23,6 +23,7 @@ class Project(Base):
     is_active: Mapped[bool] = mapped_column(Boolean, default=True, nullable=False)
     content_config: Mapped[dict | None] = mapped_column(JSON, nullable=True, default={})
     media_config: Mapped[dict | None] = mapped_column(JSON, nullable=True, default={})
+    owner_id: Mapped[str | None] = mapped_column(String(36), ForeignKey("users.id", ondelete="SET NULL"), nullable=True)
     credits_balance: Mapped[int] = mapped_column(Integer, default=1000, nullable=False)
     credits_used_this_month: Mapped[int] = mapped_column(Integer, default=0, nullable=False)
     created_at: Mapped[datetime] = mapped_column(DateTime, server_default=func.now(), nullable=False)

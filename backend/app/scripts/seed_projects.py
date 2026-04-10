@@ -1,17 +1,44 @@
-"""Seed script — create initial projects in the database."""
+"""Seed script — create initial super_admin user and projects in the database."""
 import sys
 import os
 import asyncio
+from uuid import uuid4
 
 sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.dirname(os.path.abspath(__file__)))))
 
 from app.core.database import AsyncSessionLocal
 from app.models.project import Project
+from app.models.user import User
 from sqlalchemy import select
+import bcrypt
 
 
 async def seed() -> None:
     async with AsyncSessionLocal() as db:
+        # Seed or upgrade the super_admin user
+        admin_result = await db.execute(select(User).where(User.email == "admin@automation-hub.com"))
+        existing_admin = admin_result.scalar_one_or_none()
+        if existing_admin:
+            if existing_admin.role == "admin":
+                existing_admin.role = "super_admin"
+                await db.commit()
+                print("Upgraded admin@automation-hub.com to super_admin.")
+            else:
+                print(f"User admin@automation-hub.com already exists with role={existing_admin.role}, skipping.")
+        else:
+            pw_hash = bcrypt.hashpw(b"admin", bcrypt.gensalt()).decode()
+            super_admin = User(
+                id=str(uuid4()),
+                email="admin@automation-hub.com",
+                name="Admin",
+                password_hash=pw_hash,
+                role="super_admin",
+                is_active=True,
+            )
+            db.add(super_admin)
+            await db.commit()
+            print("Created super_admin user: admin@automation-hub.com / admin")
+
         result = await db.execute(select(Project).where(Project.slug == "quantoria-labs"))
         existing = result.scalar_one_or_none()
         if existing:

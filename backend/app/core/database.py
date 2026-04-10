@@ -35,8 +35,33 @@ async def init_db() -> None:
 async def seed_db() -> None:
     """Seed initial data."""
     async with AsyncSessionLocal() as session:
+        from uuid import uuid4
+        import bcrypt as _bcrypt
         from sqlalchemy import select
+        from app.models.user import User
         from app.models.project import Project
+
+        # Seed super_admin user
+        admin_result = await session.execute(select(User).where(User.email == "admin@automation-hub.com"))
+        existing_admin = admin_result.scalar_one_or_none()
+        if existing_admin:
+            # Upgrade existing admin to super_admin if needed
+            if existing_admin.role == "admin":
+                existing_admin.role = "super_admin"
+                await session.commit()
+        else:
+            pw_hash = _bcrypt.hashpw(b"admin", _bcrypt.gensalt()).decode()
+            super_admin = User(
+                id=str(uuid4()),
+                email="admin@automation-hub.com",
+                name="Admin",
+                password_hash=pw_hash,
+                role="super_admin",
+                is_active=True,
+            )
+            session.add(super_admin)
+            await session.commit()
+
         result = await session.execute(select(Project).where(Project.slug == "quantoria-labs"))
         if not result.scalar_one_or_none():
             project = Project(

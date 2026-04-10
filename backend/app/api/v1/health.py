@@ -29,7 +29,12 @@ async def _get_accessible_project(
     if not project:
         raise HTTPException(status_code=404, detail=f"Project {project_id} not found")
 
+    if current_user.role == "super_admin":
+        return project
+
     if current_user.role == "admin":
+        if project.owner_id != current_user.id:
+            raise HTTPException(status_code=403, detail="Access denied to this project")
         return project
 
     # Operator / client: check assignment
@@ -56,8 +61,13 @@ async def get_health_summary(
     current_user=Depends(get_current_user),
 ) -> list[dict]:
     """Return health summary for all projects accessible to the current user."""
-    if current_user.role == "admin":
+    if current_user.role == "super_admin":
         result = await db.execute(select(Project).where(Project.is_active == True))
+        projects = result.scalars().all()
+    elif current_user.role == "admin":
+        result = await db.execute(
+            select(Project).where(Project.owner_id == current_user.id, Project.is_active == True)
+        )
         projects = result.scalars().all()
     else:
         up_result = await db.execute(

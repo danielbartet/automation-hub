@@ -161,7 +161,8 @@ function ProjectsPageInner() {
     setToast({ type: "success", message: t.projects_toast_meta_saved });
   };
 
-  const canSeeTokenWarning = role === "admin" || role === "operator";
+  const canSeeTokenWarning = role === "super_admin" || role === "admin" || role === "operator";
+  const canDeleteProject = role === "super_admin" || role === "admin";
 
   return (
     <div>
@@ -296,7 +297,7 @@ function ProjectsPageInner() {
                   >
                     <Settings className="h-4 w-4" />
                   </button>
-                  {role === "admin" && (
+                  {canDeleteProject && (
                     <button
                       className="inline-flex items-center justify-center p-2 rounded-md transition-colors"
                       style={{ color: "#6b7280", border: "1px solid #333333" }}

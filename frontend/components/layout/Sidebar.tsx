@@ -115,8 +115,8 @@ export function Sidebar() {
         })}
       </nav>
 
-      {/* Settings section — admin only */}
-      {role === "admin" && (
+      {/* Settings section — admin and super_admin */}
+      {(role === "admin" || role === "super_admin") && (
         <div className="p-4" style={{ borderTop: "1px solid #1a1a1a" }}>
           <p className="text-xs uppercase tracking-wider mb-2 px-3" style={{ color: "#6b7280" }}>{t.nav_settings_label}</p>
           <Link
