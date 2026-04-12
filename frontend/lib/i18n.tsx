@@ -122,6 +122,11 @@ export const translations = {
     form_meta_connect_description:
       "Connect your Meta account to publish to Instagram and Facebook directly from the dashboard.",
     form_meta_connect_btn: "Connect Meta Account",
+    form_meta_select_assets_btn: "Select Meta Assets",
+    form_meta_change_assets_btn: "Change Assets",
+    form_meta_discovering: "Loading assets...",
+    form_meta_no_token: "Connect your Meta account in Settings first.",
+    form_meta_connected_assets: "Connected assets",
 
     // Tab 4 — Brand & Visual
     form_brand_colors_label: "Brand colors",
@@ -761,6 +766,11 @@ export const translations = {
     form_meta_connect_description:
       "Conectá tu cuenta de Meta para publicar en Instagram y Facebook directamente desde el dashboard.",
     form_meta_connect_btn: "Conectar Meta Account",
+    form_meta_select_assets_btn: "Seleccionar activos de Meta",
+    form_meta_change_assets_btn: "Cambiar activos",
+    form_meta_discovering: "Cargando activos...",
+    form_meta_no_token: "Conectá tu cuenta de Meta en Configuración primero.",
+    form_meta_connected_assets: "Activos conectados",
 
     // Tab 4 — Brand & Visual
     form_brand_colors_label: "Colores de marca",

@@ -1,7 +1,9 @@
 "use client";
 import { useState } from "react";
 import { X, Loader2 } from "lucide-react";
-import { updateProject, connectMetaOAuth } from "@/lib/api";
+import { useSession } from "next-auth/react";
+import { updateProject, connectMetaOAuth, discoverMetaAssets } from "@/lib/api";
+import { MetaAssetSelectModal } from "@/components/dashboard/MetaAssetSelectModal";
 import { useT } from "@/lib/i18n";
 
 interface Project {
@@ -80,6 +82,7 @@ function ColorPicker({
 
 export function ProjectFormDialog({ project, onClose, onSuccess }: ProjectFormDialogProps) {
   const t = useT();
+  const { data: session } = useSession();
   const cc = project.content_config ?? {};
   const mc = project.media_config ?? {};
 
@@ -115,6 +118,18 @@ export function ProjectFormDialog({ project, onClose, onSuccess }: ProjectFormDi
   const [tab, setTab] = useState(0);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
+
+  // Meta asset discovery state
+  const [discoveringAssets, setDiscoveringAssets] = useState(false);
+  const [discoverError, setDiscoverError] = useState<string | null>(null);
+  const [metaSelectAssets, setMetaSelectAssets] = useState<{
+    pages: Array<{ id: string; name: string }>;
+    ad_accounts: Array<{ id: string; name: string }>;
+    instagram_accounts: Array<{ id: string; username: string }>;
+    facebook_page_id: string | null;
+    instagram_account_id: string | null;
+    ad_account_id: string | null;
+  } | null>(null);
 
   // Tab 1 — Contenido
   const [tone, setTone] = useState((cc.tone as string) ?? "");
@@ -152,6 +167,31 @@ export function ProjectFormDialog({ project, onClose, onSuccess }: ProjectFormDi
     setTargetPlatforms((prev) =>
       prev.includes(val) ? prev.filter((p) => p !== val) : [...prev, val]
     );
+  };
+
+  const handleDiscoverAssets = async () => {
+    const token = (session as any)?.accessToken as string | undefined;
+    if (!token) return;
+    setDiscoveringAssets(true);
+    setDiscoverError(null);
+    try {
+      const assets = await discoverMetaAssets(token, project.slug);
+      setMetaSelectAssets(assets);
+    } catch (err) {
+      const msg = err instanceof Error ? err.message : "Error";
+      setDiscoverError(msg);
+    } finally {
+      setDiscoveringAssets(false);
+    }
+  };
+
+  const handleMetaAssetSuccess = (updated: Project) => {
+    // Sync the form fields with the newly selected assets
+    setFacebookPageId(updated.facebook_page_id ?? "");
+    setInstagramAccountId(updated.instagram_account_id ?? "");
+    setAdAccountId(updated.ad_account_id ?? "");
+    setMetaSelectAssets(null);
+    onSuccess(updated);
   };
 
   const handleSave = async () => {
@@ -418,6 +458,46 @@ export function ProjectFormDialog({ project, onClose, onSuccess }: ProjectFormDi
                   </div>
                 )}
               </div>
+
+              {/* Select Meta Assets (uses existing UserMetaToken — no re-OAuth) */}
+              <div style={{ borderTop: "1px solid #222222", paddingTop: "1.25rem" }}>
+                <div className="flex items-center justify-between gap-3 flex-wrap">
+                  <div>
+                    <label className="block text-sm font-medium text-white mb-0.5">
+                      {t.form_meta_connected_assets}
+                    </label>
+                    {(facebookPageId || instagramAccountId || adAccountId) && (
+                      <p className="text-xs font-mono" style={{ color: "#6b7280" }}>
+                        {[
+                          facebookPageId && `Page: ${facebookPageId}`,
+                          instagramAccountId && `IG: ${instagramAccountId}`,
+                          adAccountId && `Ad: ${adAccountId}`,
+                        ].filter(Boolean).join(" · ")}
+                      </p>
+                    )}
+                  </div>
+                  <button
+                    type="button"
+                    onClick={handleDiscoverAssets}
+                    disabled={discoveringAssets}
+                    className="px-4 py-2 text-white text-xs font-medium rounded-lg transition-opacity hover:opacity-90 disabled:opacity-50"
+                    style={{ backgroundColor: "#7c3aed" }}
+                  >
+                    {discoveringAssets
+                      ? t.form_meta_discovering
+                      : (facebookPageId || instagramAccountId || adAccountId)
+                        ? t.form_meta_change_assets_btn
+                        : t.form_meta_select_assets_btn}
+                  </button>
+                </div>
+                {discoverError && (
+                  <p className="mt-2 text-xs rounded-md px-3 py-2" style={{ backgroundColor: "#450a0a", color: "#f87171", border: "1px solid #7f1d1d" }}>
+                    {discoverError.includes("No Meta account connected") || discoverError.includes("No Meta account")
+                      ? t.form_meta_no_token
+                      : discoverError}
+                  </p>
+                )}
+              </div>
             </div>
           )}
 
@@ -602,6 +682,26 @@ export function ProjectFormDialog({ project, onClose, onSuccess }: ProjectFormDi
           </button>
         </div>
       </div>
+
+      {/* Meta asset selection modal — triggered from Platforms tab */}
+      {metaSelectAssets && (
+        <MetaAssetSelectModal
+          slug={project.slug}
+          assets={{
+            pages: metaSelectAssets.pages,
+            ad_accounts: metaSelectAssets.ad_accounts,
+            instagram_accounts: metaSelectAssets.instagram_accounts,
+            current: {
+              page_id: metaSelectAssets.facebook_page_id,
+              instagram_id: metaSelectAssets.instagram_account_id,
+              ad_account_id: metaSelectAssets.ad_account_id,
+            },
+          }}
+          authToken={(session as any)?.accessToken as string | undefined}
+          onClose={() => setMetaSelectAssets(null)}
+          onSuccess={handleMetaAssetSuccess}
+        />
+      )}
     </div>
   );
 }

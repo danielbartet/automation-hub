@@ -1,7 +1,7 @@
 "use client";
 
 import { useState } from "react";
-import { updateProject } from "@/lib/api";
+import { updateProject, assignMetaAssets } from "@/lib/api";
 import { X, Check } from "lucide-react";
 import { useT } from "@/lib/i18n";
 
@@ -40,6 +40,8 @@ interface Props {
   assets: AssetsPayload;
   onClose: () => void;
   onSuccess: (updated: Project) => void;
+  /** When provided, uses POST /meta-assets instead of PUT /projects/:slug */
+  authToken?: string;
 }
 
 function RadioList({
@@ -134,7 +136,7 @@ function RadioList({
   );
 }
 
-export function MetaAssetSelectModal({ slug, assets, onClose, onSuccess }: Props) {
+export function MetaAssetSelectModal({ slug, assets, onClose, onSuccess, authToken }: Props) {
   const t = useT();
   const [selectedPageId, setSelectedPageId] = useState<string | null>(
     assets.current.page_id ?? assets.pages[0]?.id ?? null
@@ -152,11 +154,22 @@ export function MetaAssetSelectModal({ slug, assets, onClose, onSuccess }: Props
     setSaving(true);
     setError(null);
     try {
-      const updated = await updateProject(slug, {
-        ...(selectedPageId ? { facebook_page_id: selectedPageId } : {}),
-        ...(selectedInstagramId ? { instagram_account_id: selectedInstagramId } : {}),
-        ...(selectedAdAccountId ? { ad_account_id: selectedAdAccountId } : {}),
-      });
+      let updated: Project;
+      if (authToken && selectedPageId && selectedInstagramId && selectedAdAccountId) {
+        // New flow: use dedicated assign endpoint
+        updated = await assignMetaAssets(authToken, slug, {
+          facebook_page_id: selectedPageId,
+          instagram_account_id: selectedInstagramId,
+          ad_account_id: selectedAdAccountId,
+        });
+      } else {
+        // Legacy flow: use generic project update
+        updated = await updateProject(slug, {
+          ...(selectedPageId ? { facebook_page_id: selectedPageId } : {}),
+          ...(selectedInstagramId ? { instagram_account_id: selectedInstagramId } : {}),
+          ...(selectedAdAccountId ? { ad_account_id: selectedAdAccountId } : {}),
+        });
+      }
       onSuccess(updated);
     } catch (err) {
       setError(err instanceof Error ? err.message : t.meta_modal_error_default);

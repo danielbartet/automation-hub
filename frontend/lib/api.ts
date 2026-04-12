@@ -765,6 +765,42 @@ export function connectMetaOAuth(slug: string): string {
   return `${base}/api/v1/auth/meta/start?project_slug=${encodeURIComponent(slug)}`;
 }
 
+export async function discoverMetaAssets(token: string, projectSlug: string): Promise<{
+  facebook_page_id: string | null;
+  instagram_account_id: string | null;
+  ad_account_id: string | null;
+  pages: Array<{ id: string; name: string }>;
+  ad_accounts: Array<{ id: string; name: string }>;
+  instagram_accounts: Array<{ id: string; username: string }>;
+}> {
+  const res = await fetch(`${API_BASE}/api/v1/projects/${encodeURIComponent(projectSlug)}/meta-assets/discover`, {
+    headers: { Authorization: `Bearer ${token}` },
+    cache: "no-store",
+  });
+  if (!res.ok) {
+    const err = await res.json().catch(() => ({}));
+    throw new Error((err as { detail?: string }).detail || "Failed to discover Meta assets");
+  }
+  return res.json();
+}
+
+export async function assignMetaAssets(
+  token: string,
+  projectSlug: string,
+  data: { facebook_page_id: string; instagram_account_id: string; ad_account_id: string }
+) {
+  const res = await fetch(`${API_BASE}/api/v1/projects/${encodeURIComponent(projectSlug)}/meta-assets`, {
+    method: "POST",
+    headers: authHeaders(token),
+    body: JSON.stringify(data),
+  });
+  if (!res.ok) {
+    const err = await res.json().catch(() => ({}));
+    throw new Error((err as { detail?: string }).detail || "Failed to assign Meta assets");
+  }
+  return res.json();
+}
+
 export function buildAutoPrompt(post: any, project: any): string {
   const content = typeof post.content === "string" ? JSON.parse(post.content) : post.content;
   const slide1 = content?.slides?.[0] ?? {};

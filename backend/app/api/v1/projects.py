@@ -7,6 +7,9 @@ from app.models.project import Project
 from pydantic import BaseModel
 from typing import Optional
 from datetime import datetime
+import logging
+
+logger = logging.getLogger(__name__)
 
 router = APIRouter()
 
@@ -171,4 +174,115 @@ async def update_project(slug: str, data: ProjectUpdate, db: AsyncSession = Depe
 
     await db.commit()
     await db.refresh(project)
+    return project
+
+
+# ── Meta asset management (no re-OAuth required) ──────────────────────────────
+
+class MetaAssetsAssign(BaseModel):
+    facebook_page_id: str
+    instagram_account_id: str
+    ad_account_id: str
+
+
+@router.get("/{slug}/meta-assets/discover")
+async def discover_meta_assets(
+    slug: str,
+    db: AsyncSession = Depends(get_session),
+    current_user=Depends(get_current_user),
+) -> dict:
+    """Discover available Meta assets using the current user's stored token.
+
+    Returns pages, ad_accounts and instagram_accounts linked to the user's
+    UserMetaToken — no new OAuth flow required.
+
+    Raises 400 if the user has no connected Meta account.
+    """
+    from app.models.user_meta_token import UserMetaToken
+    from app.core.security import decrypt_token
+    from app.services.meta_oauth import discover_assets
+    from datetime import datetime as dt
+
+    result = await db.execute(
+        select(UserMetaToken).where(UserMetaToken.user_id == current_user.id)
+    )
+    user_token = result.scalar_one_or_none()
+
+    if user_token is None:
+        raise HTTPException(
+            status_code=400,
+            detail="No Meta account connected. Connect from Settings first.",
+        )
+
+    if user_token.expires_at is not None and user_token.expires_at <= dt.utcnow():
+        raise HTTPException(
+            status_code=400,
+            detail="Meta token is expired. Reconnect from Settings.",
+        )
+
+    token = decrypt_token(user_token.encrypted_token)
+    assets = await discover_assets(token)
+
+    logger.info(
+        "discover_meta_assets: user=%s project=%s pages=%d ad_accounts=%d ig=%d",
+        current_user.id,
+        slug,
+        len(assets.get("pages", [])),
+        len(assets.get("ad_accounts", [])),
+        len(assets.get("instagram_accounts", [])),
+    )
+
+    return assets
+
+
+@router.post("/{slug}/meta-assets", response_model=ProjectResponse)
+async def assign_meta_assets(
+    slug: str,
+    data: MetaAssetsAssign,
+    db: AsyncSession = Depends(get_session),
+    current_user=Depends(get_current_user),
+) -> Project:
+    """Assign Meta asset IDs to a project without touching the stored token.
+
+    The caller must own the project or be a super_admin.
+    Does NOT modify ``meta_access_token`` — only the asset ID fields.
+    """
+    result = await db.execute(select(Project).where(Project.slug == slug))
+    project = result.scalar_one_or_none()
+    if project is None:
+        raise HTTPException(status_code=404, detail=f"Project '{slug}' not found")
+
+    # Access check: super_admin bypasses; admin must own the project;
+    # operators must be assigned via UserProject.
+    if current_user.role not in ("super_admin",):
+        if current_user.role == "admin":
+            if project.owner_id != current_user.id:
+                raise HTTPException(status_code=403, detail="You do not have access to this project")
+        else:
+            from app.models.user_project import UserProject
+            up = await db.execute(
+                select(UserProject).where(
+                    UserProject.user_id == current_user.id,
+                    UserProject.project_id == project.id,
+                )
+            )
+            if up.scalar_one_or_none() is None:
+                raise HTTPException(status_code=403, detail="You do not have access to this project")
+
+    project.facebook_page_id = data.facebook_page_id
+    project.instagram_account_id = data.instagram_account_id
+    project.ad_account_id = data.ad_account_id
+
+    await db.commit()
+    await db.refresh(project)
+
+    logger.info(
+        "assign_meta_assets: user=%s project=%s page=%s ig=%s ad=%s",
+        current_user.id,
+        slug,
+        data.facebook_page_id,
+        data.instagram_account_id,
+        data.ad_account_id,
+    )
+
     return project
