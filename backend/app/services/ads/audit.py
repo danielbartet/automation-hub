@@ -673,20 +673,25 @@ def eval_pixel_installed(data: dict) -> CheckResult:
 
     best = max(pixel_list, key=lambda p: _safe_int(p.get("last_fired_time"), 0))
 
-    if best.get("is_unavailable") or best.get("last_fired_time") is None:
+    # Guard: last_fired_time is None, missing, 0, or a pre-2000 Unix timestamp
+    # (epoch fallback produces absurd day counts like "inactive for 20557 days")
+    _YEAR_2000_UNIX = 946684800  # 2000-01-01T00:00:00Z
+    raw_last_fired = best.get("last_fired_time")
+    last_fired_unix = _safe_int(raw_last_fired, 0) if raw_last_fired is not None else 0
+
+    if best.get("is_unavailable") or raw_last_fired is None or last_fired_unix < _YEAR_2000_UNIX:
         return CheckResult(
             check_id="M01",
             category="pixel",
             severity="Critical",
             result="FAIL",
             title="Meta Pixel installed",
-            detail="Pixel is unavailable or has never fired. Note: iOS 14+ opt-outs may reduce reported pixel events.",
+            detail="No pixel activity recorded — pixel may not be installed or has never fired.",
             recommendation="Verify the pixel is properly installed and active via Events Manager Test Events tool.",
             meta_ui_link="https://business.facebook.com/events_manager",
             threshold_value="< 24h for PASS, < 7d for WARNING",
         )
 
-    last_fired_unix = _safe_int(best["last_fired_time"], 0)
     age_hours = (_time.time() - last_fired_unix) / 3600
 
     if age_hours <= 24:
