@@ -679,15 +679,40 @@ def eval_pixel_installed(data: dict) -> CheckResult:
     raw_last_fired = best.get("last_fired_time")
     last_fired_unix = _safe_int(raw_last_fired, 0) if raw_last_fired is not None else 0
 
-    if best.get("is_unavailable") or raw_last_fired is None or last_fired_unix < _YEAR_2000_UNIX:
+    if best.get("is_unavailable"):
         return CheckResult(
             check_id="M01",
             category="pixel",
             severity="Critical",
             result="FAIL",
             title="Meta Pixel installed",
-            detail="No pixel activity recorded — pixel may not be installed or has never fired.",
-            recommendation="Verify the pixel is properly installed and active via Events Manager Test Events tool.",
+            detail="Pixel is marked unavailable by Meta — it may have been deleted or deactivated.",
+            recommendation="Create a new Meta Pixel in Events Manager and reinstall it on all website pages.",
+            meta_ui_link="https://business.facebook.com/events_manager",
+            threshold_value="< 24h for PASS, < 7d for WARNING",
+        )
+
+    if raw_last_fired is None or last_fired_unix < _YEAR_2000_UNIX:
+        # Pixel exists and is not unavailable, but Meta API did not return last_fired_time.
+        # This happens when the pixel is associated via ad account (not page) or when
+        # Meta withholds activity timestamps due to permissions or pixel type.
+        # Degrade gracefully to WARNING instead of FAIL — the pixel is present.
+        pixel_id = best.get("id", "unknown")
+        return CheckResult(
+            check_id="M01",
+            category="pixel",
+            severity="Critical",
+            result="WARNING",
+            title="Meta Pixel installed",
+            detail=(
+                f"Pixel found (ID: {pixel_id}) but activity timestamp is not available via the Graph API. "
+                "Meta may not expose last_fired_time for all pixel types or access levels. "
+                "The pixel appears to exist and is not marked unavailable."
+            ),
+            recommendation=(
+                "Verify pixel activity manually in Events Manager → Test Events. "
+                "If events are visible there, the pixel is working correctly."
+            ),
             meta_ui_link="https://business.facebook.com/events_manager",
             threshold_value="< 24h for PASS, < 7d for WARNING",
         )
