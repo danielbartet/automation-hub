@@ -4,6 +4,7 @@ import json
 import logging
 from dataclasses import dataclass, field
 from datetime import datetime, timezone
+import time as _time
 
 import httpx
 from sqlalchemy.ext.asyncio import AsyncSession
@@ -82,6 +83,44 @@ class ScoreBreakdown:
 
 class MetaRateLimitError(Exception):
     """Raised when the Meta API ad account rate limit threshold is exceeded."""
+
+
+# ---------------------------------------------------------------------------
+# Safe type-conversion helpers
+# All Meta Graph API numeric fields come as strings unless documented otherwise.
+# ---------------------------------------------------------------------------
+
+
+def _safe_float(value, default: float = 0.0) -> float:
+    """Safely convert a Meta API string/number/None to float."""
+    if value is None:
+        return default
+    try:
+        return float(value)
+    except (ValueError, TypeError):
+        return default
+
+
+def _safe_int(value, default: int = 0) -> int:
+    """Safely convert a Meta API string/number/None to int."""
+    if value is None:
+        return default
+    try:
+        return int(float(value))
+    except (ValueError, TypeError):
+        return default
+
+
+def _parse_meta_datetime(dt_str: str | None) -> datetime | None:
+    """Parse a Meta API datetime string (ISO 8601 / Unix int-as-str) to a UTC-aware datetime."""
+    if not dt_str:
+        return None
+    try:
+        # Normalise timezone suffixes Meta uses: +0000 → +00:00, Z → +00:00
+        normalised = str(dt_str).replace("+0000", "+00:00").replace("Z", "+00:00")
+        return datetime.fromisoformat(normalised)
+    except (ValueError, AttributeError):
+        return None
 
 
 # ---------------------------------------------------------------------------
@@ -632,7 +671,7 @@ def eval_pixel_installed(data: dict) -> CheckResult:
             threshold_value="< 24h for PASS, < 7d for WARNING",
         )
 
-    best = max(pixel_list, key=lambda p: p.get("last_fired_time") or 0)
+    best = max(pixel_list, key=lambda p: _safe_int(p.get("last_fired_time"), 0))
 
     if best.get("is_unavailable") or best.get("last_fired_time") is None:
         return CheckResult(
@@ -647,8 +686,8 @@ def eval_pixel_installed(data: dict) -> CheckResult:
             threshold_value="< 24h for PASS, < 7d for WARNING",
         )
 
-    now_unix = int(datetime.now(tz=timezone.utc).timestamp())
-    age_hours = (now_unix - best["last_fired_time"]) / 3600
+    last_fired_unix = _safe_int(best["last_fired_time"], 0)
+    age_hours = (_time.time() - last_fired_unix) / 3600
 
     if age_hours <= 24:
         return CheckResult(
@@ -1145,7 +1184,7 @@ def eval_lookalike_audience_present(data: dict) -> CheckResult:
 
     small_lookalikes = [
         a for a in lookalikes
-        if a.get("approximate_count") is not None and a["approximate_count"] < 1000
+        if a.get("approximate_count") is not None and _safe_int(a["approximate_count"]) < 1000
     ]
 
     if len(small_lookalikes) == len(lookalikes):
@@ -1203,7 +1242,7 @@ def eval_retargeting_audience_present(data: dict) -> CheckResult:
 
     small_retargeting = [
         a for a in pixel_audiences
-        if a.get("approximate_count") is not None and a["approximate_count"] < 100
+        if a.get("approximate_count") is not None and _safe_int(a["approximate_count"]) < 100
     ]
 
     if len(small_retargeting) == len(pixel_audiences):
@@ -1314,7 +1353,7 @@ def eval_audience_retention_window(data: dict) -> CheckResult:
         )
 
     retention_days_list = [
-        a["retention_days"]
+        _safe_int(a["retention_days"])
         for a in website_audiences
         if a.get("retention_days")
     ]
@@ -1706,14 +1745,9 @@ def eval_creative_ab_test(data: dict) -> CheckResult:
     ninety_days_ago = now - timedelta(days=90)
     recent_tests = []
     for t in abtests:
-        start_raw = t.get("start_time")
-        if start_raw:
-            try:
-                start_dt = datetime.fromisoformat(start_raw.replace("Z", "+00:00"))
-                if start_dt >= ninety_days_ago:
-                    recent_tests.append(t)
-            except (ValueError, AttributeError):
-                pass
+        start_dt = _parse_meta_datetime(t.get("start_time"))
+        if start_dt is not None and start_dt >= ninety_days_ago:
+            recent_tests.append(t)
 
     if active_tests:
         result = "PASS"
@@ -1850,14 +1884,9 @@ def eval_creative_refresh_recency(data: dict) -> CheckResult:
     newest_dt: datetime | None = None
 
     for ad in active_ads:
-        raw = ad.get("created_time")
-        if raw:
-            try:
-                dt = datetime.fromisoformat(raw.replace("Z", "+00:00"))
-                if newest_dt is None or dt > newest_dt:
-                    newest_dt = dt
-            except (ValueError, AttributeError):
-                pass
+        dt = _parse_meta_datetime(ad.get("created_time"))
+        if dt is not None and (newest_dt is None or dt > newest_dt):
+            newest_dt = dt
 
     if newest_dt is None:
         return CheckResult(
@@ -2398,19 +2427,15 @@ def eval_campaign_age_active(data: dict) -> CheckResult:
     campaign_list = campaigns.get("data", []) if isinstance(campaigns, dict) else []
 
     active = [c for c in campaign_list if c.get("status") == "ACTIVE"]
-    now_unix = int(datetime.now(tz=timezone.utc).timestamp())
+    now = datetime.now(tz=timezone.utc)
 
     new_campaigns: list[dict] = []
     for c in active:
-        created_time = c.get("created_time")
-        if created_time:
-            try:
-                created_dt = datetime.fromisoformat(created_time.replace("+0000", "+00:00"))
-                age_days = (now_unix - created_dt.timestamp()) / 86400
-                if age_days < 3:
-                    new_campaigns.append(c)
-            except (ValueError, TypeError):
-                pass
+        created_dt = _parse_meta_datetime(c.get("created_time"))
+        if created_dt is not None:
+            age_days = (now - created_dt).total_seconds() / 86400
+            if age_days < 3:
+                new_campaigns.append(c)
 
     count_new = len(new_campaigns)
 
