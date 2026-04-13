@@ -1,5 +1,5 @@
 "use client";
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import { X, Loader2 } from "lucide-react";
 import { useSession } from "next-auth/react";
 import { updateProject, connectMetaOAuth, discoverMetaAssets } from "@/lib/api";
@@ -118,6 +118,20 @@ export function ProjectFormDialog({ project, onClose, onSuccess }: ProjectFormDi
   const [tab, setTab] = useState(0);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
+
+  // UserMetaToken status (null = loading, true = connected, false = not connected)
+  const [userHasMetaToken, setUserHasMetaToken] = useState<boolean | null>(null);
+
+  useEffect(() => {
+    const token = (session as any)?.accessToken as string | undefined;
+    if (!token) return;
+    fetch(`${process.env.NEXT_PUBLIC_API_URL ?? "http://localhost:8000"}/api/v1/users/me/meta-token`, {
+      headers: { Authorization: `Bearer ${token}` },
+    })
+      .then((r) => r.ok ? r.json() : null)
+      .then((data) => setUserHasMetaToken(data?.connected === true))
+      .catch(() => setUserHasMetaToken(false));
+  }, [session]);
 
   // Meta asset discovery state
   const [discoveringAssets, setDiscoveringAssets] = useState(false);
@@ -412,90 +426,98 @@ export function ProjectFormDialog({ project, onClose, onSuccess }: ProjectFormDi
                 <p className="text-xs mt-1" style={{ color: "#6b7280" }}>{t.form_ad_account_hint}</p>
               </div>
 
-              {/* Meta Account OAuth */}
+              {/* Meta connection — shows one section based on whether user has UserMetaToken */}
               <div style={{ borderTop: "1px solid #222222", paddingTop: "1.25rem" }}>
-                <label className="block text-sm font-medium text-white mb-3">{t.form_meta_account_label}</label>
-                {project.facebook_page_id ? (
-                  <div className="flex items-center justify-between gap-3 flex-wrap">
-                    <div className="flex items-center gap-2 flex-wrap">
-                      <span className="inline-flex items-center px-2.5 py-1 rounded-full text-xs font-medium" style={{ backgroundColor: "#052e16", color: "#4ade80", border: "1px solid #166534" }}>
-                        {t.form_meta_connected}
-                      </span>
-                      <span className="text-xs font-mono" style={{ color: "#9ca3af" }}>
-                        Page ID: {project.facebook_page_id}
-                      </span>
-                      {project.meta_token_expires_at && (
-                        <span className="text-xs" style={{ color: "#6b7280" }}>
-                          · {t.form_meta_token_expires} {new Date(project.meta_token_expires_at).toLocaleDateString("es-ES", { day: "2-digit", month: "2-digit", year: "numeric" })}
-                        </span>
-                      )}
-                    </div>
-                    <button
-                      type="button"
-                      onClick={() => { window.location.href = connectMetaOAuth(project.slug); }}
-                      className="px-4 py-2 text-white text-xs font-medium rounded-lg transition-opacity hover:opacity-90"
-                      style={{ backgroundColor: "#1877f2" }}
-                    >
-                      {t.form_meta_reconnect}
-                    </button>
+                {userHasMetaToken === null ? (
+                  /* Loading */
+                  <div className="flex items-center gap-2" style={{ color: "#6b7280" }}>
+                    <Loader2 className="h-4 w-4 animate-spin" />
+                    <span className="text-xs">{t.form_meta_discovering}</span>
                   </div>
-                ) : (
+                ) : userHasMetaToken ? (
+                  /* User has UserMetaToken — show asset selector */
                   <div className="space-y-3">
-                    <p className="text-xs" style={{ color: "#9ca3af" }}>
-                      {t.form_meta_connect_description}
-                    </p>
-                    <button
-                      type="button"
-                      onClick={() => { window.location.href = connectMetaOAuth(project.slug); }}
-                      className="inline-flex items-center gap-2 px-4 py-2 text-white text-sm font-medium rounded-lg transition-opacity hover:opacity-90"
-                      style={{ backgroundColor: "#1877f2" }}
-                    >
-                      <svg className="h-4 w-4" viewBox="0 0 24 24" fill="currentColor">
-                        <path d="M22 12c0-5.523-4.477-10-10-10S2 6.477 2 12c0 4.991 3.657 9.128 8.438 9.878v-6.987h-2.54V12h2.54V9.797c0-2.506 1.492-3.89 3.777-3.89 1.094 0 2.238.195 2.238.195v2.46h-1.26c-1.243 0-1.63.771-1.63 1.562V12h2.773l-.443 2.89h-2.33v6.988C18.343 21.128 22 16.991 22 12z"/>
-                      </svg>
-                      {t.form_meta_connect_btn}
-                    </button>
-                  </div>
-                )}
-              </div>
-
-              {/* Select Meta Assets (uses existing UserMetaToken — no re-OAuth) */}
-              <div style={{ borderTop: "1px solid #222222", paddingTop: "1.25rem" }}>
-                <div className="flex items-center justify-between gap-3 flex-wrap">
-                  <div>
-                    <label className="block text-sm font-medium text-white mb-0.5">
-                      {t.form_meta_connected_assets}
-                    </label>
-                    {(facebookPageId || instagramAccountId || adAccountId) && (
-                      <p className="text-xs font-mono" style={{ color: "#6b7280" }}>
-                        {[
-                          facebookPageId && `Page: ${facebookPageId}`,
-                          instagramAccountId && `IG: ${instagramAccountId}`,
-                          adAccountId && `Ad: ${adAccountId}`,
-                        ].filter(Boolean).join(" · ")}
+                    <div className="flex items-center justify-between gap-3 flex-wrap">
+                      <div>
+                        <label className="block text-sm font-medium text-white mb-0.5">
+                          {t.form_meta_connected_assets}
+                        </label>
+                        {(facebookPageId || instagramAccountId || adAccountId) && (
+                          <p className="text-xs font-mono" style={{ color: "#6b7280" }}>
+                            {[
+                              facebookPageId && `Page: ${facebookPageId}`,
+                              instagramAccountId && `IG: ${instagramAccountId}`,
+                              adAccountId && `Ad: ${adAccountId}`,
+                            ].filter(Boolean).join(" · ")}
+                          </p>
+                        )}
+                      </div>
+                      <button
+                        type="button"
+                        onClick={handleDiscoverAssets}
+                        disabled={discoveringAssets}
+                        className="px-4 py-2 text-white text-xs font-medium rounded-lg transition-opacity hover:opacity-90 disabled:opacity-50"
+                        style={{ backgroundColor: "#7c3aed" }}
+                      >
+                        {discoveringAssets
+                          ? t.form_meta_discovering
+                          : (facebookPageId || instagramAccountId || adAccountId)
+                            ? t.form_meta_change_assets_btn
+                            : t.form_meta_select_assets_btn}
+                      </button>
+                    </div>
+                    {discoverError && (
+                      <p className="text-xs rounded-md px-3 py-2" style={{ backgroundColor: "#450a0a", color: "#f87171", border: "1px solid #7f1d1d" }}>
+                        {discoverError}
                       </p>
                     )}
                   </div>
-                  <button
-                    type="button"
-                    onClick={handleDiscoverAssets}
-                    disabled={discoveringAssets}
-                    className="px-4 py-2 text-white text-xs font-medium rounded-lg transition-opacity hover:opacity-90 disabled:opacity-50"
-                    style={{ backgroundColor: "#7c3aed" }}
-                  >
-                    {discoveringAssets
-                      ? t.form_meta_discovering
-                      : (facebookPageId || instagramAccountId || adAccountId)
-                        ? t.form_meta_change_assets_btn
-                        : t.form_meta_select_assets_btn}
-                  </button>
-                </div>
-                {discoverError && (
-                  <p className="mt-2 text-xs rounded-md px-3 py-2" style={{ backgroundColor: "#450a0a", color: "#f87171", border: "1px solid #7f1d1d" }}>
-                    {discoverError.includes("No Meta account connected") || discoverError.includes("No Meta account")
-                      ? t.form_meta_no_token
-                      : discoverError}
-                  </p>
+                ) : (
+                  /* No UserMetaToken — show project-level OAuth button */
+                  <div className="space-y-3">
+                    <label className="block text-sm font-medium text-white">{t.form_meta_account_label}</label>
+                    {project.facebook_page_id ? (
+                      <div className="flex items-center justify-between gap-3 flex-wrap">
+                        <div className="flex items-center gap-2 flex-wrap">
+                          <span className="inline-flex items-center px-2.5 py-1 rounded-full text-xs font-medium" style={{ backgroundColor: "#052e16", color: "#4ade80", border: "1px solid #166534" }}>
+                            {t.form_meta_connected}
+                          </span>
+                          <span className="text-xs font-mono" style={{ color: "#9ca3af" }}>
+                            Page ID: {project.facebook_page_id}
+                          </span>
+                          {project.meta_token_expires_at && (
+                            <span className="text-xs" style={{ color: "#6b7280" }}>
+                              · {t.form_meta_token_expires} {new Date(project.meta_token_expires_at).toLocaleDateString("es-ES", { day: "2-digit", month: "2-digit", year: "numeric" })}
+                            </span>
+                          )}
+                        </div>
+                        <button
+                          type="button"
+                          onClick={() => { window.location.href = connectMetaOAuth(project.slug); }}
+                          className="px-4 py-2 text-white text-xs font-medium rounded-lg transition-opacity hover:opacity-90"
+                          style={{ backgroundColor: "#1877f2" }}
+                        >
+                          {t.form_meta_reconnect}
+                        </button>
+                      </div>
+                    ) : (
+                      <>
+                        <p className="text-xs" style={{ color: "#9ca3af" }}>{t.form_meta_connect_description}</p>
+                        <button
+                          type="button"
+                          onClick={() => { window.location.href = connectMetaOAuth(project.slug); }}
+                          className="inline-flex items-center gap-2 px-4 py-2 text-white text-sm font-medium rounded-lg transition-opacity hover:opacity-90"
+                          style={{ backgroundColor: "#1877f2" }}
+                        >
+                          <svg className="h-4 w-4" viewBox="0 0 24 24" fill="currentColor">
+                            <path d="M22 12c0-5.523-4.477-10-10-10S2 6.477 2 12c0 4.991 3.657 9.128 8.438 9.878v-6.987h-2.54V12h2.54V9.797c0-2.506 1.492-3.89 3.777-3.89 1.094 0 2.238.195 2.238.195v2.46h-1.26c-1.243 0-1.63.771-1.63 1.562V12h2.773l-.443 2.89h-2.33v6.988C18.343 21.128 22 16.991 22 12z"/>
+                          </svg>
+                          {t.form_meta_connect_btn}
+                        </button>
+                        <p className="text-xs" style={{ color: "#6b7280" }}>{t.form_meta_or_settings_hint}</p>
+                      </>
+                    )}
+                  </div>
                 )}
               </div>
             </div>

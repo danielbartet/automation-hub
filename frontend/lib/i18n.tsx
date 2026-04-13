@@ -126,6 +126,7 @@ export const translations = {
     form_meta_change_assets_btn: "Change Assets",
     form_meta_discovering: "Loading assets...",
     form_meta_no_token: "Connect your Meta account in Settings first.",
+    form_meta_or_settings_hint: "Or connect once from Settings to cover all your projects automatically.",
     form_meta_connected_assets: "Connected assets",
 
     // Tab 4 — Brand & Visual
@@ -770,6 +771,7 @@ export const translations = {
     form_meta_change_assets_btn: "Cambiar activos",
     form_meta_discovering: "Cargando activos...",
     form_meta_no_token: "Conectá tu cuenta de Meta en Configuración primero.",
+    form_meta_or_settings_hint: "O conectate una vez desde Configuración para cubrir todos tus proyectos automáticamente.",
     form_meta_connected_assets: "Activos conectados",
 
     // Tab 4 — Brand & Visual
