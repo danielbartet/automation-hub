@@ -22,6 +22,28 @@ async def lifespan(app: FastAPI):
     await init_db()
     await seed_db()
 
+    # Clean up stale running audits from previous app restarts
+    async with AsyncSessionLocal() as db:
+        from datetime import timedelta
+        from sqlalchemy import select, update
+        from app.models.ads_audit import AdsAudit
+
+        stale_cutoff = datetime.utcnow() - timedelta(minutes=10)
+        result = await db.execute(
+            select(AdsAudit).where(
+                AdsAudit.status.in_(["running", "pending"]),
+                AdsAudit.created_at < stale_cutoff
+            )
+        )
+        stale_audits = result.scalars().all()
+        for audit in stale_audits:
+            audit.status = "error"
+            audit.error_message = "Audit timed out — cleaned up on startup"
+            audit.completed_at = datetime.utcnow()
+        if stale_audits:
+            await db.commit()
+            print(f"[Startup] Cleaned up {len(stale_audits)} stale audit(s)")
+
     # Start optimization scheduler — runs daily at 08:00 UTC, per-campaign cooldown: 3 days
     scheduler = AsyncIOScheduler()
 
@@ -84,9 +106,76 @@ async def lifespan(app: FastAPI):
         id="scheduled_posts",
         replace_existing=True,
     )
+
+    async def run_weekly_audit_for_all_projects():
+        """Weekly audit job — runs every Monday at 07:00 UTC for all projects with ad_account_id."""
+        from app.models.ads_audit import AdsAudit
+        from app.models.project import Project
+        from app.services.ads.audit import MetaAuditService
+        from app.core.security import get_project_token
+        from sqlalchemy import select
+        from datetime import timedelta
+
+        async with AsyncSessionLocal() as db:
+            try:
+                # Get all active projects with ad_account_id configured
+                result = await db.execute(
+                    select(Project).where(
+                        Project.ad_account_id.isnot(None),
+                        Project.is_active == True,  # noqa: E712
+                    )
+                )
+                projects = result.scalars().all()
+
+                for project in projects:
+                    # Skip if a recent audit exists (within last 6 days)
+                    recent_cutoff = datetime.utcnow() - timedelta(days=6)
+                    recent_result = await db.execute(
+                        select(AdsAudit).where(
+                            AdsAudit.project_id == project.id,
+                            AdsAudit.status.in_(["completed", "partial"]),
+                            AdsAudit.created_at > recent_cutoff,
+                        ).limit(1)
+                    )
+                    if recent_result.scalar_one_or_none():
+                        print(f"[AuditScheduler] Skipping {project.slug} — recent audit exists")
+                        continue
+
+                    # Check token available
+                    token = await get_project_token(project, db)
+                    if not token:
+                        print(f"[AuditScheduler] Skipping {project.slug} — no token")
+                        continue
+
+                    # Create audit row and run
+                    audit = AdsAudit(
+                        project_id=project.id,
+                        ad_account_id=project.ad_account_id,
+                        status="running",
+                        triggered_by="scheduler",
+                    )
+                    db.add(audit)
+                    await db.commit()
+                    await db.refresh(audit)
+
+                    print(f"[AuditScheduler] Running audit for {project.slug}")
+                    async with MetaAuditService(token, project.ad_account_id, project.id) as svc:
+                        await svc.run(audit.id, db)
+
+            except Exception as e:
+                print(f"[AuditScheduler] Error in weekly audit job: {e}")
+
+    scheduler.add_job(
+        run_weekly_audit_for_all_projects,
+        CronTrigger(day_of_week="mon", hour=7, minute=0),
+        id="weekly_ads_audit",
+        replace_existing=True,
+    )
+
     scheduler.start()
     print("[Scheduler] Campaign optimizer started — runs daily at 08:00 UTC, per-campaign cooldown: 3 days")
     print("[Scheduler] Scheduled posts publisher started — runs every 5 minutes")
+    print("[Scheduler] Weekly ads audit started — runs every Monday at 07:00 UTC")
 
     yield
 
