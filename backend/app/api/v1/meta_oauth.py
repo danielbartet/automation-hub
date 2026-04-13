@@ -9,7 +9,7 @@ from fastapi.responses import RedirectResponse
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy import select
 
-from app.api.deps import get_session, get_current_user
+from app.api.deps import get_session, get_current_user_optional
 from app.core.config import settings
 from app.core.security import encrypt_token
 from app.models.project import Project
@@ -39,7 +39,7 @@ _META_OAUTH_SCOPES = (
 @router.get("/start")
 async def meta_oauth_start(
     db: AsyncSession = Depends(get_session),
-    current_user=Depends(get_current_user),
+    current_user=Depends(get_current_user_optional),
     project_slug: str | None = None,
     mode: str = "project",
 ) -> RedirectResponse:
@@ -47,14 +47,13 @@ async def meta_oauth_start(
 
     Supports two modes:
     - ``mode="project"`` (default): connects a token to the given project. Requires
-      ``project_slug``. Redirects the browser to the Meta authorization dialog.
-      Returns 404 if no project with the given slug exists.
+      ``project_slug``. Browser redirect — no auth header needed.
     - ``mode="user"``: connects a personal Meta token to the authenticated user.
-      No ``project_slug`` needed. The token is stored in ``UserMetaToken``.
-
-    Both modes require authentication.
+      No ``project_slug`` needed. Requires an authenticated session.
     """
     if mode == "user":
+        if not current_user:
+            raise HTTPException(status_code=401, detail="Not authenticated")
         state = generate_state(mode="user", user_id=current_user.id)
     else:
         # mode="project" — project_slug is required

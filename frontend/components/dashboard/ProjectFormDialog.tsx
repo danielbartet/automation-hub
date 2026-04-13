@@ -87,9 +87,9 @@ export function ProjectFormDialog({ project, onClose, onSuccess }: ProjectFormDi
   const mc = project.media_config ?? {};
 
   const TABS = [
+    t.form_dialog_tab_platforms,
     t.form_dialog_tab_content,
     t.form_dialog_tab_audience,
-    t.form_dialog_tab_platforms,
     t.form_dialog_tab_brand,
   ];
 
@@ -321,7 +321,7 @@ export function ProjectFormDialog({ project, onClose, onSuccess }: ProjectFormDi
           )}
 
           {/* ── TAB 1: Contenido ── */}
-          {tab === 0 && (
+          {tab === 1 && (
             <div className="space-y-5">
               <div>
                 <label className="block text-sm font-medium text-white mb-1">{t.form_tone_label}</label>
@@ -362,7 +362,7 @@ export function ProjectFormDialog({ project, onClose, onSuccess }: ProjectFormDi
           )}
 
           {/* ── TAB 2: Audiencia ── */}
-          {tab === 1 && (
+          {tab === 2 && (
             <div className="space-y-5">
               <div>
                 <label className="block text-sm font-medium text-white mb-1">{t.form_target_audience_label}</label>
@@ -391,8 +391,8 @@ export function ProjectFormDialog({ project, onClose, onSuccess }: ProjectFormDi
             </div>
           )}
 
-          {/* ── TAB 3: Plataformas ── */}
-          {tab === 2 && (
+          {/* ── TAB 0: Plataformas (primer tab) ── */}
+          {tab === 0 && (
             <div className="space-y-5">
               <div>
                 <label className="block text-sm font-medium text-white mb-1">{t.form_fb_page_id_label}</label>
@@ -523,7 +523,7 @@ export function ProjectFormDialog({ project, onClose, onSuccess }: ProjectFormDi
             </div>
           )}
 
-          {/* ── TAB 4: Marca y Visual ── */}
+          {/* ── TAB 3: Marca y Visual ── */}
           {tab === 3 && (
             <div className="space-y-6">
               {/* Color pickers */}

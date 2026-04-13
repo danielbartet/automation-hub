@@ -85,7 +85,7 @@ export const translations = {
     form_dialog_title: "Configure project",
     form_dialog_tab_content: "Content",
     form_dialog_tab_audience: "Audience",
-    form_dialog_tab_platforms: "Platforms",
+    form_dialog_tab_platforms: "Meta & Platforms",
     form_dialog_tab_brand: "Brand & Visual",
 
     // Tab 1 — Content
@@ -730,7 +730,7 @@ export const translations = {
     form_dialog_title: "Configurar proyecto",
     form_dialog_tab_content: "Contenido",
     form_dialog_tab_audience: "Audiencia",
-    form_dialog_tab_platforms: "Plataformas",
+    form_dialog_tab_platforms: "Meta y Plataformas",
     form_dialog_tab_brand: "Marca y Visual",
 
     // Tab 1 — Content
