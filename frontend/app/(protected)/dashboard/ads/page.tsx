@@ -17,8 +17,6 @@ import {
   type CampaignRecommendation,
 } from "@/lib/api";
 import { Loader2, Plus, Download } from "lucide-react";
-import { AuditScoreCard } from "./AuditScoreCard";
-import { AuditCheckList } from "./AuditCheckList";
 import Link from "next/link";
 import { useT } from "@/lib/i18n";
 import {
@@ -116,8 +114,6 @@ export default function AdsPage() {
   const [importError, setImportError] = useState<string | null>(null);
   const [allRecommendations, setAllRecommendations] = useState<CampaignRecommendations[]>([]);
   const [recsToast, setRecsToast] = useState<string | null>(null);
-  const [selectedAuditId, setSelectedAuditId] = useState<number | null>(null);
-
   useEffect(() => {
     const token = (session as any)?.accessToken as string | undefined;
     fetchProjects(token)
@@ -345,19 +341,6 @@ export default function AdsPage() {
             style={{ backgroundColor: "#1a1a1a", border: "1px solid #333333" }}>
             {recsToast}
           </div>
-        )}
-
-        {/* ── AUDIT SECTION ────────────────────────────────────────────────── */}
-        {selectedSlug && (
-          <>
-            <AuditScoreCard
-              projectSlug={selectedSlug}
-              onAuditCompleted={(auditId) => setSelectedAuditId(auditId)}
-            />
-            {selectedAuditId && (
-              <AuditCheckList auditId={selectedAuditId} />
-            )}
-          </>
         )}
 
         {/* ── RECOMENDACIONES PENDIENTES ───────────────────────────────────── */}
