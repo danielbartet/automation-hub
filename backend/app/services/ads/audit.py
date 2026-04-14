@@ -409,7 +409,7 @@ class MetaAuditService:
                 "method": "GET",
                 "relative_url": (
                     f"{act}/customaudiences"
-                    "?fields=id,name,subtype,approximate_count,data_source,"
+                    "?fields=id,name,subtype,approximate_count,delivery_status,data_source,"
                     "retention_days,time_created,time_updated,lookalike_spec"
                     "&limit=100"
                 ),
@@ -638,13 +638,30 @@ class MetaAuditService:
     def _parse_sub_response(raw_responses: list[dict], index: int) -> dict:
         """
         Extract and JSON-decode the body of a batch sub-response.
-        Returns an empty dict on any parsing failure.
+
+        Meta Batch API wraps each sub-response as:
+          {"code": 200, "headers": [...], "body": "<json-string>"}
+
+        The body string is itself a JSON object — typically {"data": [...], "paging": {...}}
+        for list endpoints. On error it is {"error": {"message": ..., "code": ...}}.
+
+        Returns an empty dict on any parsing failure or when the sub-response indicates
+        an error (non-200 code or body containing an "error" key).
         """
         try:
             sub = raw_responses[index]
-            body = sub.get("body", "{}")
-            return json.loads(body)
-        except (IndexError, KeyError, json.JSONDecodeError, TypeError):
+            code = sub.get("code", 200)
+            body_str = sub.get("body") or "{}"
+            parsed = json.loads(body_str)
+            if code != 200 or "error" in parsed:
+                logger.warning(
+                    "Meta batch sub-response[%d] returned code=%s body=%s",
+                    index, code, body_str[:300],
+                )
+                return {}
+            return parsed
+        except (IndexError, KeyError, json.JSONDecodeError, TypeError) as exc:
+            logger.warning("Failed to parse Meta batch sub-response[%d]: %s", index, exc)
             return {}
 
 
