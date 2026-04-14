@@ -2,7 +2,7 @@
 from fastapi import APIRouter, Depends, HTTPException
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy import select
-from app.api.deps import get_session, get_current_user
+from app.api.deps import get_session, get_current_user, require_super_admin
 from app.models.ad_campaign import AdCampaign
 from app.models.notification import Notification
 from app.models.project import Project
@@ -1469,3 +1469,48 @@ async def optimizer_reject(
     notif.action_data = {**(notif.action_data or {}), "approved": False}
     await db.commit()
     return {"ok": True, "action": "rejected"}
+
+
+# ── Campaign Chat ─────────────────────────────────────────────────────────────
+
+VALID_QUESTION_KEYS = {
+    "how_are_campaigns",
+    "wasting_money",
+    "change_this_week",
+    "creative_fatigue",
+    "ready_to_scale",
+}
+
+
+class CampaignChatRequest(BaseModel):
+    project_slug: str
+    question_key: str
+
+
+@router.post("/chat")
+async def campaign_chat(
+    body: CampaignChatRequest,
+    db: AsyncSession = Depends(get_session),
+    current_user=Depends(require_super_admin()),
+) -> dict:
+    """Conversational campaign analysis powered by Claude. super_admin only, 15-min cooldown."""
+    from app.services.ads.campaign_chat import run_campaign_chat, CooldownError
+
+    if body.question_key not in VALID_QUESTION_KEYS:
+        raise HTTPException(400, f"Invalid question_key. Must be one of: {', '.join(VALID_QUESTION_KEYS)}")
+
+    try:
+        return await run_campaign_chat(
+            question_key=body.question_key,
+            project_slug=body.project_slug,
+            user=current_user,
+            db=db,
+        )
+    except CooldownError as e:
+        raise HTTPException(
+            status_code=429,
+            detail={
+                "error": "cooldown",
+                "cooldown_remaining_seconds": e.remaining_seconds,
+            },
+        )

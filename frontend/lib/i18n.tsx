@@ -280,6 +280,20 @@ export const translations = {
     ads_kpi_spend_today: "Spend Today",
     ads_kpi_active_campaigns: "Active Campaigns",
 
+    // ── Campaign Chat (Intelligence panel) ──────────────────────────────────
+    ads_chat_title: "Campaign Intelligence",
+    ads_chat_subtitle: "Ask Claude a question about your campaigns",
+    ads_chat_q_how_are_campaigns: "How are my campaigns doing?",
+    ads_chat_q_wasting_money: "Where am I wasting money?",
+    ads_chat_q_change_this_week: "What should I change this week?",
+    ads_chat_q_creative_fatigue: "Do my creatives have fatigue?",
+    ads_chat_q_ready_to_scale: "Am I ready to scale?",
+    ads_chat_loading: "Analyzing your campaigns...",
+    ads_chat_error: "Analysis failed. Please try again.",
+    ads_chat_cooldown: (minutes: number) => `Available in ${minutes} minute${minutes !== 1 ? "s" : ""}`,
+    ads_chat_generated_at: "Generated",
+    ads_chat_ask_another: "Ask another question",
+
     // ── Campaign detail page ─────────────────────────────────────────────────
     campaign_detail_title: "Campaign detail",
     campaign_detail_loading_error: "Error loading campaign",
@@ -929,6 +943,20 @@ export const translations = {
     ads_kpi_spend_month: "Gasto este mes",
     ads_kpi_spend_today: "Gasto hoy",
     ads_kpi_active_campaigns: "Campañas activas",
+
+    // ── Campaign Chat (Intelligence panel) ──────────────────────────────────
+    ads_chat_title: "Campaign Intelligence",
+    ads_chat_subtitle: "Hacele una pregunta a Claude sobre tus campañas",
+    ads_chat_q_how_are_campaigns: "¿Cómo van mis campañas?",
+    ads_chat_q_wasting_money: "¿Dónde estoy desperdiciando dinero?",
+    ads_chat_q_change_this_week: "¿Qué debería cambiar esta semana?",
+    ads_chat_q_creative_fatigue: "¿Mis creativos tienen fatiga?",
+    ads_chat_q_ready_to_scale: "¿Estoy listo para escalar?",
+    ads_chat_loading: "Analizando tus campañas...",
+    ads_chat_error: "Error en el análisis. Intentá de nuevo.",
+    ads_chat_cooldown: (minutes: number) => `Disponible en ${minutes} minuto${minutes !== 1 ? "s" : ""}`,
+    ads_chat_generated_at: "Generado",
+    ads_chat_ask_another: "Hacer otra pregunta",
 
     // ── Campaign detail page ─────────────────────────────────────────────────
     campaign_detail_title: "Detalle de campaña",

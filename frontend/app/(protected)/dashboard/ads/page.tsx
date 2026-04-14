@@ -6,6 +6,7 @@ import { Header } from "@/components/layout/Header";
 import { KPICard } from "@/components/dashboard/KPICard";
 import { CreateCampaignModal } from "@/components/dashboard/CreateCampaignModal";
 import { CampaignOptimizationPanel } from "@/components/dashboard/CampaignOptimizationPanel";
+import { CampaignChatPanel } from "@/components/dashboard/CampaignChatPanel";
 import {
   fetchProjects,
   fetchDashboard,
@@ -100,6 +101,7 @@ export default function AdsPage() {
   const t = useT();
   const { data: session } = useSession();
   const isClient = session?.user?.role === "client";
+  const isSuperAdmin = session?.user?.role === "super_admin";
   const token = (session as { accessToken?: string } | null)?.accessToken ?? "";
   const [projects, setProjects] = useState<Project[]>([]);
   const [selectedSlug, setSelectedSlug] = useState<string>("");
@@ -576,6 +578,10 @@ export default function AdsPage() {
             </div>
           )}
         </div>
+        {/* Campaign Intelligence — super_admin only */}
+        {isSuperAdmin && selectedSlug && (
+          <CampaignChatPanel projectSlug={selectedSlug} />
+        )}
       </div>
 
       {/* Modals */}

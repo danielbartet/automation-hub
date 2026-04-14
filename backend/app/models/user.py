@@ -15,3 +15,4 @@ class User(Base):
     is_active: Mapped[bool] = mapped_column(Boolean, default=True)
     telegram_chat_id: Mapped[str | None] = mapped_column(String(100), nullable=True)
     created_at: Mapped[datetime] = mapped_column(DateTime, server_default=func.now())
+    last_chat_at: Mapped[datetime | None] = mapped_column(DateTime, nullable=True)

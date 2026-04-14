@@ -855,6 +855,53 @@ export async function setTokenLimit(token: string, userId: string, monthlyTokenL
   return res.json();
 }
 
+export type CampaignChatQuestionKey =
+  | "how_are_campaigns"
+  | "wasting_money"
+  | "change_this_week"
+  | "creative_fatigue"
+  | "ready_to_scale";
+
+export interface CampaignChatResponse {
+  answer: string;
+  generated_at: string;
+  cooldown_remaining_seconds: number;
+}
+
+export interface CampaignChatCooldownError {
+  error: "cooldown";
+  cooldown_remaining_seconds: number;
+}
+
+export async function campaignChat(
+  token: string,
+  projectSlug: string,
+  questionKey: CampaignChatQuestionKey
+): Promise<CampaignChatResponse> {
+  const res = await fetch(`${API_BASE}/api/v1/ads/chat`, {
+    method: "POST",
+    headers: {
+      "Content-Type": "application/json",
+      Authorization: `Bearer ${token}`,
+    },
+    body: JSON.stringify({ project_slug: projectSlug, question_key: questionKey }),
+  });
+  if (res.status === 429) {
+    const err = await res.json().catch(() => ({}));
+    const detail = (err as { detail?: CampaignChatCooldownError }).detail;
+    if (detail?.error === "cooldown") {
+      const cdErr = new Error("cooldown") as Error & { cooldown_remaining_seconds: number };
+      cdErr.cooldown_remaining_seconds = detail.cooldown_remaining_seconds;
+      throw cdErr;
+    }
+  }
+  if (!res.ok) {
+    const err = await res.json().catch(() => ({}));
+    throw new Error((err as { detail?: string }).detail || "Campaign chat failed");
+  }
+  return res.json();
+}
+
 export function buildAutoPrompt(post: any, project: any): string {
   const content = typeof post.content === "string" ? JSON.parse(post.content) : post.content;
   const slide1 = content?.slides?.[0] ?? {};
