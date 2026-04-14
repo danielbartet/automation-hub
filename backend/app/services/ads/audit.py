@@ -864,13 +864,23 @@ def eval_pixel_event_match_quality(data: dict) -> CheckResult:
 
 def eval_purchase_event_firing(data: dict) -> CheckResult:
     """M04 — High: Count Purchase events tracked in the last 30 days."""
+    # Meta Graph API returns purchases nested in the actions[] array.
+    # The action_type can be "purchase" (CAPI), "offsite_conversion.fb_pixel_purchase"
+    # (pixel), "omni_purchase" (omni-channel), or "onsite_web_purchase" (on-site).
+    PURCHASE_ACTION_TYPES = {
+        "purchase",
+        "offsite_conversion.fb_pixel_purchase",
+        "omni_purchase",
+        "onsite_web_purchase",
+    }
+
     insights = data.get("insights_30d", {})
     insight_list = insights.get("data", []) if isinstance(insights, dict) else []
 
     purchases = 0
     for campaign in insight_list:
         for action in campaign.get("actions", []):
-            if action.get("action_type") == "purchase":
+            if action.get("action_type") in PURCHASE_ACTION_TYPES:
                 try:
                     purchases += int(float(action.get("value", 0)))
                 except (TypeError, ValueError):
@@ -878,14 +888,32 @@ def eval_purchase_event_firing(data: dict) -> CheckResult:
 
     note = "Note: iOS 14+ opt-outs cause purchase undercounting of ~30-70%."
 
+    pixels_raw = data.get("pixels", {})
+    pixel_list = pixels_raw.get("data", []) if isinstance(pixels_raw, dict) else []
+    has_pixel = len(pixel_list) > 0
+
     if purchases == 0:
+        if has_pixel:
+            return CheckResult(
+                check_id="M04",
+                category="pixel",
+                severity="High",
+                result="WARNING",
+                title="Purchase event firing",
+                detail=f"No purchase events recorded in last 30 days — pixel is installed but no purchases detected. {note}",
+                recommendation=(
+                    "Verify the Purchase standard event is firing on your thank-you/confirmation page."
+                ),
+                meta_value="0 purchases",
+                threshold_value="≥ 50 purchases / 30 days",
+            )
         return CheckResult(
             check_id="M04",
             category="pixel",
             severity="High",
             result="FAIL",
             title="Purchase event firing",
-            detail=f"No purchase events tracked in last 30 days. {note}",
+            detail=f"No purchase events tracked in last 30 days and no pixel found. {note}",
             recommendation=(
                 "Ensure the Purchase standard event is implemented on your thank-you/confirmation page."
             ),
@@ -1044,11 +1072,12 @@ def eval_value_optimization_eligible(data: dict) -> CheckResult:
     # Calculate purchase volume to determine eligibility.
     # Meta Graph API returns purchases nested in the actions[] array.
     # The action_type can be "purchase" (CAPI), "offsite_conversion.fb_pixel_purchase"
-    # (pixel), or "omni_purchase" (omni-channel). Check all three.
+    # (pixel), "omni_purchase" (omni-channel), or "onsite_web_purchase" (on-site).
     PURCHASE_ACTION_TYPES = {
         "purchase",
         "offsite_conversion.fb_pixel_purchase",
         "omni_purchase",
+        "onsite_web_purchase",
     }
     insights = data.get("insights_30d", {})
     insight_list = insights.get("data", []) if isinstance(insights, dict) else []
@@ -1078,14 +1107,58 @@ def eval_value_optimization_eligible(data: dict) -> CheckResult:
             threshold_value="≥ 50 purchases/week",
         )
 
+    if purchases > 0:
+        # Real purchases exist but below the 50/week threshold — normal for a new account.
+        # Return NA so this does not count against the score.
+        return CheckResult(
+            check_id="M08",
+            category="pixel",
+            severity="Medium",
+            result="NA",
+            title="Value Optimization eligibility",
+            detail=(
+                f"{purchases} purchases tracked in last 30 days — Value Optimization requires "
+                "50+/week to unlock. This improves as you scale."
+            ),
+            meta_value=f"{purchases} purchases / 30d",
+            threshold_value="≥ 50 purchases/week",
+        )
+
+    # purchases == 0: pixel issue, not just low volume
+    pixels_raw = data.get("pixels", {})
+    pixel_list = pixels_raw.get("data", []) if isinstance(pixels_raw, dict) else []
+    has_pixel = len(pixel_list) > 0
+
+    if has_pixel:
+        return CheckResult(
+            check_id="M08",
+            category="pixel",
+            severity="Medium",
+            result="WARNING",
+            title="Value Optimization eligibility",
+            detail=(
+                "No purchase events recorded in last 30 days — pixel is installed but no purchases detected. "
+                "Value Optimization requires 50+/week."
+            ),
+            recommendation=(
+                "Verify the Purchase standard event is firing on your thank-you/confirmation page."
+            ),
+            meta_value="0 purchases / 30d",
+            threshold_value="≥ 50 purchases/week",
+        )
+
     return CheckResult(
         check_id="M08",
         category="pixel",
         severity="Medium",
         result="FAIL",
         title="Value Optimization eligibility",
-        detail=f"{purchases} purchases in last 30 days — Value Optimization requires 50+/week",
-        meta_value=f"{purchases} purchases / 30d",
+        detail="Pixel not installed — cannot track purchases. Value Optimization requires 50+/week.",
+        recommendation=(
+            "Install the Meta Pixel and implement the Purchase standard event on your "
+            "thank-you/confirmation page."
+        ),
+        meta_value="0 purchases / 30d",
         threshold_value="≥ 50 purchases/week",
     )
 
