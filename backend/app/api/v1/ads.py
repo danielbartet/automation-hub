@@ -1485,6 +1485,7 @@ VALID_QUESTION_KEYS = {
 class CampaignChatRequest(BaseModel):
     project_slug: str
     question_key: str
+    language: str = "en"
 
 
 @router.post("/chat")
@@ -1505,6 +1506,7 @@ async def campaign_chat(
             project_slug=body.project_slug,
             user=current_user,
             db=db,
+            language=body.language,
         )
     except CooldownError as e:
         raise HTTPException(

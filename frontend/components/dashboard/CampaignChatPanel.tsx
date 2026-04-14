@@ -3,7 +3,7 @@
 import { useState, useEffect, useRef } from "react";
 import { useSession } from "next-auth/react";
 import { Loader2, MessageSquare, RotateCcw } from "lucide-react";
-import { useT } from "@/lib/i18n";
+import { useT, useLang } from "@/lib/i18n";
 import {
   campaignChat,
   type CampaignChatQuestionKey,
@@ -34,6 +34,7 @@ interface Props {
 
 export function CampaignChatPanel({ projectSlug }: Props) {
   const t = useT();
+  const { lang } = useLang();
   const { data: session } = useSession();
   const token = (session as { accessToken?: string } | null)?.accessToken ?? "";
 
@@ -72,7 +73,7 @@ export function CampaignChatPanel({ projectSlug }: Props) {
     setActiveQuestion(questionKey);
 
     try {
-      const data = await campaignChat(token, projectSlug, questionKey);
+      const data = await campaignChat(token, projectSlug, questionKey, lang);
       setResult(data);
       if (data.cooldown_remaining_seconds > 0) {
         setCooldownSeconds(data.cooldown_remaining_seconds);

@@ -876,7 +876,8 @@ export interface CampaignChatCooldownError {
 export async function campaignChat(
   token: string,
   projectSlug: string,
-  questionKey: CampaignChatQuestionKey
+  questionKey: CampaignChatQuestionKey,
+  language?: string,
 ): Promise<CampaignChatResponse> {
   const res = await fetch(`${API_BASE}/api/v1/ads/chat`, {
     method: "POST",
@@ -884,7 +885,7 @@ export async function campaignChat(
       "Content-Type": "application/json",
       Authorization: `Bearer ${token}`,
     },
-    body: JSON.stringify({ project_slug: projectSlug, question_key: questionKey }),
+    body: JSON.stringify({ project_slug: projectSlug, question_key: questionKey, language: language ?? "en" }),
   });
   if (res.status === 429) {
     const err = await res.json().catch(() => ({}));

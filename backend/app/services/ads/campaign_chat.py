@@ -131,6 +131,7 @@ async def run_campaign_chat(
     project_slug: str,
     user: User,
     db: AsyncSession,
+    language: str = "en",
 ) -> dict:
     """
     Main entry point for campaign chat.
@@ -202,6 +203,8 @@ async def run_campaign_chat(
 
     # 5. Build prompt
     system_prompt = QUESTION_SYSTEM_PROMPTS.get(question_key, QUESTION_SYSTEM_PROMPTS["how_are_campaigns"])
+    if language == "es":
+        system_prompt += "\n\nResponde en español."
     campaigns_text = _format_campaign_data(campaigns_metrics)
 
     user_prompt = f"""Here is the current state of the campaigns for project "{project.name}":
