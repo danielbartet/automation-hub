@@ -5,6 +5,7 @@ import { useRouter } from "next/navigation";
 import { Plus, Pencil, X, Check, Loader2, ShieldAlert } from "lucide-react";
 import { fetchUsers, createUser, updateUser, fetchProjects } from "@/lib/api";
 import { useT } from "@/lib/i18n";
+import { Header } from "@/components/layout/Header";
 import type { Project } from "@/types";
 
 interface User {
@@ -416,14 +417,13 @@ export default function UsersPage() {
   }
 
   return (
-    <div className="p-6 min-h-screen" style={{ backgroundColor: "#0a0a0a" }}>
+    <div className="flex flex-col min-h-screen" style={{ backgroundColor: "#0a0a0a" }}>
+      <Header title={t.users_page_title} />
+      <div className="p-6 flex-1">
       <div className="max-w-5xl mx-auto">
-        {/* Header */}
+        {/* Page actions */}
         <div className="flex items-center justify-between mb-6">
-          <div>
-            <h1 className="text-2xl font-bold text-white">{t.users_page_title}</h1>
-            <p className="text-sm mt-1" style={{ color: "#9ca3af" }}>{t.users_page_subtitle}</p>
-          </div>
+          <p className="text-sm" style={{ color: "#9ca3af" }}>{t.users_page_subtitle}</p>
           <button
             onClick={() => setShowCreate(true)}
             className="flex items-center gap-2 px-4 py-2 text-white text-sm font-medium rounded-lg transition-colors"
@@ -494,6 +494,7 @@ export default function UsersPage() {
             </table>
           )}
         </div>
+      </div>
       </div>
 
       {showCreate && (
