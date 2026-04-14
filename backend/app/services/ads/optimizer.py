@@ -127,6 +127,70 @@ Return ONLY valid JSON:
     return json.loads(text)
 
 
+def _check_high_ctr_low_conversion(
+    metrics: dict,
+    days_since_created: int,
+    objective: str | None,
+) -> dict | None:
+    """
+    Detect high-CTR + low-conversion-rate pattern that suggests a landing page issue.
+
+    Conditions (all must be true):
+    - Objective is OUTCOME_SALES
+    - CTR > 3.0%
+    - Conversion rate (purchases / link_clicks * 100) < 1.0%
+    - Total spend >= $30
+    - Campaign active >= 5 days
+
+    Returns a dict with the details if the pattern is detected, else None.
+    """
+    if not objective or "SALES" not in objective.upper():
+        return None
+
+    if days_since_created < 5:
+        return None
+
+    total_spend = float(metrics.get("spend", 0.0))
+    if total_spend < 30.0:
+        return None
+
+    ctr = float(metrics.get("ctr", 0.0))
+    if ctr <= 3.0:
+        return None
+
+    # Extract link clicks and purchase conversions from actions list
+    PURCHASE_ACTION_TYPES = {
+        "purchase",
+        "offsite_conversion.fb_pixel_purchase",
+        "omni_purchase",
+        "onsite_web_purchase",
+    }
+    actions_list = metrics.get("actions", [])
+    if not isinstance(actions_list, list):
+        return None
+
+    actions = {a["action_type"]: float(a["value"]) for a in actions_list if "action_type" in a and "value" in a}
+
+    link_clicks = actions.get("link_click", 0.0)
+    if link_clicks <= 0:
+        return None
+
+    purchases = sum(v for k, v in actions.items() if k in PURCHASE_ACTION_TYPES)
+    conversion_rate = (purchases / link_clicks) * 100
+
+    if conversion_rate >= 1.0:
+        return None
+
+    return {
+        "ctr": round(ctr, 2),
+        "link_clicks": int(link_clicks),
+        "purchases": int(purchases),
+        "conversion_rate": round(conversion_rate, 2),
+        "total_spend": round(total_spend, 2),
+        "days_running": days_since_created,
+    }
+
+
 def _detect_fatigue(metrics: dict, days_since_created: int) -> dict | None:
     """
     Check Andromeda fatigue conditions.
@@ -351,6 +415,9 @@ Return your JSON decision."""
     # 5. Detect fatigue independently of Claude's decision
     fatigue_info = _detect_fatigue(metrics, days_since_created)
 
+    # 5b. Detect high CTR + low conversion rate (landing page issue signal)
+    lp_issue = _check_high_ctr_low_conversion(metrics, days_since_created, campaign.objective)
+
     # Check for existing pending notification for this campaign (avoid duplicates)
     existing_notif_result = await db.execute(
         select(Notification).where(
@@ -426,6 +493,15 @@ Return your JSON decision."""
                 competitor_ads=competitor_ads,
             )
 
+        # 7. Check for high CTR + low conversion rate (landing page issue signal)
+        if lp_issue:
+            await _create_high_ctr_low_conversion_notification(
+                campaign=campaign,
+                lp_issue=lp_issue,
+                notification_svc=notification_svc,
+                db=db,
+            )
+
     except Exception as e:
         rationale = f"{rationale} (Notification failed: {str(e)})"
         action_taken = "ERROR"
@@ -455,6 +531,7 @@ Return your JSON decision."""
         "new_budget": new_budget,
         "recommendations": analysis.get("recommendations", []),
         "fatigue_detected": fatigue_info is not None,
+        "high_ctr_low_conversion_detected": lp_issue is not None,
     }
 
 
@@ -574,6 +651,64 @@ async def _create_fatigue_notification(
                 await bot.send_message(project.telegram_chat_id, telegram_text)
         except Exception:
             pass  # Telegram failure should never break the optimizer flow
+
+
+async def _create_high_ctr_low_conversion_notification(
+    campaign: AdCampaign,
+    lp_issue: dict,
+    notification_svc,
+    db: AsyncSession,
+) -> None:
+    """
+    Create a high_ctr_low_conversion notification if one hasn't been sent
+    for this campaign in the last 7 days (cooldown).
+    """
+    from datetime import timedelta
+    from app.models.notification import Notification
+
+    cooldown_cutoff = datetime.utcnow() - timedelta(days=7)
+    existing_result = await db.execute(
+        select(Notification).where(
+            Notification.project_id == campaign.project_id,
+            Notification.type == "high_ctr_low_conversion",
+            Notification.created_at >= cooldown_cutoff,
+        )
+    )
+    existing = existing_result.scalars().all()
+    # Filter by campaign_id in action_data (cooldown is per campaign)
+    for notif in existing:
+        if (notif.action_data or {}).get("campaign_id") == campaign.id:
+            return  # Still within cooldown window — skip
+
+    ctr = lp_issue["ctr"]
+    conv_rate = lp_issue["conversion_rate"]
+
+    title = f"Landing page may have an issue — {campaign.name}"
+    message = (
+        f"Your campaign has a {ctr:.1f}% CTR but only {conv_rate:.1f}% of clicks convert. "
+        f"People are clicking but not buying. Check your landing page, price point, or checkout flow."
+    )
+
+    await notification_svc.create(
+        type="high_ctr_low_conversion",
+        title=title,
+        message=message,
+        project_id=campaign.project_id,
+        action_url=f"/dashboard/ads/{campaign.id}",
+        action_label="View campaign",
+        action_data={
+            "campaign_id": campaign.id,
+            "campaign_name": campaign.name,
+            "metrics": {
+                "ctr": ctr,
+                "link_clicks": lp_issue["link_clicks"],
+                "purchases": lp_issue["purchases"],
+                "conversion_rate": conv_rate,
+                "total_spend": lp_issue["total_spend"],
+                "days_running": lp_issue["days_running"],
+            },
+        },
+    )
 
 
 async def run_optimization_cycle(db: AsyncSession) -> list[dict]:

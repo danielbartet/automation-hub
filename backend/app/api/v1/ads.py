@@ -1081,7 +1081,7 @@ async def get_campaign_recommendations(
         raise HTTPException(404, "Campaign not found")
 
     # 2. Fetch all unread notifications for this user and filter by campaign_id in action_data
-    RELEVANT_TYPES = {"optimizer_scale", "optimizer_pause", "campaign_fatigued"}
+    RELEVANT_TYPES = {"optimizer_scale", "optimizer_pause", "campaign_fatigued", "high_ctr_low_conversion"}
     notif_result = await db.execute(
         select(Notification).where(
             Notification.user_id == current_user.id,
@@ -1110,6 +1110,7 @@ async def get_campaign_recommendations(
             "optimizer_scale": "SCALE",
             "optimizer_pause": "PAUSE",
             "campaign_fatigued": "MODIFY",
+            "high_ctr_low_conversion": "MODIFY",
         }
         decision = decision_map.get(n.type, "MODIFY")
 
