@@ -107,17 +107,24 @@ def _format_campaign_data(campaigns_metrics: list[dict]) -> str:
         purchases = sum(v for k, v in actions.items() if "purchase" in k.lower())
         cpa_purchase = next((v for k, v in cpa_map.items() if "purchase" in k.lower()), 0)
 
-        # ROAS from purchase actions value vs spend
-        purchase_value = sum(float(a.get("value", 0)) for a in actions_list
-                             if isinstance(a, dict) and "purchase" in a.get("action_type", "").lower()
-                             and "value" in a)
-        roas = (purchase_value / spend) if spend > 0 else 0
+        # ROAS — prefer purchase_roas field, fall back to action_values / spend
+        purchase_roas_list = metrics.get("purchase_roas", [])
+        if isinstance(purchase_roas_list, list) and purchase_roas_list:
+            roas = float(purchase_roas_list[0].get("value", 0) or 0)
+        else:
+            action_values_list = metrics.get("action_values", [])
+            purchase_value = sum(
+                float(a.get("value", 0))
+                for a in action_values_list
+                if isinstance(a, dict) and "purchase" in a.get("action_type", "").lower()
+            )
+            roas = (purchase_value / spend) if spend > 0 else 0
 
         lines.append(f"""
 Campaign: {name}
   Objective: {objective} | Status: {status}
   Daily budget: ${daily_budget:.2f}/day | Days running: {days_running}
-  --- Last 7 days ---
+  --- Last 30 days ---
   Spend: ${spend:.2f} | Impressions: {impressions:,}
   CTR: {ctr:.2f}% | Frequency: {frequency:.2f} | CPM: ${cpm:.2f} | CPC: ${cpc:.2f}
   Leads: {int(leads)} | CPL: ${cpl:.2f}
@@ -169,11 +176,16 @@ async def run_campaign_chat(
     token = await get_project_token(project, db)
     campaigns_metrics = []
 
+    # Build a 30-day time range matching the campaign detail endpoint
+    today = datetime.now(timezone.utc).date()
+    since = today - timedelta(days=29)
+    insights_time_range = {"since": str(since), "until": str(today)}
+
     if token and campaigns:
         for campaign in campaigns:
             try:
                 metrics = await meta_service.fetch_campaign_insights(
-                    token, campaign.meta_campaign_id, "last_7d"
+                    token, campaign.meta_campaign_id, time_range=insights_time_range
                 )
                 days_running = (datetime.utcnow() - campaign.created_at).days
                 campaigns_metrics.append({

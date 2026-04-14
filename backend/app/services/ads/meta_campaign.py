@@ -513,16 +513,31 @@ class MetaCampaignService:
                 return None
             return data.get("effective_status")
 
-    async def fetch_campaign_insights(self, token: str, campaign_id: str, date_preset: str = "last_7d") -> dict:
-        """Fetch campaign metrics for optimization analysis."""
+    async def fetch_campaign_insights(
+        self,
+        token: str,
+        campaign_id: str,
+        date_preset: str = "last_7d",
+        time_range: dict | None = None,
+    ) -> dict:
+        """Fetch campaign metrics for optimization analysis.
+
+        Pass ``time_range`` ({"since": "YYYY-MM-DD", "until": "YYYY-MM-DD"}) to
+        override ``date_preset`` with an explicit date window.
+        """
+        params: dict = {
+            "fields": "spend,impressions,reach,clicks,ctr,cpm,cpc,frequency,actions,action_values,cost_per_action_type,purchase_roas",
+            "access_token": token,
+        }
+        if time_range:
+            params["time_range"] = json.dumps(time_range)
+        else:
+            params["date_preset"] = date_preset
+
         async with httpx.AsyncClient(timeout=10.0) as client:
             resp = await client.get(
                 f"{META_BASE}/{campaign_id}/insights",
-                params={
-                    "fields": "spend,impressions,reach,clicks,ctr,cpm,cpc,frequency,actions,cost_per_action_type",
-                    "date_preset": date_preset,
-                    "access_token": token,
-                }
+                params=params,
             )
             data = resp.json()
             rows = data.get("data", [])

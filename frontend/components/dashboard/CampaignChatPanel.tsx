@@ -42,6 +42,7 @@ export function CampaignChatPanel({ projectSlug }: Props) {
 
   const [loading, setLoading] = useState(false);
   const [result, setResult] = useState<CampaignChatResponse | null>(null);
+  const [resultTimestamp, setResultTimestamp] = useState<number | null>(null);
   const [error, setError] = useState<string | null>(null);
   const [activeQuestion, setActiveQuestion] = useState<CampaignChatQuestionKey | null>(null);
   const [cooldownSeconds, setCooldownSeconds] = useState(0);
@@ -51,6 +52,31 @@ export function CampaignChatPanel({ projectSlug }: Props) {
   const [campaigns, setCampaigns] = useState<CampaignSummary[]>([]);
   const [loadingCampaigns, setLoadingCampaigns] = useState(false);
   const [selectedCampaignId, setSelectedCampaignId] = useState<number | null>(null);
+
+  // --- localStorage helpers ---
+  const lsKey = (questionKey: CampaignChatQuestionKey) =>
+    `chat_response_${projectSlug}_${selectedCampaignId ?? "all"}_${questionKey}`;
+
+  const saveToStorage = (questionKey: CampaignChatQuestionKey, data: CampaignChatResponse) => {
+    try {
+      localStorage.setItem(
+        lsKey(questionKey),
+        JSON.stringify({ response: data, timestamp: Date.now() })
+      );
+    } catch {
+      // localStorage unavailable (SSR or private browsing)
+    }
+  };
+
+  const loadFromStorage = (questionKey: CampaignChatQuestionKey): { response: CampaignChatResponse; timestamp: number } | null => {
+    try {
+      const raw = localStorage.getItem(lsKey(questionKey));
+      if (!raw) return null;
+      return JSON.parse(raw) as { response: CampaignChatResponse; timestamp: number };
+    } catch {
+      return null;
+    }
+  };
 
   // Load campaigns when projectSlug changes
   useEffect(() => {
@@ -71,11 +97,27 @@ export function CampaignChatPanel({ projectSlug }: Props) {
       .finally(() => setLoadingCampaigns(false));
   }, [projectSlug, token]);
 
-  // Reset chat state when project or campaign changes
+  // Restore last response from localStorage when project or campaign changes
   useEffect(() => {
     setResult(null);
+    setResultTimestamp(null);
     setError(null);
     setActiveQuestion(null);
+
+    // Try to restore the most recently saved response for this project/campaign combo
+    let latest: { response: CampaignChatResponse; timestamp: number; key: CampaignChatQuestionKey } | null = null;
+    for (const q of QUESTIONS) {
+      const stored = loadFromStorage(q.key);
+      if (stored && (!latest || stored.timestamp > latest.timestamp)) {
+        latest = { ...stored, key: q.key };
+      }
+    }
+    if (latest) {
+      setResult(latest.response);
+      setResultTimestamp(latest.timestamp);
+      setActiveQuestion(latest.key);
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [projectSlug, selectedCampaignId]);
 
   // Tick cooldown countdown
@@ -108,6 +150,8 @@ export function CampaignChatPanel({ projectSlug }: Props) {
     try {
       const data = await campaignChat(token, projectSlug, questionKey, lang, selectedCampaignId);
       setResult(data);
+      setResultTimestamp(Date.now());
+      saveToStorage(questionKey, data);
       if (data.cooldown_remaining_seconds > 0) {
         setCooldownSeconds(data.cooldown_remaining_seconds);
       } else {
@@ -128,7 +172,10 @@ export function CampaignChatPanel({ projectSlug }: Props) {
   };
 
   const handleReset = () => {
+    // Clear displayed state only — localStorage entries are kept so they can be
+    // restored if the user navigates away and returns before asking a new question.
     setResult(null);
+    setResultTimestamp(null);
     setError(null);
     setActiveQuestion(null);
   };
@@ -302,6 +349,14 @@ export function CampaignChatPanel({ projectSlug }: Props) {
                   hour: "2-digit",
                   minute: "2-digit",
                 })}
+                {resultTimestamp !== null && (() => {
+                  const minutesAgo = Math.floor((Date.now() - resultTimestamp) / 60000);
+                  return minutesAgo > 0 ? (
+                    <span className="ml-2" style={{ color: "#6b7280" }}>
+                      · {minutesAgo}m ago
+                    </span>
+                  ) : null;
+                })()}
                 {cooldownSeconds > 0 && (
                   <span className="ml-3 text-yellow-500">
                     · {t.ads_chat_cooldown(cooldownMinutes)}
