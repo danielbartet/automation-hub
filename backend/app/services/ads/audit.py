@@ -1020,13 +1020,21 @@ def eval_value_optimization_eligible(data: dict) -> CheckResult:
             threshold_value="≥ 50 purchases/week",
         )
 
-    # Calculate purchase volume to determine eligibility
+    # Calculate purchase volume to determine eligibility.
+    # Meta Graph API returns purchases nested in the actions[] array.
+    # The action_type can be "purchase" (CAPI), "offsite_conversion.fb_pixel_purchase"
+    # (pixel), or "omni_purchase" (omni-channel). Check all three.
+    PURCHASE_ACTION_TYPES = {
+        "purchase",
+        "offsite_conversion.fb_pixel_purchase",
+        "omni_purchase",
+    }
     insights = data.get("insights_30d", {})
     insight_list = insights.get("data", []) if isinstance(insights, dict) else []
     purchases = 0
     for campaign in insight_list:
         for action in campaign.get("actions", []):
-            if action.get("action_type") == "purchase":
+            if action.get("action_type") in PURCHASE_ACTION_TYPES:
                 try:
                     purchases += int(float(action.get("value", 0)))
                 except (TypeError, ValueError):
@@ -1053,9 +1061,9 @@ def eval_value_optimization_eligible(data: dict) -> CheckResult:
         check_id="M08",
         category="pixel",
         severity="Medium",
-        result="NA",
+        result="FAIL",
         title="Value Optimization eligibility",
-        detail="Insufficient purchase volume for value optimization. Need ≥50 purchases/week to use Value Optimization.",
+        detail=f"{purchases} purchases in last 30 days — Value Optimization requires 50+/week",
         meta_value=f"{purchases} purchases / 30d",
         threshold_value="≥ 50 purchases/week",
     )
