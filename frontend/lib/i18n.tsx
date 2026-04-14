@@ -22,6 +22,8 @@ export const translations = {
     nav_audiences: "Audiencias",
     nav_audit: "Audit",
     nav_health: "Health Monitor",
+    nav_meta_health: "Meta Health",
+    nav_token_usage: "Token Usage",
     nav_settings_label: "Settings",
     nav_settings_users: "Users",
 
@@ -670,6 +672,8 @@ export const translations = {
     nav_audiences: "Audiencias",
     nav_audit: "Audit",
     nav_health: "Health Monitor",
+    nav_meta_health: "Meta Health",
+    nav_token_usage: "Token Usage",
     nav_settings_label: "Settings",
     nav_settings_users: "Usuarios",
 

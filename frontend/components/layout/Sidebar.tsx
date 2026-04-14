@@ -31,6 +31,12 @@ export function Sidebar() {
     pathname.startsWith("/dashboard/projects");
   const [settingsOpen, setSettingsOpen] = useState(isOnSettingsPath);
 
+  // Auto-expand Health group when on health or token-usage paths
+  const isOnHealthPath =
+    pathname.startsWith("/dashboard/health") ||
+    pathname.startsWith("/dashboard/token-usage");
+  const [healthOpen, setHealthOpen] = useState(isOnHealthPath);
+
   // Keep organicoOpen in sync when navigating to/from organic paths
   useEffect(() => {
     if (isOnOrganicoPath) setOrganicoOpen(true);
@@ -45,6 +51,11 @@ export function Sidebar() {
   useEffect(() => {
     if (isOnSettingsPath) setSettingsOpen(true);
   }, [isOnSettingsPath]);
+
+  // Keep healthOpen in sync when navigating to/from health paths
+  useEffect(() => {
+    if (isOnHealthPath) setHealthOpen(true);
+  }, [isOnHealthPath]);
 
   const topNavItems = [
     { href: "/dashboard", label: t.nav_overview, icon: LayoutDashboard },
@@ -246,8 +257,70 @@ export function Sidebar() {
           )}
         </div>
 
-        {/* Health Monitor */}
-        {!isClient && renderNavLink("/dashboard/health", t.nav_health, Activity)}
+        {/* Health Monitor collapsible group */}
+        {!isClient && (
+          <div>
+            <button
+              onClick={() => setHealthOpen((prev) => !prev)}
+              className="w-full flex items-center gap-3 px-3 py-2 rounded-md text-sm font-medium transition-colors"
+              style={isOnHealthPath ? { color: "#a78bfa" } : { color: "#9ca3af" }}
+              onMouseEnter={(e) => handleHover(e, isOnHealthPath)}
+              onMouseLeave={(e) => handleHoverLeave(e, isOnHealthPath)}
+            >
+              <Activity className="h-4 w-4 flex-shrink-0" />
+              <span className="flex-1 text-left">{t.nav_health}</span>
+              {criticalTokenCount > 0 && (
+                <span
+                  className="inline-flex items-center justify-center min-w-[18px] h-[18px] rounded-full text-xs font-bold px-1"
+                  style={{ backgroundColor: "#ef4444", color: "#ffffff" }}
+                >
+                  {criticalTokenCount}
+                </span>
+              )}
+              {healthOpen ? (
+                <ChevronDown className="h-3.5 w-3.5 flex-shrink-0" />
+              ) : (
+                <ChevronRight className="h-3.5 w-3.5 flex-shrink-0" />
+              )}
+            </button>
+
+            {healthOpen && (
+              <div className="mt-1 ml-3 pl-3 space-y-1" style={{ borderLeft: "1px solid #1e1e1e" }}>
+                {(() => {
+                  const metaHealthActive = pathname === "/dashboard/health" || pathname.startsWith("/dashboard/health/");
+                  const showTokenUsage = role === "admin" || role === "super_admin";
+                  const tokenUsageActive = pathname === "/dashboard/token-usage" || pathname.startsWith("/dashboard/token-usage/");
+                  return (
+                    <>
+                      <Link
+                        href="/dashboard/health"
+                        className="flex items-center gap-3 px-3 py-2 rounded-md text-sm font-medium transition-colors"
+                        style={metaHealthActive ? activeLinkStyle : inactiveLinkStyle}
+                        onMouseEnter={(e) => handleHover(e, metaHealthActive)}
+                        onMouseLeave={(e) => handleHoverLeave(e, metaHealthActive)}
+                      >
+                        <Activity className="h-4 w-4 flex-shrink-0" />
+                        <span className="flex-1">{t.nav_meta_health}</span>
+                      </Link>
+                      {showTokenUsage && (
+                        <Link
+                          href="/dashboard/token-usage"
+                          className="flex items-center gap-3 px-3 py-2 rounded-md text-sm font-medium transition-colors"
+                          style={tokenUsageActive ? activeLinkStyle : inactiveLinkStyle}
+                          onMouseEnter={(e) => handleHover(e, tokenUsageActive)}
+                          onMouseLeave={(e) => handleHoverLeave(e, tokenUsageActive)}
+                        >
+                          <Layers className="h-4 w-4 flex-shrink-0" />
+                          <span className="flex-1">{t.nav_token_usage}</span>
+                        </Link>
+                      )}
+                    </>
+                  );
+                })()}
+              </div>
+            )}
+          </div>
+        )}
       </nav>
 
       {/* Settings — pinned to bottom, always visible */}
