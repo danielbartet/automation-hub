@@ -3,12 +3,9 @@
 import { useEffect, useState, useCallback, useRef } from "react";
 import { useSession } from "next-auth/react";
 import { Header } from "@/components/layout/Header";
-import { getHealthSummary, refreshProjectHealth, ProjectHealth, fetchProjects } from "@/lib/api";
+import { getHealthSummary, refreshProjectHealth, ProjectHealth } from "@/lib/api";
 import { useT } from "@/lib/i18n";
 import { RefreshCw, AlertTriangle, CheckCircle, XCircle, Clock, Wifi, WifiOff } from "lucide-react";
-import { AuditScoreCard } from "../ads/AuditScoreCard";
-import { AuditCheckList } from "../ads/AuditCheckList";
-
 // ── Helpers ───────────────────────────────────────────────────────────────────
 
 function useTimeAgo() {
@@ -432,13 +429,6 @@ function ProjectHealthCard({ health, sessionToken, onRefreshed }: ProjectHealthC
 
 // ── Page ──────────────────────────────────────────────────────────────────────
 
-interface Project {
-  id: string;
-  name: string;
-  slug: string;
-  is_active: boolean;
-}
-
 export default function HealthPage() {
   const { data: session } = useSession();
   const t = useT();
@@ -447,11 +437,6 @@ export default function HealthPage() {
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const [lastFetch, setLastFetch] = useState<Date | null>(null);
-
-  // Audit section state
-  const [projects, setProjects] = useState<Project[]>([]);
-  const [auditSlug, setAuditSlug] = useState<string>("");
-  const [selectedAuditId, setSelectedAuditId] = useState<number | null>(null);
 
   const token = session?.accessToken as string | undefined;
 
@@ -468,23 +453,6 @@ export default function HealthPage() {
       setLoading(false);
     }
   }, [token, t]);
-
-  // Load projects for audit section
-  useEffect(() => {
-    if (!token) return;
-    fetchProjects(token)
-      .then((list: Project[]) => {
-        const arr = Array.isArray(list) ? list : [];
-        setProjects(arr);
-        if (arr.length > 0) setAuditSlug(arr[0].slug);
-      })
-      .catch(() => {});
-  }, [token]);
-
-  // Reset auditId when project changes
-  useEffect(() => {
-    setSelectedAuditId(null);
-  }, [auditSlug]);
 
   // Initial fetch
   useEffect(() => {
@@ -567,40 +535,6 @@ export default function HealthPage() {
           </div>
         )}
 
-        {/* ── Ads Audit ────────────────────────────────────────────────────── */}
-        {projects.length > 0 && (
-          <div className="mt-10 space-y-6">
-            <div className="flex items-center gap-3 flex-wrap">
-              <h2 className="text-lg font-bold text-white">Meta Ads Audit</h2>
-              <div className="ml-auto flex items-center gap-2">
-                <label className="text-sm font-medium" style={{ color: "#9ca3af" }}>Project:</label>
-                <select
-                  value={auditSlug}
-                  onChange={(e) => setAuditSlug(e.target.value)}
-                  className="text-sm rounded-md px-3 py-2 focus:outline-none focus:ring-2 focus:ring-[#7c3aed]"
-                  style={{ backgroundColor: "#1a1a1a", border: "1px solid #333333", color: "#ffffff" }}
-                >
-                  {projects.map((p) => (
-                    <option key={p.id} value={p.slug}>
-                      {p.name}
-                    </option>
-                  ))}
-                </select>
-              </div>
-            </div>
-            {auditSlug && (
-              <>
-                <AuditScoreCard
-                  projectSlug={auditSlug}
-                  onAuditCompleted={(auditId) => setSelectedAuditId(auditId)}
-                />
-                {selectedAuditId && (
-                  <AuditCheckList auditId={selectedAuditId} />
-                )}
-              </>
-            )}
-          </div>
-        )}
       </div>
     </div>
   );
