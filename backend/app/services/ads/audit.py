@@ -1244,12 +1244,11 @@ def eval_custom_audience_present(data: dict) -> CheckResult:
             title="Custom audiences present",
             detail="No custom audiences found.",
             recommendation=(
-                "Create website visitor, customer list, and engagement audiences to enable "
-                "retargeting and lookalike creation."
+                "Create website visitor or customer list audiences from the Audiences section in the app."
             ),
             meta_value="0 total, 0 in use",
             threshold_value="≥ 1 custom audience in active adset",
-            meta_ui_link="https://business.facebook.com/adsmanager/audiences",
+            meta_ui_link="/dashboard/ads/audiences",
         )
 
     adsets_raw = data.get("adsets", {})
@@ -1274,7 +1273,7 @@ def eval_custom_audience_present(data: dict) -> CheckResult:
             recommendation="Add your custom audiences to active ad set targeting.",
             meta_value=f"{len(audiences)} total, 0 in use",
             threshold_value="≥ 1 custom audience in active adset",
-            meta_ui_link="https://business.facebook.com/adsmanager/audiences",
+            meta_ui_link="/dashboard/ads/audiences",
         )
 
     return CheckResult(
@@ -1286,7 +1285,7 @@ def eval_custom_audience_present(data: dict) -> CheckResult:
         detail=f"{len(used_audiences)} custom audience(s) active in ad sets.",
         meta_value=f"{len(audiences)} total, {len(used_audiences)} in use",
         threshold_value="≥ 1 custom audience in active adset",
-        meta_ui_link="https://business.facebook.com/adsmanager/audiences",
+        meta_ui_link="/dashboard/ads/audiences",
     )
 
 
@@ -1306,11 +1305,10 @@ def eval_lookalike_audience_present(data: dict) -> CheckResult:
             title="Lookalike audiences present",
             detail="No Lookalike Audiences found.",
             recommendation=(
-                "Create Lookalike Audiences based on your best customers (purchase custom audience) "
-                "to reach new high-value prospects."
+                "Create a Lookalike Audience from the Audiences section in the app."
             ),
             meta_value="0 lookalikes",
-            meta_ui_link="https://business.facebook.com/adsmanager/audiences",
+            meta_ui_link="/dashboard/ads/audiences",
         )
 
     small_lookalikes = [
@@ -1364,11 +1362,10 @@ def eval_retargeting_audience_present(data: dict) -> CheckResult:
             title="Retargeting audiences present",
             detail="No pixel-based retargeting audiences found.",
             recommendation=(
-                "Create website visitor retargeting audiences in Audience Manager "
-                "using your Meta Pixel data."
+                "Create website visitor retargeting audiences from the Audiences section in the app."
             ),
             meta_value="0 retargeting audiences",
-            meta_ui_link="https://business.facebook.com/adsmanager/audiences",
+            meta_ui_link="/dashboard/ads/audiences",
         )
 
     small_retargeting = [
@@ -1570,11 +1567,11 @@ def eval_creative_diversity_formats(data: dict) -> CheckResult:
     elif count == 2:
         result = "WARNING"
         detail = f"Only 2 creative formats in use: {formats_list}."
-        recommendation = "Add a third creative format (video, carousel, or static image) to broaden reach."
+        recommendation = "Create a new campaign with carousel or video format from the Ads section."
     elif count == 1:
         result = "FAIL"
         detail = f"Only 1 creative format in use: {formats_list}."
-        recommendation = "Diversify creative formats. Meta's algorithm optimizes better with multiple formats."
+        recommendation = "Create a new campaign with carousel or video format from the Ads section."
     else:
         return CheckResult(
             check_id="C01",
@@ -1585,7 +1582,7 @@ def eval_creative_diversity_formats(data: dict) -> CheckResult:
             detail="No active ads found.",
             meta_value="0 formats",
             threshold_value=">= 3 formats",
-            meta_ui_link="https://business.facebook.com/adsmanager/",
+            meta_ui_link="/dashboard/ads",
         )
 
     return CheckResult(
@@ -1598,7 +1595,7 @@ def eval_creative_diversity_formats(data: dict) -> CheckResult:
         recommendation=recommendation,
         meta_value=meta_value,
         threshold_value=">= 3 formats",
-        meta_ui_link="https://business.facebook.com/adsmanager/",
+        meta_ui_link="/dashboard/ads",
     )
 
 
@@ -1619,8 +1616,7 @@ def eval_video_present(data: dict) -> CheckResult:
         result = "FAIL"
         detail = "No video creatives found in active ads."
         recommendation = (
-            "Add video content — video drives 2-3x higher engagement than "
-            "static images on Meta placements."
+            "Create a campaign with video format from the Ads section."
         )
 
     return CheckResult(
@@ -1632,7 +1628,7 @@ def eval_video_present(data: dict) -> CheckResult:
         detail=detail,
         recommendation=recommendation,
         meta_value=str(video_count),
-        meta_ui_link="https://business.facebook.com/adsmanager/",
+        meta_ui_link="/dashboard/ads",
     )
 
 
