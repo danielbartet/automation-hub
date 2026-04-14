@@ -60,10 +60,11 @@ export function CampaignChatPanel({ projectSlug }: Props) {
     setCampaigns([]);
     fetchCampaignsBySlug(token, projectSlug)
       .then((list) => {
-        setCampaigns(list);
+        const visible = list.filter((c) => c.status?.toLowerCase() !== "archived");
+        setCampaigns(visible);
         // Auto-select if only one campaign
-        if (list.length === 1) {
-          setSelectedCampaignId(list[0].id);
+        if (visible.length === 1) {
+          setSelectedCampaignId(visible[0].id);
         }
       })
       .catch(() => {})
