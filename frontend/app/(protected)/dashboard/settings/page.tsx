@@ -10,9 +10,9 @@ import { useT } from "@/lib/i18n";
 
 export default function SettingsPage() {
   const t = useT();
-  const { data: session } = useSession();
+  const { data: session, status } = useSession();
   const role = (session as any)?.user?.role as string | undefined;
-  const showTokenUsage = role === "admin" || role === "super_admin";
+  const showTokenUsage = status !== "loading" && (role === "admin" || role === "super_admin");
 
   return (
     <div>
