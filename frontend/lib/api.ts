@@ -873,11 +873,33 @@ export interface CampaignChatCooldownError {
   cooldown_remaining_seconds: number;
 }
 
+export interface CampaignSummary {
+  id: number;
+  name: string;
+  objective: string | null;
+  status: string;
+  daily_budget: number | null;
+  meta_campaign_id: string | null;
+}
+
+export async function fetchCampaignsBySlug(
+  token: string,
+  projectSlug: string,
+): Promise<CampaignSummary[]> {
+  const res = await fetch(`${API_BASE}/api/v1/ads/campaigns/${projectSlug}`, {
+    headers: { Authorization: `Bearer ${token}` },
+    cache: "no-store",
+  });
+  if (!res.ok) throw new Error("Failed to fetch campaigns");
+  return res.json();
+}
+
 export async function campaignChat(
   token: string,
   projectSlug: string,
   questionKey: CampaignChatQuestionKey,
   language?: string,
+  campaignId?: number | null,
 ): Promise<CampaignChatResponse> {
   const res = await fetch(`${API_BASE}/api/v1/ads/chat`, {
     method: "POST",
@@ -885,7 +907,12 @@ export async function campaignChat(
       "Content-Type": "application/json",
       Authorization: `Bearer ${token}`,
     },
-    body: JSON.stringify({ project_slug: projectSlug, question_key: questionKey, language: language ?? "en" }),
+    body: JSON.stringify({
+      project_slug: projectSlug,
+      question_key: questionKey,
+      language: language ?? "en",
+      campaign_id: campaignId ?? null,
+    }),
   });
   if (res.status === 429) {
     const err = await res.json().catch(() => ({}));

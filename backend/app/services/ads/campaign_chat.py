@@ -132,6 +132,7 @@ async def run_campaign_chat(
     user: User,
     db: AsyncSession,
     language: str = "en",
+    campaign_id: int | None = None,
 ) -> dict:
     """
     Main entry point for campaign chat.
@@ -151,13 +152,16 @@ async def run_campaign_chat(
     if not project:
         raise ValueError(f"Project '{project_slug}' not found")
 
-    # 3. Load active campaigns
+    # 3. Load active campaigns (optionally filtered to a specific campaign)
+    where_clauses = [
+        AdCampaign.project_id == project.id,
+        AdCampaign.status == "active",
+        AdCampaign.meta_campaign_id.isnot(None),
+    ]
+    if campaign_id:
+        where_clauses.append(AdCampaign.id == campaign_id)
     campaigns_result = await db.execute(
-        select(AdCampaign).where(
-            AdCampaign.project_id == project.id,
-            AdCampaign.status == "active",
-            AdCampaign.meta_campaign_id.isnot(None),
-        )
+        select(AdCampaign).where(*where_clauses)
     )
     campaigns = campaigns_result.scalars().all()
 

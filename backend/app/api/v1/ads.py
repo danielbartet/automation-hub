@@ -142,6 +142,38 @@ async def list_campaigns(project_id: int, db: AsyncSession = Depends(get_session
     return output
 
 
+@router.get("/campaigns/{project_slug}")
+async def list_campaigns_by_slug(
+    project_slug: str,
+    db: AsyncSession = Depends(get_session),
+    current_user=Depends(require_super_admin()),
+) -> list[dict]:
+    """List ad campaigns for a project by slug. super_admin only."""
+    proj_result = await db.execute(select(Project).where(Project.slug == project_slug))
+    project = proj_result.scalar_one_or_none()
+    if not project:
+        raise HTTPException(404, f"Project '{project_slug}' not found")
+
+    result = await db.execute(
+        select(AdCampaign)
+        .where(AdCampaign.project_id == project.id)
+        .order_by(AdCampaign.created_at.desc())
+    )
+    campaigns = result.scalars().all()
+
+    return [
+        {
+            "id": c.id,
+            "name": c.name,
+            "objective": c.objective,
+            "status": c.status,
+            "daily_budget": c.daily_budget,
+            "meta_campaign_id": c.meta_campaign_id,
+        }
+        for c in campaigns
+    ]
+
+
 @router.post("/generate-concepts/{project_slug}")
 async def generate_concepts(
     project_slug: str,
@@ -1486,6 +1518,7 @@ class CampaignChatRequest(BaseModel):
     project_slug: str
     question_key: str
     language: str = "en"
+    campaign_id: int | None = None
 
 
 @router.post("/chat")
@@ -1507,6 +1540,7 @@ async def campaign_chat(
             user=current_user,
             db=db,
             language=body.language,
+            campaign_id=body.campaign_id,
         )
     except CooldownError as e:
         raise HTTPException(

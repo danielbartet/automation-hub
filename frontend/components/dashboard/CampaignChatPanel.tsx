@@ -6,8 +6,10 @@ import { Loader2, MessageSquare, RotateCcw } from "lucide-react";
 import { useT, useLang } from "@/lib/i18n";
 import {
   campaignChat,
+  fetchCampaignsBySlug,
   type CampaignChatQuestionKey,
   type CampaignChatResponse,
+  type CampaignSummary,
 } from "@/lib/api";
 
 interface Question {
@@ -45,6 +47,37 @@ export function CampaignChatPanel({ projectSlug }: Props) {
   const [cooldownSeconds, setCooldownSeconds] = useState(0);
   const cooldownRef = useRef<ReturnType<typeof setInterval> | null>(null);
 
+  // Campaign selector state
+  const [campaigns, setCampaigns] = useState<CampaignSummary[]>([]);
+  const [loadingCampaigns, setLoadingCampaigns] = useState(false);
+  const [selectedCampaignId, setSelectedCampaignId] = useState<number | null>(null);
+
+  // Load campaigns when projectSlug changes
+  useEffect(() => {
+    if (!projectSlug || !token) return;
+    setLoadingCampaigns(true);
+    setSelectedCampaignId(null);
+    setCampaigns([]);
+    fetchCampaignsBySlug(token, projectSlug)
+      .then((list) => {
+        const active = list.filter((c) => c.status === "active");
+        setCampaigns(active);
+        // Auto-select if only one active campaign
+        if (active.length === 1) {
+          setSelectedCampaignId(active[0].id);
+        }
+      })
+      .catch(() => {})
+      .finally(() => setLoadingCampaigns(false));
+  }, [projectSlug, token]);
+
+  // Reset chat state when project or campaign changes
+  useEffect(() => {
+    setResult(null);
+    setError(null);
+    setActiveQuestion(null);
+  }, [projectSlug, selectedCampaignId]);
+
   // Tick cooldown countdown
   useEffect(() => {
     if (cooldownSeconds > 0) {
@@ -73,7 +106,7 @@ export function CampaignChatPanel({ projectSlug }: Props) {
     setActiveQuestion(questionKey);
 
     try {
-      const data = await campaignChat(token, projectSlug, questionKey, lang);
+      const data = await campaignChat(token, projectSlug, questionKey, lang, selectedCampaignId);
       setResult(data);
       if (data.cooldown_remaining_seconds > 0) {
         setCooldownSeconds(data.cooldown_remaining_seconds);
@@ -100,6 +133,8 @@ export function CampaignChatPanel({ projectSlug }: Props) {
     setActiveQuestion(null);
   };
 
+  const selectedCampaign = campaigns.find((c) => c.id === selectedCampaignId) ?? null;
+
   return (
     <div
       className="rounded-lg overflow-hidden"
@@ -119,11 +154,52 @@ export function CampaignChatPanel({ projectSlug }: Props) {
         </div>
       </div>
 
-      <div className="p-6">
+      <div className="p-6 space-y-4">
+        {/* Campaign selector */}
+        <div className="flex items-center gap-3">
+          <label className="text-sm font-medium flex-shrink-0" style={{ color: "#9ca3af" }}>
+            {t.ads_chat_campaign_label}
+          </label>
+          {loadingCampaigns ? (
+            <div className="flex items-center gap-2 text-sm" style={{ color: "#6b7280" }}>
+              <Loader2 className="h-3.5 w-3.5 animate-spin" />
+            </div>
+          ) : (
+            <select
+              value={selectedCampaignId ?? ""}
+              onChange={(e) =>
+                setSelectedCampaignId(e.target.value === "" ? null : Number(e.target.value))
+              }
+              className="text-sm rounded-md px-3 py-2 focus:outline-none focus:ring-2 focus:ring-[#7c3aed]"
+              style={{
+                backgroundColor: "#1a1a1a",
+                border: "1px solid #333333",
+                color: "#ffffff",
+                minWidth: "200px",
+              }}
+            >
+              <option value="">{t.ads_chat_campaign_all}</option>
+              {campaigns.map((c) => (
+                <option key={c.id} value={c.id}>
+                  {c.name}
+                </option>
+              ))}
+            </select>
+          )}
+          {selectedCampaign && (
+            <span
+              className="text-xs px-2 py-0.5 rounded-full font-medium"
+              style={{ backgroundColor: "#14532d", color: "#4ade80" }}
+            >
+              active
+            </span>
+          )}
+        </div>
+
         {/* Cooldown banner */}
         {cooldownSeconds > 0 && !loading && !result && (
           <div
-            className="mb-4 rounded-md px-4 py-3 text-sm text-yellow-400"
+            className="rounded-md px-4 py-3 text-sm text-yellow-400"
             style={{ backgroundColor: "#2d2d00", border: "1px solid #4a4a00" }}
           >
             {t.ads_chat_cooldown(cooldownMinutes)}
@@ -178,7 +254,7 @@ export function CampaignChatPanel({ projectSlug }: Props) {
 
         {/* Error state */}
         {error && !loading && (
-          <div className="rounded-md p-4 text-sm text-red-400 mb-4" style={{ backgroundColor: "#450a0a", border: "1px solid #7f1d1d" }}>
+          <div className="rounded-md p-4 text-sm text-red-400" style={{ backgroundColor: "#450a0a", border: "1px solid #7f1d1d" }}>
             {error}
           </div>
         )}
@@ -188,13 +264,21 @@ export function CampaignChatPanel({ projectSlug }: Props) {
           <div className="space-y-4">
             {/* Active question label */}
             {activeQuestion && (
-              <div className="flex items-center gap-2">
+              <div className="flex items-center gap-2 flex-wrap">
                 <span
                   className="text-xs px-3 py-1.5 rounded-full font-medium"
                   style={{ backgroundColor: "#1a1a1a", color: "#a78bfa" }}
                 >
                   {t[QUESTIONS.find((q) => q.key === activeQuestion)!.labelKey] as string}
                 </span>
+                {selectedCampaign && (
+                  <span
+                    className="text-xs px-3 py-1.5 rounded-full font-medium"
+                    style={{ backgroundColor: "#1a1a1a", color: "#6b7280" }}
+                  >
+                    {selectedCampaign.name}
+                  </span>
+                )}
               </div>
             )}
 
