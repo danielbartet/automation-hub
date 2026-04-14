@@ -151,7 +151,7 @@ export function Sidebar() {
   };
 
   return (
-    <aside className="w-64 flex flex-col" style={{ backgroundColor: "#050505", height: "100vh" }}>
+    <aside className="w-64 flex flex-col h-full" style={{ backgroundColor: "#050505" }}>
       {/* Logo / Header */}
       <div className="p-6 flex-shrink-0" style={{ borderBottom: "1px solid #1a1a1a" }}>
         <h1 className="text-xl font-bold text-white">Automation Hub</h1>
