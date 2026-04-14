@@ -25,10 +25,13 @@ import {
   optimizeCampaign,
   approveOptimizerAction,
   rejectOptimizerAction,
+  fetchCampaignAds,
+  updateAdCopy,
   type CampaignRecommendation,
   type CampaignRecommendations,
+  type CampaignAd,
 } from "@/lib/api"
-import { Loader2, Copy } from "lucide-react"
+import { Loader2, Copy, Pencil, Check, X } from "lucide-react"
 
 // ─── Types ───────────────────────────────────────────────────────────────────
 
@@ -219,6 +222,16 @@ export default function CampaignDetailPage() {
   const [dateRange, setDateRange] = useState("last_30d")
   const [expandedRationale, setExpandedRationale] = useState<Record<number, boolean>>({})
 
+  // ── Ads tab state ──────────────────────────────────────────────────────────
+  const [activeTab, setActiveTab] = useState<"overview" | "ads">("overview")
+  const [campaignAds, setCampaignAds] = useState<CampaignAd[]>([])
+  const [adsLoading, setAdsLoading] = useState(false)
+  const [adsError, setAdsError] = useState<string | null>(null)
+  // Per-ad edit state: adId -> { headline, primary_text }
+  const [editingAd, setEditingAd] = useState<string | null>(null)
+  const [editDraft, setEditDraft] = useState<{ headline: string; primary_text: string }>({ headline: "", primary_text: "" })
+  const [savingAd, setSavingAd] = useState<string | null>(null)
+
   const showToast = (msg: string) => {
     setToast(msg)
     setTimeout(() => setToast(null), 4000)
@@ -244,6 +257,61 @@ export default function CampaignDetailPage() {
   useEffect(() => {
     loadDetail()
   }, [loadDetail])
+
+  const loadCampaignAds = useCallback(async () => {
+    if (!token || !localId) return
+    setAdsLoading(true)
+    setAdsError(null)
+    try {
+      const data = await fetchCampaignAds(token, localId)
+      setCampaignAds(data)
+    } catch {
+      setAdsError(t.ads_tab_ads_error)
+    } finally {
+      setAdsLoading(false)
+    }
+  }, [token, localId])
+
+  const handleTabChange = (tab: "overview" | "ads") => {
+    setActiveTab(tab)
+    if (tab === "ads" && campaignAds.length === 0 && !adsLoading) {
+      loadCampaignAds()
+    }
+  }
+
+  const handleStartEdit = (ad: CampaignAd) => {
+    setEditingAd(ad.id)
+    setEditDraft({ headline: ad.headline ?? "", primary_text: ad.primary_text ?? "" })
+  }
+
+  const handleCancelEdit = () => {
+    setEditingAd(null)
+    setEditDraft({ headline: "", primary_text: "" })
+  }
+
+  const handleSaveAd = async (ad: CampaignAd) => {
+    if (!token) return
+    setSavingAd(ad.id)
+    try {
+      await updateAdCopy(token, localId, ad.id, {
+        headline: editDraft.headline || undefined,
+        primary_text: editDraft.primary_text || undefined,
+      })
+      setCampaignAds((prev) =>
+        prev.map((a) =>
+          a.id === ad.id
+            ? { ...a, headline: editDraft.headline || null, primary_text: editDraft.primary_text || null }
+            : a
+        )
+      )
+      setEditingAd(null)
+      showToast(t.ads_tab_toast_updated)
+    } catch {
+      showToast(t.ads_tab_toast_error)
+    } finally {
+      setSavingAd(null)
+    }
+  }
 
   const handleOptimizeConfirm = async () => {
     setOptimizeModalOpen(false)
@@ -796,11 +864,160 @@ export default function CampaignDetailPage() {
           </div>
         </div>
 
+        {/* ── TAB BAR ─────────────────────────────────────────────────────── */}
+        <div className="flex gap-1 border-b" style={{ borderColor: "#222222" }}>
+          {(["overview", "ads"] as const).map((tab) => (
+            <button
+              key={tab}
+              onClick={() => handleTabChange(tab)}
+              className={`px-4 py-2 text-sm font-medium transition-colors ${
+                activeTab === tab
+                  ? "text-white border-b-2 border-indigo-500"
+                  : "text-gray-400 hover:text-white"
+              }`}
+              style={{ marginBottom: "-1px" }}
+            >
+              {tab === "overview" ? "Overview" : t.ads_tab_ads}
+            </button>
+          ))}
+        </div>
+
+        {/* ── ADS TAB ─────────────────────────────────────────────────────── */}
+        {activeTab === "ads" && (
+          <div className="space-y-4">
+            {adsLoading ? (
+              <div className="flex items-center justify-center py-16">
+                <Loader2 className="h-6 w-6 animate-spin text-gray-400" />
+                <span className="ml-2 text-gray-400 text-sm">{t.ads_tab_ads_loading}</span>
+              </div>
+            ) : adsError ? (
+              <div className="flex flex-col items-center justify-center py-16 gap-3">
+                <p className="text-red-400 text-sm">{adsError}</p>
+                <button
+                  onClick={loadCampaignAds}
+                  className="px-3 py-1.5 text-xs bg-indigo-700 hover:bg-indigo-600 text-white rounded"
+                >
+                  Retry
+                </button>
+              </div>
+            ) : campaignAds.length === 0 ? (
+              <p className="text-gray-500 text-sm py-12 text-center">{t.ads_tab_ads_empty}</p>
+            ) : (
+              <div className="grid grid-cols-1 lg:grid-cols-2 gap-4">
+                {campaignAds.map((ad) => {
+                  const isEditing = editingAd === ad.id
+                  const isSaving = savingAd === ad.id
+                  return (
+                    <div
+                      key={ad.id}
+                      className="rounded-lg p-4 space-y-4"
+                      style={{ backgroundColor: "#111111", border: "1px solid #222222" }}
+                    >
+                      {/* Ad name */}
+                      <p className="text-white font-semibold text-sm truncate" title={ad.name}>{ad.name}</p>
+
+                      {/* Headline field */}
+                      <div className="space-y-1">
+                        <p className="text-gray-500 text-xs uppercase tracking-wider">{t.ads_tab_headline_label}</p>
+                        {isEditing ? (
+                          <input
+                            type="text"
+                            value={editDraft.headline}
+                            onChange={(e) => setEditDraft((prev) => ({ ...prev, headline: e.target.value }))}
+                            disabled={isSaving}
+                            className="w-full text-white text-sm px-3 py-2 rounded focus:outline-none focus:ring-2 focus:ring-indigo-600 disabled:opacity-50"
+                            style={{ backgroundColor: "#1a1a1a", border: "1px solid #333333" }}
+                            placeholder={t.ads_tab_headline_label}
+                          />
+                        ) : (
+                          <div className="flex items-start gap-2 group">
+                            <p className="text-gray-200 text-sm flex-1 leading-relaxed">
+                              {ad.headline ?? <span className="text-gray-500 italic">{t.ads_tab_no_value}</span>}
+                            </p>
+                            <button
+                              onClick={() => handleStartEdit(ad)}
+                              className="flex-shrink-0 p-1 rounded opacity-0 group-hover:opacity-100 transition-opacity text-gray-400 hover:text-white"
+                              style={{ backgroundColor: "#1a1a1a" }}
+                              title="Edit"
+                            >
+                              <Pencil className="h-3.5 w-3.5" />
+                            </button>
+                          </div>
+                        )}
+                      </div>
+
+                      {/* Primary text field */}
+                      <div className="space-y-1">
+                        <p className="text-gray-500 text-xs uppercase tracking-wider">{t.ads_tab_primary_text_label}</p>
+                        {isEditing ? (
+                          <textarea
+                            value={editDraft.primary_text}
+                            onChange={(e) => setEditDraft((prev) => ({ ...prev, primary_text: e.target.value }))}
+                            disabled={isSaving}
+                            rows={4}
+                            className="w-full text-white text-sm px-3 py-2 rounded focus:outline-none focus:ring-2 focus:ring-indigo-600 disabled:opacity-50 resize-none"
+                            style={{ backgroundColor: "#1a1a1a", border: "1px solid #333333" }}
+                            placeholder={t.ads_tab_primary_text_label}
+                          />
+                        ) : (
+                          <div className="flex items-start gap-2 group">
+                            <p className="text-gray-200 text-sm flex-1 leading-relaxed whitespace-pre-wrap">
+                              {ad.primary_text ?? <span className="text-gray-500 italic">{t.ads_tab_no_value}</span>}
+                            </p>
+                            {editingAd !== ad.id && (
+                              <button
+                                onClick={() => handleStartEdit(ad)}
+                                className="flex-shrink-0 p-1 rounded opacity-0 group-hover:opacity-100 transition-opacity text-gray-400 hover:text-white"
+                                style={{ backgroundColor: "#1a1a1a" }}
+                                title="Edit"
+                              >
+                                <Pencil className="h-3.5 w-3.5" />
+                              </button>
+                            )}
+                          </div>
+                        )}
+                      </div>
+
+                      {/* Edit action buttons */}
+                      {isEditing && (
+                        <div className="flex gap-2 pt-1">
+                          <button
+                            onClick={() => handleSaveAd(ad)}
+                            disabled={isSaving}
+                            className="flex items-center gap-1.5 px-3 py-1.5 text-xs font-medium text-white rounded disabled:opacity-50 transition-colors"
+                            style={{ backgroundColor: "#166534" }}
+                          >
+                            {isSaving ? (
+                              <Loader2 className="h-3.5 w-3.5 animate-spin" />
+                            ) : (
+                              <Check className="h-3.5 w-3.5" />
+                            )}
+                            {t.ads_tab_save}
+                          </button>
+                          <button
+                            onClick={handleCancelEdit}
+                            disabled={isSaving}
+                            className="flex items-center gap-1.5 px-3 py-1.5 text-xs font-medium text-gray-300 rounded disabled:opacity-50 transition-colors"
+                            style={{ backgroundColor: "#1a1a1a" }}
+                          >
+                            <X className="h-3.5 w-3.5" />
+                            {t.ads_tab_cancel}
+                          </button>
+                        </div>
+                      )}
+                    </div>
+                  )
+                })}
+              </div>
+            )}
+          </div>
+        )}
+
         {/* ── KPI CARDS ───────────────────────────────────────────────────── */}
-        {kpiRows}
+        {activeTab === "overview" && kpiRows}
 
         {/* ── DATE RANGE + CHARTS ─────────────────────────────────────────── */}
-        <div>
+        {activeTab === "overview" && <div>
           <div className="flex items-center gap-2 mb-4">
             <span className="text-gray-400 text-sm">{t.campaign_detail_period}</span>
             {(["last_7d", "last_30d", "this_month"] as const).map((r) => (
@@ -906,10 +1123,10 @@ export default function CampaignDetailPage() {
               )}
             </div>
           </div>
-        </div>
+        </div>}
 
         {/* ── BOTTOM THREE PANELS ─────────────────────────────────────────── */}
-        <div className="grid grid-cols-1 lg:grid-cols-3 gap-4">
+        {activeTab === "overview" && <div className="grid grid-cols-1 lg:grid-cols-3 gap-4">
 
           {/* Ad Sets */}
           <div className="rounded-lg p-4" style={{ backgroundColor: "#111111", border: "1px solid #222222" }}>
@@ -1126,7 +1343,7 @@ export default function CampaignDetailPage() {
               </div>
             )}
           </div>
-        </div>
+        </div>}
       </div>
 
       {/* ── OPTIMIZE CONFIRM MODAL ──────────────────────────────────────────── */}

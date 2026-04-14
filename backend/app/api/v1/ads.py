@@ -914,6 +914,188 @@ async def get_campaign_detail(
     }
 
 
+class UpdateAdCopyRequest(BaseModel):
+    headline: str | None = None
+    primary_text: str | None = None
+
+
+@router.get("/{campaign_id}/ads")
+async def list_campaign_ads(
+    campaign_id: int,
+    db: AsyncSession = Depends(get_session),
+    _current_user=Depends(get_current_user),
+) -> list[dict]:
+    """Return all ads in a campaign with their current headline and primary_text."""
+    result = await db.execute(select(AdCampaign).where(AdCampaign.id == campaign_id))
+    campaign = result.scalar_one_or_none()
+    if not campaign:
+        raise HTTPException(404, "Campaign not found")
+
+    proj_result = await db.execute(select(Project).where(Project.id == campaign.project_id))
+    project = proj_result.scalar_one_or_none()
+    if not project:
+        raise HTTPException(404, "Project not found")
+
+    token = await get_project_token(project, db)
+    ad_account_id = (project.ad_account_id or "").removeprefix("act_")
+
+    if not token:
+        raise HTTPException(400, "Project missing meta_access_token")
+    if not ad_account_id or not campaign.meta_campaign_id:
+        raise HTTPException(400, "Campaign or project missing Meta IDs")
+
+    try:
+        async with httpx.AsyncClient(timeout=20.0) as client:
+            # 1. Get all ad IDs in the campaign
+            ads_resp = await client.get(
+                f"{META_BASE}/act_{ad_account_id}/ads",
+                params={
+                    "campaign_id": campaign.meta_campaign_id,
+                    "fields": "id,name",
+                    "access_token": token,
+                },
+            )
+            ads_data = ads_resp.json()
+            if "error" in ads_data:
+                raise HTTPException(502, f"Meta API error: {ads_data['error'].get('message', 'unknown')}")
+
+            raw_ads = ads_data.get("data", [])
+
+            # 2. For each ad, fetch creative details
+            output = []
+            for ad in raw_ads:
+                ad_id = ad["id"]
+                creative_resp = await client.get(
+                    f"{META_BASE}/{ad_id}",
+                    params={
+                        "fields": "id,name,creative{id,object_story_spec}",
+                        "access_token": token,
+                    },
+                )
+                creative_data = creative_resp.json()
+                if "error" in creative_data:
+                    # Include ad with null fields rather than failing the whole list
+                    output.append({"id": ad_id, "name": ad.get("name", ""), "headline": None, "primary_text": None})
+                    continue
+
+                spec = (creative_data.get("creative") or {}).get("object_story_spec") or {}
+                link_data = spec.get("link_data") or {}
+                video_data = spec.get("video_data") or {}
+
+                headline = link_data.get("name") or video_data.get("title") or None
+                primary_text = link_data.get("message") or video_data.get("message") or None
+
+                output.append({
+                    "id": ad_id,
+                    "name": creative_data.get("name") or ad.get("name", ""),
+                    "headline": headline,
+                    "primary_text": primary_text,
+                })
+
+            return output
+
+    except HTTPException:
+        raise
+    except Exception as exc:
+        import logging
+        logging.getLogger(__name__).error("list_campaign_ads error: %s", exc)
+        raise HTTPException(502, f"Failed to fetch ads from Meta: {str(exc)}")
+
+
+@router.patch("/{campaign_id}/ads/{ad_id}")
+async def update_ad_copy(
+    campaign_id: int,
+    ad_id: str,
+    body: UpdateAdCopyRequest,
+    db: AsyncSession = Depends(get_session),
+    _current_user=Depends(get_current_user),
+) -> dict:
+    """Update the headline and/or primary_text for a specific ad by swapping its creative."""
+    result = await db.execute(select(AdCampaign).where(AdCampaign.id == campaign_id))
+    campaign = result.scalar_one_or_none()
+    if not campaign:
+        raise HTTPException(404, "Campaign not found")
+
+    proj_result = await db.execute(select(Project).where(Project.id == campaign.project_id))
+    project = proj_result.scalar_one_or_none()
+    if not project:
+        raise HTTPException(404, "Project not found")
+
+    token = await get_project_token(project, db)
+    ad_account_id = (project.ad_account_id or "").removeprefix("act_")
+
+    if not token:
+        raise HTTPException(400, "Project missing meta_access_token")
+    if not ad_account_id:
+        raise HTTPException(400, "Project missing ad_account_id")
+
+    try:
+        async with httpx.AsyncClient(timeout=20.0) as client:
+            # 1. Fetch current creative
+            creative_resp = await client.get(
+                f"{META_BASE}/{ad_id}",
+                params={
+                    "fields": "id,name,creative{id,object_story_spec}",
+                    "access_token": token,
+                },
+            )
+            creative_data = creative_resp.json()
+            if "error" in creative_data:
+                raise HTTPException(502, f"Meta API error: {creative_data['error'].get('message', 'unknown')}")
+
+            creative_block = creative_data.get("creative") or {}
+            spec = creative_block.get("object_story_spec") or {}
+
+            # 2. Merge headline and primary_text into spec
+            if "link_data" in spec:
+                if body.headline is not None:
+                    spec["link_data"]["name"] = body.headline
+                if body.primary_text is not None:
+                    spec["link_data"]["message"] = body.primary_text
+            elif "video_data" in spec:
+                if body.headline is not None:
+                    spec["video_data"]["title"] = body.headline
+                if body.primary_text is not None:
+                    spec["video_data"]["message"] = body.primary_text
+            else:
+                raise HTTPException(400, "Ad creative does not have link_data or video_data — cannot update copy")
+
+            # 3. Create new creative with updated spec
+            new_creative_resp = await client.post(
+                f"{META_BASE}/act_{ad_account_id}/adcreatives",
+                data={
+                    "object_story_spec": json.dumps(spec),
+                    "access_token": token,
+                },
+            )
+            new_creative_data = new_creative_resp.json()
+            if "error" in new_creative_data:
+                raise HTTPException(502, f"Meta API error creating creative: {new_creative_data['error'].get('message', 'unknown')}")
+
+            new_creative_id = new_creative_data["id"]
+
+            # 4. Swap creative on the ad
+            swap_resp = await client.post(
+                f"{META_BASE}/{ad_id}",
+                data={
+                    "creative": json.dumps({"creative_id": new_creative_id}),
+                    "access_token": token,
+                },
+            )
+            swap_data = swap_resp.json()
+            if "error" in swap_data:
+                raise HTTPException(502, f"Meta API error swapping creative: {swap_data['error'].get('message', 'unknown')}")
+
+            return {"success": True, "creative_id": new_creative_id}
+
+    except HTTPException:
+        raise
+    except Exception as exc:
+        import logging
+        logging.getLogger(__name__).error("update_ad_copy error: %s", exc)
+        raise HTTPException(502, f"Failed to update ad copy: {str(exc)}")
+
+
 @router.get("/import/{project_slug}")
 async def import_campaigns(
     project_slug: str,

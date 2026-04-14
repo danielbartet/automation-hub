@@ -939,3 +939,45 @@ export function buildAutoPrompt(post: any, project: any): string {
   const tone = (project?.content_config?.tone ?? "").slice(0, 50);
   return [headline, subtext, brand ? `Brand: ${brand}` : "", tone].filter(Boolean).join(". ");
 }
+
+// ── Ad Copy Editor ─────────────────────────────────────────────────────────────
+
+export interface CampaignAd {
+  id: string;
+  name: string;
+  headline: string | null;
+  primary_text: string | null;
+}
+
+export async function fetchCampaignAds(
+  token: string,
+  campaignId: number
+): Promise<CampaignAd[]> {
+  const res = await fetch(`${API_BASE}/api/v1/ads/${campaignId}/ads`, {
+    headers: { Authorization: `Bearer ${token}` },
+    cache: "no-store",
+  });
+  if (!res.ok) {
+    const err = await res.json().catch(() => ({}));
+    throw new Error((err as { detail?: string }).detail || "Failed to fetch campaign ads");
+  }
+  return res.json();
+}
+
+export async function updateAdCopy(
+  token: string,
+  campaignId: number,
+  adId: string,
+  data: { headline?: string; primary_text?: string }
+): Promise<{ success: boolean; creative_id: string }> {
+  const res = await fetch(`${API_BASE}/api/v1/ads/${campaignId}/ads/${adId}`, {
+    method: "PATCH",
+    headers: { "Content-Type": "application/json", Authorization: `Bearer ${token}` },
+    body: JSON.stringify(data),
+  });
+  if (!res.ok) {
+    const err = await res.json().catch(() => ({}));
+    throw new Error((err as { detail?: string }).detail || "Failed to update ad copy");
+  }
+  return res.json();
+}

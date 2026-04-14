@@ -456,6 +456,19 @@ export const translations = {
     campaign_detail_toast_reject_error: "Error rejecting",
     campaign_detail_toast_copied: "Copied to clipboard",
 
+    // ── Ads tab (copy editor) ────────────────────────────────────────────────
+    ads_tab_ads: "Ads",
+    ads_tab_ads_loading: "Loading ads...",
+    ads_tab_ads_empty: "No ads found for this campaign.",
+    ads_tab_ads_error: "Error loading ads.",
+    ads_tab_headline_label: "Headline",
+    ads_tab_primary_text_label: "Primary Text",
+    ads_tab_no_value: "No value",
+    ads_tab_save: "Save",
+    ads_tab_cancel: "Cancel",
+    ads_tab_toast_updated: "Ad updated",
+    ads_tab_toast_error: "Error updating ad",
+
     // ── Overview / dashboard page ────────────────────────────────────────────
     overview_project_label: "Project:",
     overview_loading: "Loading...",
@@ -1131,6 +1144,19 @@ export const translations = {
     campaign_detail_toast_rejected: "Acción rechazada",
     campaign_detail_toast_reject_error: "Error al rechazar",
     campaign_detail_toast_copied: "Copiado al portapapeles",
+
+    // ── Ads tab (copy editor) ────────────────────────────────────────────────
+    ads_tab_ads: "Anuncios",
+    ads_tab_ads_loading: "Cargando anuncios...",
+    ads_tab_ads_empty: "No se encontraron anuncios para esta campaña.",
+    ads_tab_ads_error: "Error al cargar anuncios.",
+    ads_tab_headline_label: "Titular",
+    ads_tab_primary_text_label: "Texto Principal",
+    ads_tab_no_value: "Sin valor",
+    ads_tab_save: "Guardar",
+    ads_tab_cancel: "Cancelar",
+    ads_tab_toast_updated: "Anuncio actualizado",
+    ads_tab_toast_error: "Error al actualizar anuncio",
 
     // ── Overview / dashboard page ────────────────────────────────────────────
     overview_project_label: "Proyecto:",
