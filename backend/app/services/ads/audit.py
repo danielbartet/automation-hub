@@ -284,8 +284,6 @@ class MetaAuditService:
                     "creative{id,object_type,video_id,image_url,effective_object_story_id,"
                     "asset_feed_spec,degrees_of_freedom_spec},"
                     "tracking_specs,created_time"
-                    "&filtering=[{\"field\":\"status\",\"operator\":\"IN\","
-                    "\"value\":[\"ACTIVE\"]}]"
                     "&limit=200"
                 ),
             },
@@ -409,7 +407,7 @@ class MetaAuditService:
                 "method": "GET",
                 "relative_url": (
                     f"{act}/customaudiences"
-                    "?fields=id,name,subtype,approximate_count,delivery_status,data_source,"
+                    "?fields=id,name,subtype,approximate_count_lower_bound,delivery_status,data_source,"
                     "retention_days,time_created,time_updated,lookalike_spec"
                     "&limit=100"
                 ),
@@ -417,8 +415,8 @@ class MetaAuditService:
             {
                 "method": "GET",
                 "relative_url": (
-                    f"{act}/abtests"
-                    "?fields=id,name,status,test_type,start_time,end_time"
+                    f"{act}/adstudies"
+                    "?fields=id,name,type,start_time,end_time,status"
                     "&limit=10"
                 ),
             },
@@ -1244,7 +1242,7 @@ def eval_lookalike_audience_present(data: dict) -> CheckResult:
 
     small_lookalikes = [
         a for a in lookalikes
-        if a.get("approximate_count") is not None and _safe_int(a["approximate_count"]) < 1000
+        if a.get("approximate_count_lower_bound") is not None and _safe_int(a["approximate_count_lower_bound"]) < 1000
     ]
 
     if len(small_lookalikes) == len(lookalikes):
@@ -1302,7 +1300,7 @@ def eval_retargeting_audience_present(data: dict) -> CheckResult:
 
     small_retargeting = [
         a for a in pixel_audiences
-        if a.get("approximate_count") is not None and _safe_int(a["approximate_count"]) < 100
+        if a.get("approximate_count_lower_bound") is not None and _safe_int(a["approximate_count_lower_bound"]) < 100
     ]
 
     if len(small_retargeting) == len(pixel_audiences):
