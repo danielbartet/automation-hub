@@ -3,7 +3,7 @@ import Link from "next/link";
 import { usePathname } from "next/navigation";
 import { useSession } from "next-auth/react";
 import { useEffect, useState } from "react";
-import { LayoutDashboard, FileText, Megaphone, FolderKanban, CalendarDays, UsersRound, Activity, Users2, Settings, ChevronDown, ChevronRight, ClipboardCheck, Link2, Layers } from "lucide-react";
+import { LayoutDashboard, FileText, Megaphone, FolderKanban, CalendarDays, UsersRound, Activity, Users2, Settings, ChevronDown, ChevronRight, ClipboardCheck, Link2, Layers, MessageSquare } from "lucide-react";
 import { getHealthSummary } from "@/lib/api";
 import { useT } from "@/lib/i18n";
 
@@ -70,6 +70,7 @@ export function Sidebar() {
     { href: "/dashboard/ads", label: t.nav_campanias, icon: Megaphone, exact: true },
     { href: "/dashboard/ads/audiences", label: t.nav_audiences, icon: Users2, exact: false },
     { href: "/dashboard/ads/audit", label: t.nav_audit, icon: ClipboardCheck, exact: false },
+    { href: "/dashboard/ads/chat", label: t.nav_campaign_chat, icon: MessageSquare, exact: false },
   ];
 
   const settingsChildren = [

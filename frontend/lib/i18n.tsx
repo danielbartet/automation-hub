@@ -21,6 +21,7 @@ export const translations = {
     nav_campanias: "Campañas",
     nav_audiences: "Audiencias",
     nav_audit: "Audit",
+    nav_campaign_chat: "Campaign Chat",
     nav_health: "Health Monitor",
     nav_meta_health: "Meta Health",
     nav_token_usage: "Token Usage",
@@ -293,6 +294,15 @@ export const translations = {
     ads_chat_cooldown: (minutes: number) => `Available in ${minutes} minute${minutes !== 1 ? "s" : ""}`,
     ads_chat_generated_at: "Generated",
     ads_chat_ask_another: "Ask another question",
+
+    // ── Campaign Chat upgrade gate ────────────────────────────────────────────
+    ads_chat_gate_title: "Campaign Intelligence",
+    ads_chat_gate_description: "Ask your campaigns anything. Get plain-language analysis and recommendations powered by AI.",
+    ads_chat_gate_bullet_1: "How are my campaigns doing?",
+    ads_chat_gate_bullet_2: "Where am I wasting money?",
+    ads_chat_gate_bullet_3: "What should I change this week?",
+    ads_chat_gate_bullet_4: "Am I ready to scale?",
+    ads_chat_gate_cta: "Upgrade to Pro",
 
     // ── Campaign detail page ─────────────────────────────────────────────────
     campaign_detail_title: "Campaign detail",
@@ -685,6 +695,7 @@ export const translations = {
     nav_campanias: "Campañas",
     nav_audiences: "Audiencias",
     nav_audit: "Audit",
+    nav_campaign_chat: "Campaign Chat",
     nav_health: "Health Monitor",
     nav_meta_health: "Meta Health",
     nav_token_usage: "Token Usage",
@@ -957,6 +968,15 @@ export const translations = {
     ads_chat_cooldown: (minutes: number) => `Disponible en ${minutes} minuto${minutes !== 1 ? "s" : ""}`,
     ads_chat_generated_at: "Generado",
     ads_chat_ask_another: "Hacer otra pregunta",
+
+    // ── Campaign Chat upgrade gate ────────────────────────────────────────────
+    ads_chat_gate_title: "Campaign Intelligence",
+    ads_chat_gate_description: "Hacele cualquier pregunta a tus campañas. Obtené análisis y recomendaciones en lenguaje natural, impulsadas por IA.",
+    ads_chat_gate_bullet_1: "¿Cómo van mis campañas?",
+    ads_chat_gate_bullet_2: "¿Dónde estoy desperdiciando dinero?",
+    ads_chat_gate_bullet_3: "¿Qué debería cambiar esta semana?",
+    ads_chat_gate_bullet_4: "¿Estoy listo para escalar?",
+    ads_chat_gate_cta: "Upgrade to Pro",
 
     // ── Campaign detail page ─────────────────────────────────────────────────
     campaign_detail_title: "Detalle de campaña",

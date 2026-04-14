@@ -84,12 +84,12 @@ def _format_campaign_data(campaigns_metrics: list[dict]) -> str:
         days_running = c.get("days_running", 0)
         metrics = c.get("metrics", {})
 
-        spend = float(metrics.get("spend", 0))
-        impressions = metrics.get("impressions", 0)
-        ctr = float(metrics.get("ctr", 0))
-        frequency = float(metrics.get("frequency", 0))
-        cpm = float(metrics.get("cpm", 0))
-        cpc = float(metrics.get("cpc", 0))
+        spend = float(metrics.get("spend", 0) or 0)
+        impressions = int(metrics.get("impressions", 0) or 0)
+        ctr = float(metrics.get("ctr", 0) or 0)
+        frequency = float(metrics.get("frequency", 0) or 0)
+        cpm = float(metrics.get("cpm", 0) or 0)
+        cpc = float(metrics.get("cpc", 0) or 0)
 
         # Extract action-based KPIs
         actions_list = metrics.get("actions", [])
