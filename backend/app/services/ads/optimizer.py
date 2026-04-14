@@ -410,7 +410,7 @@ Return your JSON decision."""
     from app.models.notification import Notification
 
     notification_svc = NotificationService(db)
-    action_taken = "NOTIFICATION_SENT"
+    action_taken = "PENDING_APPROVAL"
 
     # 5. Detect fatigue independently of Claude's decision
     fatigue_info = _detect_fatigue(metrics, days_since_created)
