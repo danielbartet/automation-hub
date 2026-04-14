@@ -1,7 +1,7 @@
 """Campaign Chat — conversational analysis of campaign performance via Claude."""
 from datetime import datetime, timedelta, timezone
 from sqlalchemy.ext.asyncio import AsyncSession
-from sqlalchemy import select
+from sqlalchemy import select, func
 from app.models.ad_campaign import AdCampaign
 from app.models.project import Project
 from app.models.user import User
@@ -155,7 +155,7 @@ async def run_campaign_chat(
     # 3. Load active campaigns (optionally filtered to a specific campaign)
     where_clauses = [
         AdCampaign.project_id == project.id,
-        AdCampaign.status == "active",
+        func.lower(AdCampaign.status) == "active",
         AdCampaign.meta_campaign_id.isnot(None),
     ]
     if campaign_id:
