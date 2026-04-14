@@ -14,6 +14,7 @@ export const translations = {
     // ── Sidebar nav ──────────────────────────────────────────────────────────
     nav_overview: "Overview",
     nav_projects: "Projects",
+    nav_organico: "Orgánico",
     nav_content: "Content",
     nav_calendar: "Calendar",
     nav_ads: "Ads",
@@ -661,6 +662,7 @@ export const translations = {
     // ── Sidebar nav ──────────────────────────────────────────────────────────
     nav_overview: "Overview",
     nav_projects: "Proyectos",
+    nav_organico: "Orgánico",
     nav_content: "Contenido",
     nav_calendar: "Calendario",
     nav_ads: "Ads",

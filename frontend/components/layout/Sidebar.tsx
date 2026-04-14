@@ -3,7 +3,7 @@ import Link from "next/link";
 import { usePathname } from "next/navigation";
 import { useSession } from "next-auth/react";
 import { useEffect, useState } from "react";
-import { LayoutDashboard, FileText, Megaphone, FolderKanban, CalendarDays, UsersRound, Activity, Users2, Settings, ChevronDown, ChevronRight, ClipboardCheck, Link2 } from "lucide-react";
+import { LayoutDashboard, FileText, Megaphone, FolderKanban, CalendarDays, UsersRound, Activity, Users2, Settings, ChevronDown, ChevronRight, ClipboardCheck, Link2, Layers } from "lucide-react";
 import { getHealthSummary } from "@/lib/api";
 import { useT } from "@/lib/i18n";
 
@@ -15,6 +15,12 @@ export function Sidebar() {
   const [criticalTokenCount, setCriticalTokenCount] = useState(0);
   const t = useT();
 
+  // Auto-expand Orgánico group when on content or calendar paths
+  const isOnOrganicoPath =
+    pathname.startsWith("/dashboard/content") ||
+    pathname.startsWith("/dashboard/calendar");
+  const [organicoOpen, setOrganicoOpen] = useState(isOnOrganicoPath);
+
   // Auto-expand Ads group when on any /ads/* path
   const isOnAdsPath = pathname.startsWith("/dashboard/ads");
   const [adsOpen, setAdsOpen] = useState(isOnAdsPath);
@@ -24,6 +30,11 @@ export function Sidebar() {
     pathname.startsWith("/dashboard/settings") ||
     pathname.startsWith("/dashboard/projects");
   const [settingsOpen, setSettingsOpen] = useState(isOnSettingsPath);
+
+  // Keep organicoOpen in sync when navigating to/from organic paths
+  useEffect(() => {
+    if (isOnOrganicoPath) setOrganicoOpen(true);
+  }, [isOnOrganicoPath]);
 
   // Keep adsOpen in sync when navigating to/from ads paths
   useEffect(() => {
@@ -37,6 +48,9 @@ export function Sidebar() {
 
   const topNavItems = [
     { href: "/dashboard", label: t.nav_overview, icon: LayoutDashboard },
+  ];
+
+  const organicoChildren = [
     { href: "/dashboard/content", label: t.nav_content, icon: FileText },
     { href: "/dashboard/calendar", label: t.nav_calendar, icon: CalendarDays },
   ];
@@ -150,6 +164,47 @@ export function Sidebar() {
         {topNavItems.map(({ href, label, icon: Icon }) =>
           renderNavLink(href, label, Icon)
         )}
+
+        {/* Orgánico collapsible group */}
+        <div>
+          <button
+            onClick={() => setOrganicoOpen((prev) => !prev)}
+            className="w-full flex items-center gap-3 px-3 py-2 rounded-md text-sm font-medium transition-colors"
+            style={isOnOrganicoPath ? { color: "#a78bfa" } : { color: "#9ca3af" }}
+            onMouseEnter={(e) => handleHover(e, isOnOrganicoPath)}
+            onMouseLeave={(e) => handleHoverLeave(e, isOnOrganicoPath)}
+          >
+            <Layers className="h-4 w-4 flex-shrink-0" />
+            <span className="flex-1 text-left">{t.nav_organico}</span>
+            {organicoOpen ? (
+              <ChevronDown className="h-3.5 w-3.5 flex-shrink-0" />
+            ) : (
+              <ChevronRight className="h-3.5 w-3.5 flex-shrink-0" />
+            )}
+          </button>
+
+          {organicoOpen && (
+            <div className="mt-1 ml-3 pl-3 space-y-1" style={{ borderLeft: "1px solid #1e1e1e" }}>
+              {organicoChildren.map(({ href, label, icon: Icon }) => {
+                if (isClient && clientHiddenPaths.includes(href)) return null;
+                const isActive = pathname === href || pathname.startsWith(href + "/");
+                return (
+                  <Link
+                    key={href}
+                    href={href}
+                    className="flex items-center gap-3 px-3 py-2 rounded-md text-sm font-medium transition-colors"
+                    style={isActive ? activeLinkStyle : inactiveLinkStyle}
+                    onMouseEnter={(e) => handleHover(e, isActive)}
+                    onMouseLeave={(e) => handleHoverLeave(e, isActive)}
+                  >
+                    <Icon className="h-4 w-4 flex-shrink-0" />
+                    <span className="flex-1">{label}</span>
+                  </Link>
+                );
+              })}
+            </div>
+          )}
+        </div>
 
         {/* Ads collapsible group */}
         <div>
