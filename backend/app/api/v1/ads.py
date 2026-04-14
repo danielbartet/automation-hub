@@ -672,6 +672,15 @@ async def get_campaign_detail(
     cpc_derived = round(total_spend / link_clicks, 2) if link_clicks and link_clicks > 0 else None
     hook_rate = round((landing_page_views / total_impressions) * 100, 2) if landing_page_views and total_impressions > 0 else None
 
+    # Meta returns purchases under multiple action_type values depending on
+    # whether Pixel, CAPI, or on-site checkout is used. Define once for reuse.
+    PURCHASE_ACTION_TYPES = {
+        "purchase",
+        "offsite_conversion.fb_pixel_purchase",
+        "omni_purchase",
+        "onsite_web_purchase",
+    }
+
     if "LEADS" in objective:
         total_results = leads or 0
         result_label = "Leads"
@@ -681,17 +690,28 @@ async def get_campaign_detail(
         revenue = None
         cost_per_purchase = None
     elif "SALES" in objective:
-        purchases_raw = actions.get("purchase")
-        purchases = int(purchases_raw) if purchases_raw is not None else None
+        purchases_sum = sum(v for k, v in actions.items() if k in PURCHASE_ACTION_TYPES)
+        purchases = int(purchases_sum) if purchases_sum > 0 else None
         total_results = purchases or 0
         result_label = "Compras"
-        cost_per_result = cpa_dict.get("purchase", 0)
-        revenue_raw = action_values.get("purchase")
-        revenue = float(revenue_raw) if revenue_raw is not None else None
-        # purchase_roas from Meta is preferred
+        # CPA: prefer the most specific key available, fall back to first match
+        cost_per_result = next(
+            (cpa_dict[k] for k in PURCHASE_ACTION_TYPES if k in cpa_dict),
+            0,
+        )
+        revenue_sum = sum(v for k, v in action_values.items() if k in PURCHASE_ACTION_TYPES)
+        revenue = float(revenue_sum) if revenue_sum > 0 else None
+        # purchase_roas from Meta is preferred; fall back to calculated ROAS
         purchase_roas_data = insights_summary_raw.get("purchase_roas") or []
-        if purchase_roas_data and isinstance(purchase_roas_data, list) and len(purchase_roas_data) > 0:
-            roas = float(purchase_roas_data[0].get("value", 0))
+        if purchase_roas_data and isinstance(purchase_roas_data, list):
+            roas_values = [
+                float(r.get("value", 0))
+                for r in purchase_roas_data
+                if r.get("action_type") in PURCHASE_ACTION_TYPES
+            ]
+            roas = roas_values[0] if roas_values else (
+                float(purchase_roas_data[0].get("value", 0)) if purchase_roas_data else None
+            )
         elif revenue and total_spend > 0:
             roas = round(revenue / total_spend, 2)
         else:
@@ -750,8 +770,11 @@ async def get_campaign_detail(
             day_results = day_actions.get("lead", 0)
             day_cpr = day_cpa.get("lead", 0)
         elif "SALES" in objective:
-            day_results = day_actions.get("purchase", 0)
-            day_cpr = day_cpa.get("purchase", 0)
+            day_results = sum(v for k, v in day_actions.items() if k in PURCHASE_ACTION_TYPES)
+            day_cpr = next(
+                (day_cpa[k] for k in PURCHASE_ACTION_TYPES if k in day_cpa),
+                0,
+            )
         else:
             day_results = float(int(day.get("clicks", 0)))
             day_spend = float(day.get("spend", 0))
