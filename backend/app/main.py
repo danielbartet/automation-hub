@@ -173,10 +173,80 @@ async def lifespan(app: FastAPI):
         replace_existing=True,
     )
 
+    async def sync_campaign_statuses_job():
+        """Sync AdCampaign.status with Meta effective_status every 6 hours."""
+        from app.models.ad_campaign import AdCampaign
+        from app.models.project import Project
+        from app.core.security import get_project_token
+        from app.services.ads.meta_campaign import MetaCampaignService
+        from sqlalchemy import select
+
+        meta_service = MetaCampaignService()
+
+        async with AsyncSessionLocal() as db:
+            try:
+                # Load all campaigns that have a meta_campaign_id
+                result = await db.execute(
+                    select(AdCampaign).where(AdCampaign.meta_campaign_id.isnot(None))
+                )
+                campaigns = result.scalars().all()
+
+                if not campaigns:
+                    print("[StatusSync] No campaigns with meta_campaign_id — skipping")
+                    return
+
+                # Group campaigns by project_id to minimise token lookups
+                project_ids = list({c.project_id for c in campaigns})
+                proj_result = await db.execute(
+                    select(Project).where(Project.id.in_(project_ids))
+                )
+                projects_by_id = {p.id: p for p in proj_result.scalars().all()}
+
+                updated_count = 0
+                for campaign in campaigns:
+                    project = projects_by_id.get(campaign.project_id)
+                    if not project:
+                        continue
+                    token = await get_project_token(project, db)
+                    if not token:
+                        continue
+                    try:
+                        effective_status = await meta_service.fetch_effective_status(
+                            token, campaign.meta_campaign_id
+                        )
+                        if effective_status is None:
+                            continue
+                        # Meta returns uppercase; DB stores lowercase
+                        new_status = effective_status.lower()
+                        if campaign.status != new_status:
+                            print(
+                                f"[StatusSync] Campaign {campaign.meta_campaign_id} "
+                                f"status: {campaign.status!r} → {new_status!r}"
+                            )
+                            campaign.status = new_status
+                            updated_count += 1
+                    except Exception as e:
+                        print(f"[StatusSync] Error syncing campaign {campaign.meta_campaign_id}: {e}")
+
+                if updated_count:
+                    await db.commit()
+                print(f"[StatusSync] Done — {updated_count}/{len(campaigns)} campaigns updated")
+
+            except Exception as e:
+                print(f"[StatusSync] Job error: {e}")
+
+    scheduler.add_job(
+        sync_campaign_statuses_job,
+        IntervalTrigger(hours=6),
+        id="campaign_status_sync",
+        replace_existing=True,
+    )
+
     scheduler.start()
     print("[Scheduler] Campaign optimizer started — runs daily at 08:00 UTC, per-campaign cooldown: 3 days")
     print("[Scheduler] Scheduled posts publisher started — runs every 5 minutes")
     print("[Scheduler] Weekly ads audit started — runs every Monday at 07:00 UTC")
+    print("[Scheduler] Campaign status sync started — runs every 6 hours")
 
     yield
 

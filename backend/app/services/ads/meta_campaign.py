@@ -497,6 +497,22 @@ class MetaCampaignService:
             )
             return "success" in resp.json()
 
+    async def fetch_effective_status(self, token: str, campaign_id: str) -> str | None:
+        """Return the effective_status for a single campaign (reflects budget/schedule state)."""
+        async with httpx.AsyncClient(timeout=10.0) as client:
+            resp = await client.get(
+                f"{META_BASE}/{campaign_id}",
+                params={
+                    "fields": "id,effective_status",
+                    "access_token": token,
+                },
+            )
+            data = resp.json()
+            if "error" in data:
+                logger.warning("fetch_effective_status error for %s: %s", campaign_id, data["error"])
+                return None
+            return data.get("effective_status")
+
     async def fetch_campaign_insights(self, token: str, campaign_id: str, date_preset: str = "last_7d") -> dict:
         """Fetch campaign metrics for optimization analysis."""
         async with httpx.AsyncClient(timeout=10.0) as client:
