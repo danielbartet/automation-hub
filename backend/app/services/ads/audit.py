@@ -8,7 +8,7 @@ import time as _time
 
 import httpx
 from sqlalchemy.ext.asyncio import AsyncSession
-from sqlalchemy import select
+from sqlalchemy import select, delete
 
 from app.models.ads_audit import AdsAudit, AuditCheckResult
 from app.models.meta_api_cache import MetaApiCache
@@ -572,6 +572,12 @@ class MetaAuditService:
         """
         audit = await db.get(AdsAudit, audit_id)
         try:
+            # Clear stale cache for this project before fresh fetch
+            await db.execute(
+                delete(MetaApiCache).where(MetaApiCache.project_id == self.project_id)
+            )
+            await db.commit()
+
             raw: dict = {}
             raw.update(await self.fetch_structure_batch(db))
             raw.update(await self.fetch_insights_batch(db))
