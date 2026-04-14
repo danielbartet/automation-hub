@@ -35,6 +35,17 @@ def _detect_angle_from_content(data: dict) -> str:
     return "Educational"
 
 
+MODEL_PRICING = {
+    "claude-sonnet-4-20250514": {"input": 3.0, "output": 15.0},
+    "claude-sonnet-4-6": {"input": 3.0, "output": 15.0},
+}
+
+
+def compute_cost(model: str, input_tokens: int, output_tokens: int) -> float:
+    pricing = MODEL_PRICING.get(model, {"input": 3.0, "output": 15.0})
+    return (input_tokens * pricing["input"] + output_tokens * pricing["output"]) / 1_000_000
+
+
 class ClaudeClient:
     """Wrapper for Anthropic Claude API calls."""
 
@@ -42,6 +53,7 @@ class ClaudeClient:
 
     def __init__(self) -> None:
         self.client = Anthropic(api_key=settings.ANTHROPIC_API_KEY)
+        self._last_usage: dict = {}
 
     def _build_system_prompt(self, project) -> str:
         config = project.content_config or {}
@@ -222,6 +234,12 @@ RULES:
             ],
             extra_headers={"anthropic-beta": "prompt-caching-2024-07-31"},
         )
+        self._last_usage = {
+            "input_tokens": response.usage.input_tokens,
+            "output_tokens": response.usage.output_tokens,
+            "cache_read_tokens": getattr(response.usage, "cache_read_input_tokens", 0) or 0,
+            "model": self.MODEL,
+        }
 
         content = response.content[0].text.strip()
         # Strip markdown code blocks if present
@@ -368,6 +386,12 @@ RULES:
             system=system_prompt or "You are a helpful assistant.",
             messages=[{"role": "user", "content": prompt}],
         )
+        self._last_usage = {
+            "input_tokens": response.usage.input_tokens,
+            "output_tokens": response.usage.output_tokens,
+            "cache_read_tokens": getattr(response.usage, "cache_read_input_tokens", 0) or 0,
+            "model": self.MODEL,
+        }
         return response.content[0].text
 
     async def generate_content_recommendation(
@@ -539,6 +563,12 @@ Return ONLY valid JSON (no markdown, no code blocks):
             system=system_prompt,
             messages=[{"role": "user", "content": user_prompt}],
         )
+        self._last_usage = {
+            "input_tokens": response.usage.input_tokens,
+            "output_tokens": response.usage.output_tokens,
+            "cache_read_tokens": getattr(response.usage, "cache_read_input_tokens", 0) or 0,
+            "model": self.MODEL,
+        }
         response_text = response.content[0].text
 
         # Strip markdown code blocks if present
@@ -714,6 +744,12 @@ Return ONLY valid JSON:
             ],
             extra_headers={"anthropic-beta": "prompt-caching-2024-07-31"},
         )
+        self._last_usage = {
+            "input_tokens": response.usage.input_tokens,
+            "output_tokens": response.usage.output_tokens,
+            "cache_read_tokens": getattr(response.usage, "cache_read_input_tokens", 0) or 0,
+            "model": self.MODEL,
+        }
 
         content = response.content[0].text.strip()
         # Strip markdown code blocks if present

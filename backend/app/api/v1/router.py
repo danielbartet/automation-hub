@@ -5,6 +5,7 @@ from app.api.v1.upload import router as upload_router
 from app.api.v1 import auth, notifications, users
 from app.api.v1 import health
 from app.api.v1 import meta_oauth
+from app.api.v1 import token_usage as token_usage_module
 
 api_router = APIRouter()
 
@@ -20,3 +21,4 @@ api_router.include_router(notifications.router, prefix="/notifications", tags=["
 api_router.include_router(users.router, prefix="/users", tags=["users"])
 api_router.include_router(upload_router)
 api_router.include_router(meta_oauth.router, prefix="/auth/meta", tags=["meta-oauth"])
+api_router.include_router(token_usage_module.router, prefix="/token-usage", tags=["token-usage"])

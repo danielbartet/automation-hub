@@ -13,13 +13,14 @@ from pydantic import BaseModel
 from sqlalchemy import select, func
 from sqlalchemy.ext.asyncio import AsyncSession
 
-from app.api.deps import get_session
+from app.api.deps import get_session, get_current_user_optional
 from app.core.config import settings
 from app.core.security import decrypt_token, get_project_token
 from app.models.content import ContentPost
 from app.models.project import Project
 from app.services.claude.client import ClaudeClient
 from app.services.media.factory import get_image_provider, get_video_provider
+from app.services.token_usage import log_token_usage, check_token_limit
 from app.services.meta.client import MetaClient
 from app.services.meta.pages import PagesService
 from app.services.meta.instagram import InstagramService
@@ -194,6 +195,7 @@ async def generate_content(
     project_slug: str,
     body: AutoGenerateRequest = AutoGenerateRequest(),
     db: AsyncSession = Depends(get_session),
+    current_user=Depends(get_current_user_optional),
 ) -> dict:
     """Generate content for a project using Claude.
 
@@ -210,6 +212,20 @@ async def generate_content(
     # 2. Check active
     if not project.is_active:
         raise HTTPException(status_code=400, detail="Project is inactive")
+
+    # 2b. Check token limit
+    if current_user:
+        try:
+            over_limit, used, limit = await check_token_limit(db, current_user.id)
+            if over_limit:
+                raise HTTPException(
+                    status_code=429,
+                    detail=f"Monthly token limit reached ({used:,}/{limit:,} tokens used)",
+                )
+        except HTTPException:
+            raise
+        except Exception:
+            pass  # never block generation due to limit check failure
 
     # 3. Validate category against project config (if provided)
     if body.category:
@@ -242,6 +258,17 @@ async def generate_content(
         )
     except Exception as e:
         raise HTTPException(status_code=503, detail=f"Claude generation failed: {str(e)}")
+
+    try:
+        await log_token_usage(
+            db=db,
+            user_id=getattr(current_user, "id", None),
+            project_id=project.id,
+            usage=claude_client._last_usage,
+            operation_type="content_generation",
+        )
+    except Exception:
+        pass  # never block generation due to logging failure
 
     # 6. Caption extraction
     caption = content.get("caption", "")
@@ -1091,6 +1118,16 @@ async def batch_generate_content(
     for sched_dt in scheduled_dates:
         try:
             content = await claude_client.generate_carousel_content(project)
+            try:
+                await log_token_usage(
+                    db=db,
+                    user_id=None,
+                    project_id=project.id,
+                    usage=claude_client._last_usage,
+                    operation_type="batch_generation",
+                )
+            except Exception:
+                pass  # never block generation due to logging failure
         except Exception:
             content = {"topic": "auto-generated", "slides": [], "caption": "", "hashtags": []}
 

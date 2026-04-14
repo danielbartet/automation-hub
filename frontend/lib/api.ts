@@ -801,6 +801,60 @@ export async function assignMetaAssets(
   return res.json();
 }
 
+// ── Token Usage ───────────────────────────────────────────────────────────────
+
+export async function fetchTokenUsageSummary(token: string, period = "month") {
+  const params = new URLSearchParams({ period });
+  const res = await fetch(`${API_BASE}/api/v1/token-usage/summary?${params}`, {
+    headers: { Authorization: `Bearer ${token}` },
+    cache: "no-store",
+  });
+  if (!res.ok) {
+    const err = await res.json().catch(() => ({}));
+    throw new Error((err as { detail?: string }).detail || "Failed to fetch token usage summary");
+  }
+  return res.json();
+}
+
+export async function fetchTokenUsageTrend(token: string, period = "month", projectId?: number) {
+  const params = new URLSearchParams({ period });
+  if (projectId !== undefined) params.set("project_id", String(projectId));
+  const res = await fetch(`${API_BASE}/api/v1/token-usage/trend?${params}`, {
+    headers: { Authorization: `Bearer ${token}` },
+    cache: "no-store",
+  });
+  if (!res.ok) {
+    const err = await res.json().catch(() => ({}));
+    throw new Error((err as { detail?: string }).detail || "Failed to fetch token usage trend");
+  }
+  return res.json();
+}
+
+export async function fetchTokenLimits(token: string) {
+  const res = await fetch(`${API_BASE}/api/v1/token-usage/limits`, {
+    headers: { Authorization: `Bearer ${token}` },
+    cache: "no-store",
+  });
+  if (!res.ok) {
+    const err = await res.json().catch(() => ({}));
+    throw new Error((err as { detail?: string }).detail || "Failed to fetch token limits");
+  }
+  return res.json();
+}
+
+export async function setTokenLimit(token: string, userId: string, monthlyTokenLimit: number) {
+  const res = await fetch(`${API_BASE}/api/v1/token-usage/limits/${userId}`, {
+    method: "PUT",
+    headers: authHeaders(token),
+    body: JSON.stringify({ monthly_token_limit: monthlyTokenLimit }),
+  });
+  if (!res.ok) {
+    const err = await res.json().catch(() => ({}));
+    throw new Error((err as { detail?: string }).detail || "Failed to set token limit");
+  }
+  return res.json();
+}
+
 export function buildAutoPrompt(post: any, project: any): string {
   const content = typeof post.content === "string" ? JSON.parse(post.content) : post.content;
   const slide1 = content?.slides?.[0] ?? {};
