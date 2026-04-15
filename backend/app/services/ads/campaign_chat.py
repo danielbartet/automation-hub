@@ -1,5 +1,5 @@
 """Campaign Chat — conversational analysis of campaign performance via Claude."""
-from datetime import datetime, timedelta, timezone
+from datetime import datetime, timedelta
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy import select, func
 from app.models.ad_campaign import AdCampaign
@@ -124,7 +124,7 @@ def _format_campaign_data(campaigns_metrics: list[dict]) -> str:
 Campaign: {name}
   Objective: {objective} | Status: {status}
   Daily budget: ${daily_budget:.2f}/day | Days running: {days_running}
-  --- Last 30 days ---
+  --- Last 7 days ---
   Spend: ${spend:.2f} | Impressions: {impressions:,}
   CTR: {ctr:.2f}% | Frequency: {frequency:.2f} | CPM: ${cpm:.2f} | CPC: ${cpc:.2f}
   Leads: {int(leads)} | CPL: ${cpl:.2f}
@@ -176,16 +176,14 @@ async def run_campaign_chat(
     token = await get_project_token(project, db)
     campaigns_metrics = []
 
-    # Build a 30-day time range matching the campaign detail endpoint
-    today = datetime.now(timezone.utc).date()
-    since = today - timedelta(days=29)
-    insights_time_range = {"since": str(since), "until": str(today)}
-
+    # Use last_7d to match the optimizer's decision window.
+    # The optimizer runs Andromeda rules on 7-day signals; using 30-day data here
+    # would produce different purchase counts / ROAS and lead to contradictory advice.
     if token and campaigns:
         for campaign in campaigns:
             try:
                 metrics = await meta_service.fetch_campaign_insights(
-                    token, campaign.meta_campaign_id, time_range=insights_time_range
+                    token, campaign.meta_campaign_id, date_preset="last_7d"
                 )
                 days_running = (datetime.utcnow() - campaign.created_at).days
                 campaigns_metrics.append({

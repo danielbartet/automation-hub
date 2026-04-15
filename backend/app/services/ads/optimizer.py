@@ -365,7 +365,9 @@ LAST 7 DAYS METRICS (window = last 7 days only, not total campaign lifetime):
 - CPC: ${float(metrics.get('cpc', 0)):.2f}
 - Frequency: {float(metrics.get('frequency', 0)):.2f}
 - Actions: {json.dumps(metrics.get('actions', []))}
+- Action values (revenue): {json.dumps(metrics.get('action_values', []))}
 - Cost per action: {json.dumps(metrics.get('cost_per_action_type', []))}
+- Purchase ROAS (from Meta): {json.dumps(metrics.get('purchase_roas', []))}
 
 OPTIMIZATION HISTORY (last 3 decisions):
 {history_text}

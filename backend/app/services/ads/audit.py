@@ -384,8 +384,8 @@ class MetaAuditService:
         act = f"act_{self.ad_account_id}"
         insight_fields = (
             "impressions,clicks,spend,reach,frequency,cpm,ctr,cpc,"
-            "actions,cost_per_action_type,video_play_actions,"
-            "video_p25_watched_actions,video_p100_watched_actions"
+            "actions,action_values,cost_per_action_type,purchase_roas,"
+            "video_play_actions,video_p25_watched_actions,video_p100_watched_actions"
         )
 
         # Build optional campaign filter suffix — appended to each batch URL when scoped
