@@ -469,6 +469,10 @@ export const translations = {
     ads_tab_edit: "Edit",
     ads_tab_toast_updated: "Ad updated",
     ads_tab_toast_error: "Error updating ad",
+    ads_tab_change_image: "Change image",
+    ads_tab_image_uploading: "Uploading...",
+    ads_tab_toast_image_updated: "Image updated",
+    ads_tab_toast_image_error: "Error updating image",
 
     // ── Overview / dashboard page ────────────────────────────────────────────
     overview_project_label: "Project:",
@@ -1159,6 +1163,10 @@ export const translations = {
     ads_tab_edit: "Editar",
     ads_tab_toast_updated: "Anuncio actualizado",
     ads_tab_toast_error: "Error al actualizar anuncio",
+    ads_tab_change_image: "Cambiar imagen",
+    ads_tab_image_uploading: "Subiendo...",
+    ads_tab_toast_image_updated: "Imagen actualizada",
+    ads_tab_toast_image_error: "Error al actualizar imagen",
 
     // ── Overview / dashboard page ────────────────────────────────────────────
     overview_project_label: "Proyecto:",

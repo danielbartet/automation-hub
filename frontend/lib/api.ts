@@ -982,3 +982,23 @@ export async function updateAdCopy(
   }
   return res.json();
 }
+
+export async function updateAdImage(
+  token: string,
+  campaignId: number,
+  adId: string,
+  file: File
+): Promise<{ success: boolean; image_hash: string; image_url: string }> {
+  const form = new FormData()
+  form.append("image", file)
+  const res = await fetch(`${API_BASE}/api/v1/ads/${campaignId}/ads/${adId}/image`, {
+    method: "POST",
+    headers: { Authorization: `Bearer ${token}` },
+    body: form,
+  })
+  if (!res.ok) {
+    const err = await res.json().catch(() => ({}))
+    throw new Error((err as { detail?: string }).detail || "Failed to update ad image")
+  }
+  return res.json()
+}

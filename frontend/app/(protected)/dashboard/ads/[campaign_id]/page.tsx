@@ -27,11 +27,12 @@ import {
   rejectOptimizerAction,
   fetchCampaignAds,
   updateAdCopy,
+  updateAdImage,
   type CampaignRecommendation,
   type CampaignRecommendations,
   type CampaignAd,
 } from "@/lib/api"
-import { Loader2, Copy, Check, X } from "lucide-react"
+import { Loader2, Copy, Check, X, Upload } from "lucide-react"
 
 // ─── Types ───────────────────────────────────────────────────────────────────
 
@@ -231,6 +232,7 @@ export default function CampaignDetailPage() {
   const [editingAd, setEditingAd] = useState<string | null>(null)
   const [editDraft, setEditDraft] = useState<{ headline: string; primary_text: string }>({ headline: "", primary_text: "" })
   const [savingAd, setSavingAd] = useState<string | null>(null)
+  const [uploadingImageAdId, setUploadingImageAdId] = useState<string | null>(null)
 
   const showToast = (msg: string) => {
     setToast(msg)
@@ -310,6 +312,20 @@ export default function CampaignDetailPage() {
       showToast(t.ads_tab_toast_error)
     } finally {
       setSavingAd(null)
+    }
+  }
+
+  const handleImageChange = async (ad: CampaignAd, file: File) => {
+    if (!token) return
+    setUploadingImageAdId(ad.id)
+    try {
+      const result = await updateAdImage(token, localId, ad.id, file)
+      setCampaignAds(prev => prev.map(a => a.id === ad.id ? { ...a, image_url: result.image_url } : a))
+      showToast(t.ads_tab_toast_image_updated)
+    } catch {
+      showToast(t.ads_tab_toast_image_error)
+    } finally {
+      setUploadingImageAdId(null)
     }
   }
 
@@ -913,14 +929,39 @@ export default function CampaignDetailPage() {
                       className="rounded-lg p-4 space-y-4"
                       style={{ backgroundColor: "#111111", border: "1px solid #222222" }}
                     >
-                      {/* Thumbnail */}
-                      {ad.image_url && (
-                        <img
-                          src={ad.image_url}
-                          alt=""
-                          className="w-full h-32 object-cover rounded-md"
-                        />
-                      )}
+                      {/* Image area */}
+                      <div className="relative w-full h-32 rounded-md overflow-hidden bg-gray-900 group/img">
+                        {ad.image_url ? (
+                          <img src={ad.image_url} alt="" className="w-full h-full object-cover" />
+                        ) : (
+                          <div className="w-full h-full flex items-center justify-center text-gray-600 text-xs">No image</div>
+                        )}
+                        {/* Overlay on hover */}
+                        <label
+                          className={`absolute inset-0 flex flex-col items-center justify-center gap-1 cursor-pointer transition-opacity
+                            ${uploadingImageAdId === ad.id ? 'opacity-100 bg-black/60' : 'opacity-0 group-hover/img:opacity-100 bg-black/50'}`}
+                        >
+                          {uploadingImageAdId === ad.id ? (
+                            <Loader2 className="h-5 w-5 animate-spin text-white" />
+                          ) : (
+                            <>
+                              <Upload className="h-5 w-5 text-white" />
+                              <span className="text-white text-xs">{t.ads_tab_change_image}</span>
+                            </>
+                          )}
+                          <input
+                            type="file"
+                            accept="image/jpeg,image/png"
+                            className="hidden"
+                            disabled={uploadingImageAdId !== null}
+                            onChange={(e) => {
+                              const file = e.target.files?.[0]
+                              if (file) handleImageChange(ad, file)
+                              e.target.value = ""
+                            }}
+                          />
+                        </label>
+                      </div>
 
                       {/* Ad name */}
                       <p className="text-white font-semibold text-sm truncate" title={ad.name}>{ad.name}</p>

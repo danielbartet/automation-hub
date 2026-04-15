@@ -1,5 +1,5 @@
 """Ads management endpoints."""
-from fastapi import APIRouter, Depends, HTTPException
+from fastapi import APIRouter, Depends, HTTPException, UploadFile, File
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy import select
 from app.api.deps import get_session, get_current_user, require_super_admin
@@ -1108,6 +1108,122 @@ async def update_ad_copy(
         import logging
         logging.getLogger(__name__).error("update_ad_copy error: %s", exc)
         raise HTTPException(502, f"Failed to update ad copy: {str(exc)}")
+
+
+@router.post("/{campaign_id}/ads/{ad_id}/image")
+async def update_ad_image(
+    campaign_id: int,
+    ad_id: str,
+    image: UploadFile = File(...),
+    db: AsyncSession = Depends(get_session),
+    _current_user=Depends(get_current_user),
+) -> dict:
+    """Upload a new image for a specific ad by swapping its creative."""
+    import logging
+
+    # Validate content type
+    if image.content_type not in ("image/jpeg", "image/png"):
+        raise HTTPException(400, "Only JPEG and PNG images are supported")
+
+    # Read and validate file size (4 MB max)
+    file_bytes = await image.read()
+    if len(file_bytes) > 4 * 1024 * 1024:
+        raise HTTPException(400, "Image file size must not exceed 4 MB")
+
+    result = await db.execute(select(AdCampaign).where(AdCampaign.id == campaign_id))
+    campaign = result.scalar_one_or_none()
+    if not campaign:
+        raise HTTPException(404, "Campaign not found")
+
+    proj_result = await db.execute(select(Project).where(Project.id == campaign.project_id))
+    project = proj_result.scalar_one_or_none()
+    if not project:
+        raise HTTPException(404, "Project not found")
+
+    token = await get_project_token(project, db)
+    ad_account_id = (project.ad_account_id or "").removeprefix("act_")
+
+    if not token:
+        raise HTTPException(400, "Project missing meta_access_token")
+    if not ad_account_id:
+        raise HTTPException(400, "Project missing ad_account_id")
+
+    try:
+        async with httpx.AsyncClient(timeout=30.0) as client:
+            # 1. Upload image to Meta Ad Images
+            upload_resp = await client.post(
+                f"{META_BASE}/act_{ad_account_id}/adimages",
+                data={"access_token": token},
+                files={"filename": (image.filename or "image.jpg", file_bytes, image.content_type)},
+            )
+            upload_data = upload_resp.json()
+            if "error" in upload_data:
+                raise HTTPException(502, f"Meta API error uploading image: {upload_data['error'].get('message', 'unknown')}")
+
+            images_block = upload_data.get("images", {})
+            first_key = next(iter(images_block), None)
+            if not first_key:
+                raise HTTPException(502, "Meta API returned no image data")
+            new_hash = images_block[first_key]["hash"]
+            new_url = images_block[first_key]["url"]
+
+            # 2. Fetch current creative
+            creative_resp = await client.get(
+                f"{META_BASE}/{ad_id}",
+                params={
+                    "fields": "id,name,creative{id,object_story_spec}",
+                    "access_token": token,
+                },
+            )
+            creative_data = creative_resp.json()
+            if "error" in creative_data:
+                raise HTTPException(502, f"Meta API error: {creative_data['error'].get('message', 'unknown')}")
+
+            creative_block = creative_data.get("creative") or {}
+            spec = creative_block.get("object_story_spec") or {}
+
+            # 3. Merge new image_hash into spec
+            if "link_data" in spec:
+                spec["link_data"]["image_hash"] = new_hash
+                spec["link_data"].pop("picture", None)
+            elif "video_data" in spec:
+                spec["video_data"]["image_hash"] = new_hash
+            else:
+                raise HTTPException(400, "Ad creative does not have link_data or video_data — cannot update image")
+
+            # 4. Create new creative with updated spec
+            new_creative_resp = await client.post(
+                f"{META_BASE}/act_{ad_account_id}/adcreatives",
+                data={
+                    "object_story_spec": json.dumps(spec),
+                    "access_token": token,
+                },
+            )
+            new_creative_data = new_creative_resp.json()
+            if "error" in new_creative_data:
+                raise HTTPException(502, f"Meta API error creating creative: {new_creative_data['error'].get('message', 'unknown')}")
+
+            new_creative_id = new_creative_data["id"]
+
+            # 5. Swap creative on the ad
+            swap_resp = await client.post(
+                f"{META_BASE}/{ad_id}",
+                data={
+                    "creative": json.dumps({"creative_id": new_creative_id}),
+                    "access_token": token,
+                },
+            )
+            swap_data = swap_resp.json()
+            if "error" in swap_data:
+                raise HTTPException(502, f"Meta API error swapping creative: {swap_data['error'].get('message', 'unknown')}")
+
+            return {"success": True, "image_hash": new_hash, "image_url": new_url}
+
+    except HTTPException:
+        raise
+    except Exception as exc:
+        logging.getLogger(__name__).error("update_ad_image error: %s", exc)
+        raise HTTPException(502, f"Failed to update ad image: {str(exc)}")
 
 
 @router.get("/import/{project_slug}")
