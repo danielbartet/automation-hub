@@ -466,6 +466,7 @@ export const translations = {
     ads_tab_no_value: "No value",
     ads_tab_save: "Save",
     ads_tab_cancel: "Cancel",
+    ads_tab_edit: "Edit",
     ads_tab_toast_updated: "Ad updated",
     ads_tab_toast_error: "Error updating ad",
 
@@ -1155,6 +1156,7 @@ export const translations = {
     ads_tab_no_value: "Sin valor",
     ads_tab_save: "Guardar",
     ads_tab_cancel: "Cancelar",
+    ads_tab_edit: "Editar",
     ads_tab_toast_updated: "Anuncio actualizado",
     ads_tab_toast_error: "Error al actualizar anuncio",
 

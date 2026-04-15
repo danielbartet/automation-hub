@@ -31,7 +31,7 @@ import {
   type CampaignRecommendations,
   type CampaignAd,
 } from "@/lib/api"
-import { Loader2, Copy, Pencil, Check, X } from "lucide-react"
+import { Loader2, Copy, Check, X } from "lucide-react"
 
 // ─── Types ───────────────────────────────────────────────────────────────────
 
@@ -913,6 +913,15 @@ export default function CampaignDetailPage() {
                       className="rounded-lg p-4 space-y-4"
                       style={{ backgroundColor: "#111111", border: "1px solid #222222" }}
                     >
+                      {/* Thumbnail */}
+                      {ad.image_url && (
+                        <img
+                          src={ad.image_url}
+                          alt=""
+                          className="w-full h-32 object-cover rounded-md"
+                        />
+                      )}
+
                       {/* Ad name */}
                       <p className="text-white font-semibold text-sm truncate" title={ad.name}>{ad.name}</p>
 
@@ -930,19 +939,9 @@ export default function CampaignDetailPage() {
                             placeholder={t.ads_tab_headline_label}
                           />
                         ) : (
-                          <div className="flex items-start gap-2 group">
-                            <p className="text-gray-200 text-sm flex-1 leading-relaxed">
-                              {ad.headline ?? <span className="text-gray-500 italic">{t.ads_tab_no_value}</span>}
-                            </p>
-                            <button
-                              onClick={() => handleStartEdit(ad)}
-                              className="flex-shrink-0 p-1 rounded opacity-0 group-hover:opacity-100 transition-opacity text-gray-400 hover:text-white"
-                              style={{ backgroundColor: "#1a1a1a" }}
-                              title="Edit"
-                            >
-                              <Pencil className="h-3.5 w-3.5" />
-                            </button>
-                          </div>
+                          <p className="text-gray-200 text-sm leading-relaxed">
+                            {ad.headline ?? <span className="text-gray-500 italic">{t.ads_tab_no_value}</span>}
+                          </p>
                         )}
                       </div>
 
@@ -960,26 +959,21 @@ export default function CampaignDetailPage() {
                             placeholder={t.ads_tab_primary_text_label}
                           />
                         ) : (
-                          <div className="flex items-start gap-2 group">
-                            <p className="text-gray-200 text-sm flex-1 leading-relaxed whitespace-pre-wrap">
-                              {ad.primary_text ?? <span className="text-gray-500 italic">{t.ads_tab_no_value}</span>}
-                            </p>
-                            {editingAd !== ad.id && (
-                              <button
-                                onClick={() => handleStartEdit(ad)}
-                                className="flex-shrink-0 p-1 rounded opacity-0 group-hover:opacity-100 transition-opacity text-gray-400 hover:text-white"
-                                style={{ backgroundColor: "#1a1a1a" }}
-                                title="Edit"
-                              >
-                                <Pencil className="h-3.5 w-3.5" />
-                              </button>
-                            )}
-                          </div>
+                          <p className="text-gray-200 text-sm leading-relaxed whitespace-pre-wrap">
+                            {ad.primary_text ?? <span className="text-gray-500 italic">{t.ads_tab_no_value}</span>}
+                          </p>
                         )}
                       </div>
 
-                      {/* Edit action buttons */}
-                      {isEditing && (
+                      {/* Edit link / action buttons */}
+                      {!isEditing ? (
+                        <button
+                          onClick={() => handleStartEdit(ad)}
+                          className="text-xs text-indigo-400 hover:text-indigo-300 transition-colors"
+                        >
+                          {t.ads_tab_edit}
+                        </button>
+                      ) : (
                         <div className="flex gap-2 pt-1">
                           <button
                             onClick={() => handleSaveAd(ad)}

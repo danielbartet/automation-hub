@@ -941,8 +941,10 @@ async def list_campaign_ads(
 
     if not token:
         raise HTTPException(400, "Project missing meta_access_token")
-    if not ad_account_id or not campaign.meta_campaign_id:
-        raise HTTPException(400, "Campaign or project missing Meta IDs")
+    if not ad_account_id:
+        raise HTTPException(400, "Project missing ad_account_id — cannot list ads")
+    if not campaign.meta_campaign_id:
+        raise HTTPException(400, "Campaign has no Meta campaign ID — cannot list ads")
 
     try:
         async with httpx.AsyncClient(timeout=20.0) as client:
@@ -968,28 +970,40 @@ async def list_campaign_ads(
                 creative_resp = await client.get(
                     f"{META_BASE}/{ad_id}",
                     params={
-                        "fields": "id,name,creative{id,object_story_spec}",
+                        "fields": "id,name,creative{id,object_story_spec,image_url,thumbnail_url}",
                         "access_token": token,
                     },
                 )
                 creative_data = creative_resp.json()
                 if "error" in creative_data:
                     # Include ad with null fields rather than failing the whole list
-                    output.append({"id": ad_id, "name": ad.get("name", ""), "headline": None, "primary_text": None})
+                    output.append({"id": ad_id, "name": ad.get("name", ""), "headline": None, "primary_text": None, "image_url": None})
                     continue
 
-                spec = (creative_data.get("creative") or {}).get("object_story_spec") or {}
+                creative = creative_data.get("creative") or {}
+                spec = creative.get("object_story_spec") or {}
                 link_data = spec.get("link_data") or {}
                 video_data = spec.get("video_data") or {}
 
                 headline = link_data.get("name") or video_data.get("title") or None
                 primary_text = link_data.get("message") or video_data.get("message") or None
 
+                # Extract image_url: try multiple fallback paths
+                image_url = (
+                    creative.get("image_url")
+                    or creative.get("thumbnail_url")
+                    or link_data.get("picture")
+                    or (list((link_data.get("image_crops") or {}).values())[0][0].get("url")
+                        if link_data.get("image_crops") else None)
+                    or None
+                )
+
                 output.append({
                     "id": ad_id,
                     "name": creative_data.get("name") or ad.get("name", ""),
                     "headline": headline,
                     "primary_text": primary_text,
+                    "image_url": image_url,
                 })
 
             return output

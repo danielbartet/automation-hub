@@ -947,6 +947,7 @@ export interface CampaignAd {
   name: string;
   headline: string | null;
   primary_text: string | null;
+  image_url: string | null;
 }
 
 export async function fetchCampaignAds(
