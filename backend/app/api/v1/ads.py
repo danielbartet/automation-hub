@@ -9,7 +9,7 @@ from app.models.project import Project
 from app.core.config import settings
 from app.core.security import get_project_token
 from app.services.ads.meta_campaign import MetaCampaignService
-from pydantic import BaseModel
+from pydantic import BaseModel, Field
 from datetime import datetime, timedelta, timezone
 import httpx
 import json
@@ -1831,9 +1831,9 @@ VALID_QUESTION_KEYS = {
 
 
 class CampaignChatRequest(BaseModel):
-    project_slug: str
-    question_key: str
-    language: str = "en"
+    project_slug: str = Field(..., max_length=100)
+    question_key: str = Field(..., max_length=64)
+    language: str = Field("en", max_length=10)
     campaign_id: int | None = None
 
 

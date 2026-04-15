@@ -35,6 +35,7 @@ import {
 import { Loader2, Copy, Check, X, Upload } from "lucide-react"
 import { AuditScoreCard } from "../AuditScoreCard"
 import { AuditCheckList } from "../AuditCheckList"
+import { CampaignChatPanel } from "@/components/dashboard/CampaignChatPanel"
 
 // ─── Types ───────────────────────────────────────────────────────────────────
 
@@ -226,7 +227,7 @@ export default function CampaignDetailPage() {
   const [expandedRationale, setExpandedRationale] = useState<Record<number, boolean>>({})
 
   // ── Tab state ──────────────────────────────────────────────────────────────
-  const [activeTab, setActiveTab] = useState<"overview" | "ads" | "audit">("overview")
+  const [activeTab, setActiveTab] = useState<"overview" | "ads" | "audit" | "chat">("overview")
   const [campaignAds, setCampaignAds] = useState<CampaignAd[]>([])
   const [auditLoaded, setAuditLoaded] = useState(false)
   const [auditId, setAuditId] = useState<number | null>(null)
@@ -278,7 +279,7 @@ export default function CampaignDetailPage() {
     }
   }, [token, localId])
 
-  const handleTabChange = (tab: "overview" | "ads" | "audit") => {
+  const handleTabChange = (tab: "overview" | "ads" | "audit" | "chat") => {
     setActiveTab(tab)
     if (tab === "ads" && campaignAds.length === 0 && !adsLoading) {
       loadCampaignAds()
@@ -903,6 +904,19 @@ export default function CampaignDetailPage() {
               {tab === "overview" ? "Overview" : tab === "ads" ? t.ads_tab_ads : t.ads_tab_audit}
             </button>
           ))}
+          {session?.user?.role === "super_admin" && (
+            <button
+              onClick={() => handleTabChange("chat")}
+              className={`px-4 py-2 text-sm font-medium transition-colors ${
+                activeTab === "chat"
+                  ? "text-white border-b-2 border-indigo-500"
+                  : "text-gray-400 hover:text-white"
+              }`}
+              style={{ marginBottom: "-1px" }}
+            >
+              Chat
+            </button>
+          )}
         </div>
 
         {/* ── ADS TAB ─────────────────────────────────────────────────────── */}
@@ -1069,6 +1083,21 @@ export default function CampaignDetailPage() {
         {activeTab === "audit" && auditLoaded && !projectSlug && (
           <div className="py-16 text-center text-sm" style={{ color: "#9ca3af" }}>
             Project context is required to run an audit. Navigate to this campaign from the campaigns list.
+          </div>
+        )}
+
+        {/* ── CHAT TAB ────────────────────────────────────────────────────── */}
+        {activeTab === "chat" && projectSlug && (
+          <div className="pt-4">
+            <CampaignChatPanel
+              projectSlug={projectSlug}
+              preselectedCampaignId={localId}
+            />
+          </div>
+        )}
+        {activeTab === "chat" && !projectSlug && (
+          <div className="py-16 text-center text-sm" style={{ color: "#9ca3af" }}>
+            Project context is required to use Campaign Chat. Navigate to this campaign from the campaigns list.
           </div>
         )}
 

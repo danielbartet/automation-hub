@@ -32,9 +32,11 @@ const QUESTIONS: Question[] = [
 
 interface Props {
   projectSlug: string;
+  /** When provided the campaign selector is hidden and this campaign is pre-selected. */
+  preselectedCampaignId?: number | null;
 }
 
-export function CampaignChatPanel({ projectSlug }: Props) {
+export function CampaignChatPanel({ projectSlug, preselectedCampaignId }: Props) {
   const t = useT();
   const { lang } = useLang();
   const { data: session } = useSession();
@@ -51,7 +53,9 @@ export function CampaignChatPanel({ projectSlug }: Props) {
   // Campaign selector state
   const [campaigns, setCampaigns] = useState<CampaignSummary[]>([]);
   const [loadingCampaigns, setLoadingCampaigns] = useState(false);
-  const [selectedCampaignId, setSelectedCampaignId] = useState<number | null>(null);
+  const [selectedCampaignId, setSelectedCampaignId] = useState<number | null>(
+    preselectedCampaignId ?? null
+  );
 
   // --- localStorage helpers ---
   const lsKey = (questionKey: CampaignChatQuestionKey) =>
@@ -82,20 +86,24 @@ export function CampaignChatPanel({ projectSlug }: Props) {
   useEffect(() => {
     if (!projectSlug || !token) return;
     setLoadingCampaigns(true);
-    setSelectedCampaignId(null);
+    // Only reset selection when not preselected
+    if (preselectedCampaignId == null) setSelectedCampaignId(null);
     setCampaigns([]);
     fetchCampaignsBySlug(token, projectSlug)
       .then((list) => {
         const visible = list.filter((c) => c.status?.toLowerCase() !== "archived");
         setCampaigns(visible);
-        // Auto-select if only one campaign
-        if (visible.length === 1) {
+        if (preselectedCampaignId != null) {
+          // Honour the preselected campaign id from the URL
+          setSelectedCampaignId(preselectedCampaignId);
+        } else if (visible.length === 1) {
+          // Auto-select if only one campaign
           setSelectedCampaignId(visible[0].id);
         }
       })
       .catch(() => {})
       .finally(() => setLoadingCampaigns(false));
-  }, [projectSlug, token]);
+  }, [projectSlug, token, preselectedCampaignId]);
 
   // Restore last response from localStorage when project or campaign changes
   useEffect(() => {
@@ -202,46 +210,48 @@ export function CampaignChatPanel({ projectSlug }: Props) {
       </div>
 
       <div className="p-6 space-y-4">
-        {/* Campaign selector */}
-        <div className="flex items-center gap-3">
-          <label className="text-sm font-medium flex-shrink-0" style={{ color: "#9ca3af" }}>
-            {t.ads_chat_campaign_label}
-          </label>
-          {loadingCampaigns ? (
-            <div className="flex items-center gap-2 text-sm" style={{ color: "#6b7280" }}>
-              <Loader2 className="h-3.5 w-3.5 animate-spin" />
-            </div>
-          ) : (
-            <select
-              value={selectedCampaignId ?? ""}
-              onChange={(e) =>
-                setSelectedCampaignId(e.target.value === "" ? null : Number(e.target.value))
-              }
-              className="text-sm rounded-md px-3 py-2 focus:outline-none focus:ring-2 focus:ring-[#7c3aed]"
-              style={{
-                backgroundColor: "#1a1a1a",
-                border: "1px solid #333333",
-                color: "#ffffff",
-                minWidth: "200px",
-              }}
-            >
-              <option value="">{t.ads_chat_campaign_all}</option>
-              {campaigns.map((c) => (
-                <option key={c.id} value={c.id}>
-                  {c.name}
-                </option>
-              ))}
-            </select>
-          )}
-          {selectedCampaign && (
-            <span
-              className="text-xs px-2 py-0.5 rounded-full font-medium"
-              style={{ backgroundColor: "#14532d", color: "#4ade80" }}
-            >
-              active
-            </span>
-          )}
-        </div>
+        {/* Campaign selector — hidden when a campaign is pre-selected from the URL */}
+        {preselectedCampaignId == null && (
+          <div className="flex items-center gap-3">
+            <label className="text-sm font-medium flex-shrink-0" style={{ color: "#9ca3af" }}>
+              {t.ads_chat_campaign_label}
+            </label>
+            {loadingCampaigns ? (
+              <div className="flex items-center gap-2 text-sm" style={{ color: "#6b7280" }}>
+                <Loader2 className="h-3.5 w-3.5 animate-spin" />
+              </div>
+            ) : (
+              <select
+                value={selectedCampaignId ?? ""}
+                onChange={(e) =>
+                  setSelectedCampaignId(e.target.value === "" ? null : Number(e.target.value))
+                }
+                className="text-sm rounded-md px-3 py-2 focus:outline-none focus:ring-2 focus:ring-[#7c3aed]"
+                style={{
+                  backgroundColor: "#1a1a1a",
+                  border: "1px solid #333333",
+                  color: "#ffffff",
+                  minWidth: "200px",
+                }}
+              >
+                <option value="">{t.ads_chat_campaign_all}</option>
+                {campaigns.map((c) => (
+                  <option key={c.id} value={c.id}>
+                    {c.name}
+                  </option>
+                ))}
+              </select>
+            )}
+            {selectedCampaign && (
+              <span
+                className="text-xs px-2 py-0.5 rounded-full font-medium"
+                style={{ backgroundColor: "#14532d", color: "#4ade80" }}
+              >
+                active
+              </span>
+            )}
+          </div>
+        )}
 
         {/* Cooldown banner */}
         {cooldownSeconds > 0 && !loading && !result && (

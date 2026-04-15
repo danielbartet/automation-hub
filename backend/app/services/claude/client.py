@@ -382,7 +382,7 @@ RULES:
         """Generate text content — generic helper."""
         response = self.client.messages.create(
             model=self.MODEL,
-            max_tokens=500,
+            max_tokens=1000,
             system=system_prompt or "You are a helpful assistant.",
             messages=[{"role": "user", "content": prompt}],
         )
