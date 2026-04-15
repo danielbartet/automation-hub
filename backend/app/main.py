@@ -12,6 +12,12 @@ import app.models.token_usage  # noqa: F401 — registers TokenUsageLog and User
 scheduler = None
 
 
+_INSECURE_JWT_DEFAULTS = {
+    "change-this-in-production-use-long-random-string",
+    "change-this-in-production",
+}
+
+
 @asynccontextmanager
 async def lifespan(app: FastAPI):
     from app.core.database import init_db, seed_db, AsyncSessionLocal
@@ -20,6 +26,19 @@ async def lifespan(app: FastAPI):
     from apscheduler.triggers.interval import IntervalTrigger
 
     global scheduler
+
+    # Security assertions — fail fast if secrets are insecure defaults
+    if settings.JWT_SECRET in _INSECURE_JWT_DEFAULTS:
+        raise RuntimeError(
+            "JWT_SECRET is set to an insecure default value. "
+            "Set a strong secret in .env before starting."
+        )
+    if hasattr(settings, "META_OAUTH_STATE_SECRET") and settings.META_OAUTH_STATE_SECRET in _INSECURE_JWT_DEFAULTS:
+        raise RuntimeError(
+            "META_OAUTH_STATE_SECRET is set to an insecure default value. "
+            "Set a strong secret in .env before starting."
+        )
+
     await init_db()
     await seed_db()
 

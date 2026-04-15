@@ -157,6 +157,19 @@ async def update_user(
     if not user:
         raise HTTPException(404, "User not found")
 
+    # Admin IDOR guard: admin can only manage users that share one of their projects
+    if current_user.role == "admin":
+        admin_projects = await db.execute(
+            select(UserProject.project_id).where(UserProject.user_id == current_user.id)
+        )
+        admin_project_ids = {row[0] for row in admin_projects.fetchall()}
+        target_projects = await db.execute(
+            select(UserProject.project_id).where(UserProject.user_id == user.id)
+        )
+        target_project_ids = {row[0] for row in target_projects.fetchall()}
+        if not admin_project_ids.intersection(target_project_ids):
+            raise HTTPException(status_code=403, detail="Not authorized to manage this user")
+
     if body.role is not None:
         # admin cannot elevate to admin/super_admin; super_admin cannot set super_admin
         if current_user.role == "admin" and body.role in ("admin", "super_admin"):

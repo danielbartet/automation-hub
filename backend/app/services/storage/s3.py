@@ -1,8 +1,11 @@
 """S3 storage service — image upload and management."""
 import io
 import os
+import socket
+import ipaddress
 import logging
 from datetime import datetime
+from urllib.parse import urlparse
 import boto3
 import httpx
 from botocore.exceptions import ProfileNotFound, NoCredentialsError
@@ -11,6 +14,27 @@ from app.core.config import settings
 from app.services.storage.renderer import CarouselRenderer
 
 logger = logging.getLogger(__name__)
+
+
+def _is_safe_url(url: str) -> bool:
+    """Return True only if the URL is safe to fetch (not an internal/private address)."""
+    try:
+        parsed = urlparse(url)
+        if parsed.scheme not in ("https", "http"):
+            return False
+        hostname = parsed.hostname
+        if not hostname:
+            return False
+        # Block localhost variants
+        if hostname in ("localhost", "127.0.0.1", "::1"):
+            return False
+        # Resolve and check for private/link-local/loopback/reserved ranges
+        ip = ipaddress.ip_address(socket.gethostbyname(hostname))
+        if ip.is_private or ip.is_link_local or ip.is_loopback or ip.is_reserved:
+            return False
+        return True
+    except Exception:
+        return False
 
 
 def _make_boto3_session() -> boto3.Session:
@@ -71,6 +95,8 @@ class S3Service:
 
     async def upload_from_url(self, url: str, folder: str = "images") -> str:
         """Download a file from a URL and upload it to S3. Returns the public URL."""
+        if not _is_safe_url(url):
+            raise ValueError(f"URL is not allowed: {url}")
         async with httpx.AsyncClient() as client:
             response = await client.get(url, timeout=60.0)
             response.raise_for_status()

@@ -13,7 +13,7 @@ from pydantic import BaseModel
 from sqlalchemy import select, func
 from sqlalchemy.ext.asyncio import AsyncSession
 
-from app.api.deps import get_session, get_current_user_optional
+from app.api.deps import get_session, get_current_user_optional, get_current_user
 from app.core.config import settings
 from app.core.security import decrypt_token, get_project_token
 from app.models.content import ContentPost
@@ -179,7 +179,11 @@ async def list_content_by_slug(
 
 
 @router.get("/{project_id}", response_model=list[ContentPostResponse])
-async def list_content(project_id: int, db: AsyncSession = Depends(get_session)) -> list[ContentPost]:
+async def list_content(
+    project_id: int,
+    db: AsyncSession = Depends(get_session),
+    _current_user=Depends(get_current_user),
+) -> list[ContentPost]:
     """List content posts for a project."""
     result = await db.execute(
         select(ContentPost)
@@ -530,6 +534,7 @@ async def create_content_manual(
     project_slug: str,
     body: ManualContentRequest,
     db: AsyncSession = Depends(get_session),
+    _current_user=Depends(get_current_user),
 ) -> dict:
     """Create content manually with optional AI caption generation."""
     result = await db.execute(select(Project).where(Project.slug == project_slug))
@@ -800,6 +805,7 @@ async def update_content(
     content_id: int,
     body: UpdateContentRequest,
     db: AsyncSession = Depends(get_session),
+    current_user=Depends(get_current_user),
 ) -> dict:
     """Update a content post.
 
@@ -810,6 +816,22 @@ async def update_content(
     post = result.scalar_one_or_none()
     if not post:
         raise HTTPException(status_code=404, detail=f"ContentPost {content_id} not found")
+
+    # IDOR check: verify the post's project is accessible to the current user
+    if current_user.role not in ("super_admin",):
+        if current_user.role == "admin":
+            proj_check = await db.execute(select(Project).where(Project.id == post.project_id))
+            owned_project = proj_check.scalar_one_or_none()
+            if owned_project is None or owned_project.owner_id != current_user.id:
+                raise HTTPException(status_code=403, detail="Not authorized for this content post")
+        else:
+            from app.models.user_project import UserProject
+            user_projects = await db.execute(
+                select(UserProject.project_id).where(UserProject.user_id == current_user.id)
+            )
+            authorized_ids = {row[0] for row in user_projects.fetchall()}
+            if post.project_id not in authorized_ids:
+                raise HTTPException(status_code=403, detail="Not authorized for this content post")
 
     previous_status = post.status
 
@@ -885,6 +907,7 @@ async def update_content(
 async def retry_instagram(
     content_id: int,
     db: AsyncSession = Depends(get_session),
+    _current_user=Depends(get_current_user),
 ) -> dict:
     """Retry publishing a post to Instagram only.
 

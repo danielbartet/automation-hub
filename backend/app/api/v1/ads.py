@@ -6,6 +6,7 @@ from app.api.deps import get_session, get_current_user, require_super_admin
 from app.models.ad_campaign import AdCampaign
 from app.models.notification import Notification
 from app.models.project import Project
+from app.models.user_project import UserProject
 from app.core.config import settings
 from app.core.security import get_project_token
 from app.services.ads.meta_campaign import MetaCampaignService
@@ -80,6 +81,23 @@ class UpdateStatusRequest(BaseModel):
     status: str  # active | paused
 
 
+async def _verify_campaign_access(campaign: AdCampaign, current_user, db: AsyncSession) -> None:
+    """Raise HTTPException(403) if current_user is not authorized for the given campaign."""
+    if current_user.role == "super_admin":
+        return
+    if current_user.role == "admin":
+        project = await db.get(Project, campaign.project_id)
+        if project is None or project.owner_id != current_user.id:
+            raise HTTPException(status_code=403, detail="Not authorized for this campaign")
+    else:
+        user_projects = await db.execute(
+            select(UserProject.project_id).where(UserProject.user_id == current_user.id)
+        )
+        authorized_ids = {row[0] for row in user_projects.fetchall()}
+        if campaign.project_id not in authorized_ids:
+            raise HTTPException(status_code=403, detail="Not authorized for this campaign")
+
+
 async def fetch_live_campaign_statuses(project: Project, db: AsyncSession) -> dict[str, str]:
     """Fetch live campaign statuses from Meta API keyed by meta_campaign_id."""
     token = await get_project_token(project, db)
@@ -105,7 +123,11 @@ async def fetch_live_campaign_statuses(project: Project, db: AsyncSession) -> di
 
 
 @router.get("/{project_id}")
-async def list_campaigns(project_id: int, db: AsyncSession = Depends(get_session)) -> list[dict]:
+async def list_campaigns(
+    project_id: int,
+    db: AsyncSession = Depends(get_session),
+    _current_user=Depends(get_current_user),
+) -> list[dict]:
     """List ad campaigns for a project, enriched with live Meta status."""
     result = await db.execute(
         select(AdCampaign)
@@ -179,6 +201,7 @@ async def generate_concepts(
     project_slug: str,
     body: GenerateConceptsRequest,
     db: AsyncSession = Depends(get_session),
+    _current_user=Depends(get_current_user),
 ) -> dict:
     """Generate Andromeda-compliant ad concepts for a project using Claude."""
     from app.services.claude.client import ClaudeClient
@@ -287,6 +310,7 @@ async def create_campaign(
     project_slug: str,
     body: CreateCampaignRequest,
     db: AsyncSession = Depends(get_session),
+    _current_user=Depends(get_current_user),
 ) -> dict:
     """Create a full Meta Ads campaign (Campaign + Ad Set + Creative + Ad)."""
     proj_result = await db.execute(select(Project).where(Project.slug == project_slug))
@@ -461,12 +485,15 @@ async def update_campaign_status(
     campaign_id: int,
     body: UpdateStatusRequest,
     db: AsyncSession = Depends(get_session),
+    current_user=Depends(get_current_user),
 ) -> dict:
     """Activate or pause a campaign."""
     result = await db.execute(select(AdCampaign).where(AdCampaign.id == campaign_id))
     campaign = result.scalar_one_or_none()
     if not campaign:
         raise HTTPException(404, "Campaign not found")
+
+    await _verify_campaign_access(campaign, current_user, db)
 
     proj_result = await db.execute(select(Project).where(Project.id == campaign.project_id))
     project = proj_result.scalar_one_or_none()
@@ -486,6 +513,7 @@ async def update_campaign_status(
 async def manual_optimize(
     campaign_id: str,
     db: AsyncSession = Depends(get_session),
+    _current_user=Depends(get_current_user),
 ) -> dict:
     """Manually trigger optimization. campaign_id can be local DB id or Meta campaign id."""
     from app.services.ads.optimizer import analyze_campaign
@@ -923,13 +951,15 @@ class UpdateAdCopyRequest(BaseModel):
 async def list_campaign_ads(
     campaign_id: int,
     db: AsyncSession = Depends(get_session),
-    _current_user=Depends(get_current_user),
+    current_user=Depends(get_current_user),
 ) -> list[dict]:
     """Return all ads in a campaign with their current headline and primary_text."""
     result = await db.execute(select(AdCampaign).where(AdCampaign.id == campaign_id))
     campaign = result.scalar_one_or_none()
     if not campaign:
         raise HTTPException(404, "Campaign not found")
+
+    await _verify_campaign_access(campaign, current_user, db)
 
     proj_result = await db.execute(select(Project).where(Project.id == campaign.project_id))
     project = proj_result.scalar_one_or_none()
@@ -1026,13 +1056,15 @@ async def update_ad_copy(
     ad_id: str,
     body: UpdateAdCopyRequest,
     db: AsyncSession = Depends(get_session),
-    _current_user=Depends(get_current_user),
+    current_user=Depends(get_current_user),
 ) -> dict:
     """Update the headline and/or primary_text for a specific ad by swapping its creative."""
     result = await db.execute(select(AdCampaign).where(AdCampaign.id == campaign_id))
     campaign = result.scalar_one_or_none()
     if not campaign:
         raise HTTPException(404, "Campaign not found")
+
+    await _verify_campaign_access(campaign, current_user, db)
 
     proj_result = await db.execute(select(Project).where(Project.id == campaign.project_id))
     project = proj_result.scalar_one_or_none()
@@ -1120,7 +1152,7 @@ async def update_ad_image(
     ad_id: str,
     image: UploadFile = File(...),
     db: AsyncSession = Depends(get_session),
-    _current_user=Depends(get_current_user),
+    current_user=Depends(get_current_user),
 ) -> dict:
     """Upload a new image for a specific ad by swapping its creative."""
     import logging
@@ -1138,6 +1170,8 @@ async def update_ad_image(
     campaign = result.scalar_one_or_none()
     if not campaign:
         raise HTTPException(404, "Campaign not found")
+
+    await _verify_campaign_access(campaign, current_user, db)
 
     proj_result = await db.execute(select(Project).where(Project.id == campaign.project_id))
     project = proj_result.scalar_one_or_none()
@@ -1234,6 +1268,7 @@ async def update_ad_image(
 async def import_campaigns(
     project_slug: str,
     db: AsyncSession = Depends(get_session),
+    _current_user=Depends(get_current_user),
 ) -> dict:
     """Import ACTIVE and PAUSED campaigns from Meta into the local DB.
 

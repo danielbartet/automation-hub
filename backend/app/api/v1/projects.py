@@ -136,22 +136,56 @@ async def delete_project(
 
 
 @router.get("/{slug}", response_model=ProjectResponse)
-async def get_project(slug: str, db: AsyncSession = Depends(get_session)) -> Project:
+async def get_project(
+    slug: str,
+    db: AsyncSession = Depends(get_session),
+    current_user=Depends(get_current_user),
+) -> Project:
     """Get a single project by slug."""
     result = await db.execute(select(Project).where(Project.slug == slug))
     project = result.scalar_one_or_none()
     if not project:
         raise HTTPException(status_code=404, detail=f"Project '{slug}' not found")
+
+    # Ownership check: super_admin sees all; admin must own; operator/client must be assigned
+    if current_user.role not in ("super_admin",):
+        if current_user.role == "admin":
+            if project.owner_id != current_user.id:
+                raise HTTPException(status_code=403, detail="You do not have access to this project")
+        else:
+            from app.models.user_project import UserProject
+            up = await db.execute(
+                select(UserProject).where(
+                    UserProject.user_id == current_user.id,
+                    UserProject.project_id == project.id,
+                )
+            )
+            if up.scalar_one_or_none() is None:
+                raise HTTPException(status_code=403, detail="You do not have access to this project")
+
     return project
 
 
 @router.put("/{slug}", response_model=ProjectResponse)
-async def update_project(slug: str, data: ProjectUpdate, db: AsyncSession = Depends(get_session)) -> Project:
+async def update_project(
+    slug: str,
+    data: ProjectUpdate,
+    db: AsyncSession = Depends(get_session),
+    current_user=Depends(get_current_user),
+) -> Project:
     """Update an existing project by slug."""
     result = await db.execute(select(Project).where(Project.slug == slug))
     project = result.scalar_one_or_none()
     if not project:
         raise HTTPException(status_code=404, detail=f"Project '{slug}' not found")
+
+    # Ownership check: super_admin can update any; admin must own the project
+    if current_user.role not in ("super_admin",):
+        if current_user.role == "admin":
+            if project.owner_id != current_user.id:
+                raise HTTPException(status_code=403, detail="You can only update projects you own")
+        else:
+            raise HTTPException(status_code=403, detail="Insufficient permissions to update projects")
 
     if data.name is not None:
         project.name = data.name

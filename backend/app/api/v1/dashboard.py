@@ -2,7 +2,7 @@
 from fastapi import APIRouter, Depends, HTTPException
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy import select, func
-from app.api.deps import get_session
+from app.api.deps import get_session, get_current_user
 from app.models.project import Project
 from app.models.content import ContentPost
 from app.core.config import settings
@@ -188,7 +188,11 @@ async def fetch_meta_ads_data(project: Project, db: AsyncSession) -> dict:
 
 
 @router.get("/{project_slug}")
-async def get_dashboard_kpis(project_slug: str, db: AsyncSession = Depends(get_session)) -> dict:
+async def get_dashboard_kpis(
+    project_slug: str,
+    db: AsyncSession = Depends(get_session),
+    _current_user=Depends(get_current_user),
+) -> dict:
     """Return real KPI data for a project's dashboard."""
     result = await db.execute(select(Project).where(Project.slug == project_slug))
     project = result.scalar_one_or_none()
