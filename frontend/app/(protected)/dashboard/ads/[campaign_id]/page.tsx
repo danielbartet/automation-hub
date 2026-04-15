@@ -1060,6 +1060,7 @@ export default function CampaignDetailPage() {
           <div className="space-y-6 pt-4">
             <AuditScoreCard
               projectSlug={projectSlug}
+              campaignId={localId}
               onAuditCompleted={(id) => setAuditId(id)}
             />
             {auditId && <AuditCheckList auditId={auditId} />}

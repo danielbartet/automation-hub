@@ -50,12 +50,14 @@ function CategoryBar({ label, score }: { label: string; score: number | null }) 
 
 interface AuditScoreCardProps {
   projectSlug: string
+  /** DB integer id of the campaign. When provided, audit is scoped to this campaign. */
+  campaignId?: number
   onAuditCompleted?: (auditId: number) => void
 }
 
 // ─── Component ────────────────────────────────────────────────────────────────
 
-export function AuditScoreCard({ projectSlug, onAuditCompleted }: AuditScoreCardProps) {
+export function AuditScoreCard({ projectSlug, campaignId, onAuditCompleted }: AuditScoreCardProps) {
   const { data: session } = useSession()
   const token = (session as { accessToken?: string } | null)?.accessToken ?? ""
 
@@ -71,14 +73,18 @@ export function AuditScoreCard({ projectSlug, onAuditCompleted }: AuditScoreCard
 
   const apiBase = process.env.NEXT_PUBLIC_API_URL ?? ""
 
+  /** Build optional ?campaign_id=N query param suffix. */
+  const campaignParam = campaignId != null ? `?campaign_id=${campaignId}` : ""
+
   const fetchLatest = useCallback(async (): Promise<AdsAuditDetail | null> => {
-    const res = await fetch(`${apiBase}/api/v1/ads/audit/latest/${projectSlug}`, {
-      headers: { Authorization: `Bearer ${token}` },
-    })
+    const res = await fetch(
+      `${apiBase}/api/v1/ads/audit/latest/${projectSlug}${campaignParam}`,
+      { headers: { Authorization: `Bearer ${token}` } },
+    )
     if (res.status === 404) return null
     if (!res.ok) throw new Error(`Failed to fetch audit (${res.status})`)
     return res.json() as Promise<AdsAuditDetail>
-  }, [apiBase, projectSlug, token])
+  }, [apiBase, projectSlug, campaignParam, token])
 
   // ── Polling ──────────────────────────────────────────────────────────────────
 
@@ -156,10 +162,10 @@ export function AuditScoreCard({ projectSlug, onAuditCompleted }: AuditScoreCard
     setTriggering(true)
     setError(null)
     try {
-      const res = await fetch(`${apiBase}/api/v1/ads/audit/run/${projectSlug}`, {
-        method: "POST",
-        headers: { Authorization: `Bearer ${token}` },
-      })
+      const res = await fetch(
+        `${apiBase}/api/v1/ads/audit/run/${projectSlug}${campaignParam}`,
+        { method: "POST", headers: { Authorization: `Bearer ${token}` } },
+      )
       if (!res.ok) {
         const body = await res.json().catch(() => ({}))
         throw new Error((body as { detail?: string }).detail ?? `Request failed (${res.status})`)

@@ -9,6 +9,7 @@ from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy.orm import selectinload
 
 from app.api.deps import get_current_user, get_session
+from app.models.ad_campaign import AdCampaign
 from app.models.ads_audit import AdsAudit, AuditCheckResult
 from app.models.project import Project
 
@@ -123,8 +124,16 @@ async def _get_project_and_check_access(
 # ---------------------------------------------------------------------------
 
 
-async def _run_audit_background(audit_id: int, project_id: int) -> None:
-    """Runs audit in background. Opens its own DB session (mirrors optimizer.py pattern)."""
+async def _run_audit_background(
+    audit_id: int,
+    project_id: int,
+    meta_campaign_id: str | None = None,
+) -> None:
+    """Runs audit in background. Opens its own DB session (mirrors optimizer.py pattern).
+
+    When meta_campaign_id is provided the MetaAuditService is initialised in campaign-scoped
+    mode so structure and insight fetches are filtered to that single campaign.
+    """
     from app.core.database import AsyncSessionLocal
     from app.services.ads.audit import MetaAuditService
     from app.core.security import get_project_token
@@ -145,7 +154,12 @@ async def _run_audit_background(audit_id: int, project_id: int) -> None:
                 await db.commit()
                 return
 
-            async with MetaAuditService(token, project.ad_account_id, project_id) as svc:
+            async with MetaAuditService(
+                token,
+                project.ad_account_id,
+                project_id,
+                meta_campaign_id=meta_campaign_id,
+            ) as svc:
                 await svc.run(audit_id, db)
         except Exception as e:
             # MetaAuditService.run() handles its own error states,
@@ -167,10 +181,19 @@ async def _run_audit_background(audit_id: int, project_id: int) -> None:
 async def trigger_audit(
     project_slug: str,
     background_tasks: BackgroundTasks,
+    campaign_id: int | None = None,
     db: AsyncSession = Depends(get_session),
     current_user=Depends(get_current_user),
 ) -> TriggerAuditResponse:
-    """Trigger a new Meta Ads health audit for a project."""
+    """Trigger a new Meta Ads health audit for a project.
+
+    Optional query param ``campaign_id`` (DB integer id) scopes the audit to a single
+    campaign. When provided, structure and insight API calls are filtered to that campaign
+    so the health score reflects only that campaign's data.  Account-level checks (pixel,
+    CAPI, audiences) are unaffected because they apply to the whole ad account.
+
+    Without ``campaign_id`` the audit evaluates the entire ad account (original behaviour).
+    """
     project = await _get_project_and_check_access(project_slug, current_user, db)
 
     if not project.ad_account_id:
@@ -179,30 +202,70 @@ async def trigger_audit(
             detail="Project has no ad_account_id configured. Cannot run audit.",
         )
 
-    # Check for an already-running audit
-    running_result = await db.execute(
-        select(AdsAudit).where(
-            AdsAudit.project_id == project.id,
-            AdsAudit.status == "running",
+    # Resolve campaign and extract meta_campaign_id when campaign_id is provided
+    meta_campaign_id: str | None = None
+    if campaign_id is not None:
+        camp_result = await db.execute(
+            select(AdCampaign).where(
+                AdCampaign.id == campaign_id,
+                AdCampaign.project_id == project.id,
+            )
         )
+        campaign = camp_result.scalar_one_or_none()
+        if campaign is None:
+            raise HTTPException(
+                status_code=404,
+                detail=f"Campaign {campaign_id} not found or does not belong to project '{project_slug}'.",
+            )
+        if not campaign.meta_campaign_id:
+            raise HTTPException(
+                status_code=422,
+                detail="Campaign has no Meta campaign ID. Cannot run scoped audit.",
+            )
+        meta_campaign_id = campaign.meta_campaign_id
+
+    # Check for an already-running audit for the same scope
+    running_query = select(AdsAudit).where(
+        AdsAudit.project_id == project.id,
+        AdsAudit.status == "running",
     )
-    if running_result.scalar_one_or_none() is not None:
-        raise HTTPException(
-            status_code=409,
-            detail="An audit is already running for this project. Wait for it to complete.",
-        )
+    running_result = await db.execute(running_query)
+    running_audits = running_result.scalars().all()
+    # For campaign-scoped: block only if another audit is running for the SAME campaign
+    # For project-wide: block if any project-wide audit is running
+    for running in running_audits:
+        running_scope_campaign = (running.raw_data or {}).get("_scope", {}).get("campaign_id")
+        if meta_campaign_id is not None:
+            if running_scope_campaign == meta_campaign_id:
+                raise HTTPException(
+                    status_code=409,
+                    detail="An audit is already running for this campaign. Wait for it to complete.",
+                )
+        else:
+            if running_scope_campaign is None:
+                raise HTTPException(
+                    status_code=409,
+                    detail="An audit is already running for this project. Wait for it to complete.",
+                )
 
     audit = AdsAudit(
         project_id=project.id,
         ad_account_id=project.ad_account_id,
         status="running",
         triggered_by="manual",
+        # Store scope in raw_data immediately so the running check above works correctly
+        raw_data={"_scope": {"campaign_id": meta_campaign_id}},
     )
     db.add(audit)
     await db.commit()
     await db.refresh(audit)
 
-    background_tasks.add_task(_run_audit_background, audit.id, project.id)
+    background_tasks.add_task(
+        _run_audit_background,
+        audit.id,
+        project.id,
+        meta_campaign_id,
+    )
 
     return TriggerAuditResponse(
         audit_id=audit.id,
@@ -214,20 +277,60 @@ async def trigger_audit(
 @router.get("/latest/{project_slug}", response_model=AdsAuditDetailSchema)
 async def get_latest_audit(
     project_slug: str,
+    campaign_id: int | None = None,
     db: AsyncSession = Depends(get_session),
     current_user=Depends(get_current_user),
 ) -> AdsAuditDetailSchema:
-    """Return the most recent audit for a project, including all check results."""
+    """Return the most recent audit for a project, including all check results.
+
+    Optional query param ``campaign_id`` (DB integer id): when supplied, returns the most
+    recent audit scoped to that campaign.  Without it, returns the most recent project-wide
+    audit (original behaviour).
+    """
     project = await _get_project_and_check_access(project_slug, current_user, db)
 
-    result = await db.execute(
+    # Resolve meta_campaign_id for scope matching when campaign_id is provided
+    meta_campaign_id: str | None = None
+    if campaign_id is not None:
+        camp_result = await db.execute(
+            select(AdCampaign).where(
+                AdCampaign.id == campaign_id,
+                AdCampaign.project_id == project.id,
+            )
+        )
+        campaign = camp_result.scalar_one_or_none()
+        if campaign is None:
+            raise HTTPException(
+                status_code=404,
+                detail=f"Campaign {campaign_id} not found or does not belong to project '{project_slug}'.",
+            )
+        meta_campaign_id = campaign.meta_campaign_id
+
+    # Fetch the most recent N audits and filter in Python by scope stored in raw_data._scope
+    # This avoids adding a DB migration while keeping backwards compatibility.
+    candidates_result = await db.execute(
         select(AdsAudit)
         .where(AdsAudit.project_id == project.id)
         .options(selectinload(AdsAudit.check_results))
         .order_by(AdsAudit.created_at.desc())
-        .limit(1)
+        .limit(50)
     )
-    audit = result.scalar_one_or_none()
+    candidates = candidates_result.scalars().all()
+
+    audit = None
+    for candidate in candidates:
+        scope_campaign = (candidate.raw_data or {}).get("_scope", {}).get("campaign_id")
+        if meta_campaign_id is not None:
+            # Looking for a campaign-scoped audit for this specific campaign
+            if scope_campaign == meta_campaign_id:
+                audit = candidate
+                break
+        else:
+            # Looking for a project-wide audit (no campaign scope)
+            if scope_campaign is None:
+                audit = candidate
+                break
+
     if audit is None:
         raise HTTPException(status_code=404, detail="No audits found for this project.")
 

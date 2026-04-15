@@ -131,11 +131,19 @@ def _parse_meta_datetime(dt_str: str | None) -> datetime | None:
 class MetaAuditService:
     """Orchestrates Meta Ads health audit with batched Graph API calls and DB-backed cache."""
 
-    def __init__(self, token: str, ad_account_id: str, project_id: int) -> None:
+    def __init__(
+        self,
+        token: str,
+        ad_account_id: str,
+        project_id: int,
+        meta_campaign_id: str | None = None,
+    ) -> None:
         self.token = token
         # Strip "act_" prefix — store bare numeric ID internally
         self.ad_account_id = ad_account_id.removeprefix("act_")
         self.project_id = project_id
+        # When set, scope all insight and structure fetches to this single campaign
+        self.meta_campaign_id = meta_campaign_id
         self._client = httpx.AsyncClient(base_url=GRAPH_BASE, timeout=30.0)
 
     # ------------------------------------------------------------------
@@ -244,50 +252,104 @@ class MetaAuditService:
     async def fetch_structure_batch(self, db: AsyncSession) -> dict:
         """
         Fetch campaigns, adsets, and ads in a single batch POST.
-        Cache key: audit:{project_id}:structure — TTL 3600s.
+        Cache key: audit:{project_id}:structure (or :structure:{campaign_id} when scoped) — TTL 3600s.
         Returns dict with keys: campaigns, adsets, ads.
+
+        When self.meta_campaign_id is set, all three sub-requests are filtered to that
+        campaign so checks only evaluate data for this specific campaign.
         """
-        cache_key = f"audit:{self.project_id}:structure"
+        scope_suffix = f":{self.meta_campaign_id}" if self.meta_campaign_id else ""
+        cache_key = f"audit:{self.project_id}:structure{scope_suffix}"
         cached = await self._get_cached(db, cache_key)
         if cached is not None:
             return cached
 
         act = f"act_{self.ad_account_id}"
-        batch = [
-            {
-                "method": "GET",
-                "relative_url": (
-                    f"{act}/campaigns"
-                    "?fields=id,name,status,objective,buying_type,daily_budget,"
-                    "lifetime_budget,budget_rebalance_flag,created_time"
-                    "&filtering=[{\"field\":\"effective_status\",\"operator\":\"IN\","
-                    "\"value\":[\"ACTIVE\"]}]"
-                    "&limit=100"
-                ),
-            },
-            {
-                "method": "GET",
-                "relative_url": (
-                    f"{act}/adsets"
-                    "?fields=id,name,status,campaign_id,optimization_goal,billing_event,"
-                    "bid_strategy,bid_amount,daily_budget,targeting,attribution_spec,created_time"
-                    "&filtering=[{\"field\":\"effective_status\",\"operator\":\"IN\","
-                    "\"value\":[\"ACTIVE\"]}]"
-                    "&limit=100"
-                ),
-            },
-            {
-                "method": "GET",
-                "relative_url": (
-                    f"{act}/ads"
-                    "?fields=id,name,status,adset_id,campaign_id,"
-                    "creative{id,object_type,video_id,image_url,effective_object_story_id,"
-                    "asset_feed_spec,degrees_of_freedom_spec},"
-                    "tracking_specs,created_time"
-                    "&limit=200"
-                ),
-            },
-        ]
+
+        if self.meta_campaign_id:
+            # Campaign-scoped: fetch only the target campaign + its adsets + its ads
+            cid = self.meta_campaign_id
+            campaign_filter = json.dumps([
+                {"field": "campaign.id", "operator": "EQUAL", "value": cid}
+            ])
+            adset_filter = json.dumps([
+                {"field": "campaign.id", "operator": "EQUAL", "value": cid},
+                {"field": "effective_status", "operator": "IN", "value": ["ACTIVE"]},
+            ])
+            ad_filter = json.dumps([
+                {"field": "campaign.id", "operator": "EQUAL", "value": cid},
+            ])
+            batch = [
+                {
+                    "method": "GET",
+                    "relative_url": (
+                        f"{act}/campaigns"
+                        "?fields=id,name,status,objective,buying_type,daily_budget,"
+                        "lifetime_budget,budget_rebalance_flag,created_time"
+                        f"&filtering={campaign_filter}"
+                        "&limit=10"
+                    ),
+                },
+                {
+                    "method": "GET",
+                    "relative_url": (
+                        f"{act}/adsets"
+                        "?fields=id,name,status,campaign_id,optimization_goal,billing_event,"
+                        "bid_strategy,bid_amount,daily_budget,targeting,attribution_spec,created_time"
+                        f"&filtering={adset_filter}"
+                        "&limit=100"
+                    ),
+                },
+                {
+                    "method": "GET",
+                    "relative_url": (
+                        f"{act}/ads"
+                        "?fields=id,name,status,adset_id,campaign_id,"
+                        "creative{id,object_type,video_id,image_url,effective_object_story_id,"
+                        "asset_feed_spec,degrees_of_freedom_spec},"
+                        "tracking_specs,created_time"
+                        f"&filtering={ad_filter}"
+                        "&limit=200"
+                    ),
+                },
+            ]
+        else:
+            # Account-wide: original behaviour
+            batch = [
+                {
+                    "method": "GET",
+                    "relative_url": (
+                        f"{act}/campaigns"
+                        "?fields=id,name,status,objective,buying_type,daily_budget,"
+                        "lifetime_budget,budget_rebalance_flag,created_time"
+                        "&filtering=[{\"field\":\"effective_status\",\"operator\":\"IN\","
+                        "\"value\":[\"ACTIVE\"]}]"
+                        "&limit=100"
+                    ),
+                },
+                {
+                    "method": "GET",
+                    "relative_url": (
+                        f"{act}/adsets"
+                        "?fields=id,name,status,campaign_id,optimization_goal,billing_event,"
+                        "bid_strategy,bid_amount,daily_budget,targeting,attribution_spec,created_time"
+                        "&filtering=[{\"field\":\"effective_status\",\"operator\":\"IN\","
+                        "\"value\":[\"ACTIVE\"]}]"
+                        "&limit=100"
+                    ),
+                },
+                {
+                    "method": "GET",
+                    "relative_url": (
+                        f"{act}/ads"
+                        "?fields=id,name,status,adset_id,campaign_id,"
+                        "creative{id,object_type,video_id,image_url,effective_object_story_id,"
+                        "asset_feed_spec,degrees_of_freedom_spec},"
+                        "tracking_specs,created_time"
+                        "&limit=200"
+                    ),
+                },
+            ]
 
         raw_responses = await self._post_batch(batch)
         result = {
@@ -306,11 +368,15 @@ class MetaAuditService:
     async def fetch_insights_batch(self, db: AsyncSession) -> dict:
         """
         Fetch 5 insights requests in a single batch POST.
-        Cache key: audit:{project_id}:insights — TTL 10800s.
+        Cache key: audit:{project_id}:insights (or :insights:{campaign_id} when scoped) — TTL 10800s.
         Returns dict with keys: insights_30d, insights_7d, insights_14d,
         insights_placement, insights_yesterday.
+
+        When self.meta_campaign_id is set, all insight calls add a campaign.id filter so
+        only data for that specific campaign is returned.
         """
-        cache_key = f"audit:{self.project_id}:insights"
+        scope_suffix = f":{self.meta_campaign_id}" if self.meta_campaign_id else ""
+        cache_key = f"audit:{self.project_id}:insights{scope_suffix}"
         cached = await self._get_cached(db, cache_key)
         if cached is not None:
             return cached
@@ -322,49 +388,102 @@ class MetaAuditService:
             "video_p25_watched_actions,video_p100_watched_actions"
         )
 
-        batch = [
-            {
-                "method": "GET",
-                "relative_url": (
-                    f"{act}/insights"
-                    f"?fields={insight_fields}"
-                    "&date_preset=last_30d&level=campaign&limit=50"
-                ),
-            },
-            {
-                "method": "GET",
-                "relative_url": (
-                    f"{act}/insights"
-                    f"?fields={insight_fields}"
-                    "&date_preset=last_7d&level=adset&limit=100"
-                ),
-            },
-            {
-                "method": "GET",
-                "relative_url": (
-                    f"{act}/insights"
-                    "?fields=impressions,ctr,frequency,video_play_curve_actions"
-                    "&date_preset=last_14d&level=ad&limit=200"
-                ),
-            },
-            {
-                "method": "GET",
-                "relative_url": (
-                    f"{act}/insights"
-                    "?fields=impressions,clicks,spend,actions"
-                    "&breakdowns=publisher_platform,platform_position"
-                    "&date_preset=last_30d&level=account"
-                ),
-            },
-            {
-                "method": "GET",
-                "relative_url": (
-                    f"{act}/insights"
-                    "?fields=campaign_id,spend"
-                    "&date_preset=yesterday&level=campaign"
-                ),
-            },
-        ]
+        # Build optional campaign filter suffix — appended to each batch URL when scoped
+        if self.meta_campaign_id:
+            cid = self.meta_campaign_id
+            _cid_filter = json.dumps([
+                {"field": "campaign.id", "operator": "EQUAL", "value": cid}
+            ])
+            campaign_filter_param = f"&filtering={_cid_filter}"
+            # Placement insights use campaign-level filtering; level stays at campaign for 30d/yesterday
+            # For adset and ad level we filter by campaign.id
+            batch = [
+                {
+                    "method": "GET",
+                    "relative_url": (
+                        f"{cid}/insights"
+                        f"?fields={insight_fields}"
+                        "&date_preset=last_30d&level=campaign&limit=10"
+                    ),
+                },
+                {
+                    "method": "GET",
+                    "relative_url": (
+                        f"{cid}/insights"
+                        f"?fields={insight_fields}"
+                        "&date_preset=last_7d&level=adset&limit=100"
+                    ),
+                },
+                {
+                    "method": "GET",
+                    "relative_url": (
+                        f"{cid}/insights"
+                        "?fields=impressions,ctr,frequency,video_play_curve_actions"
+                        "&date_preset=last_14d&level=ad&limit=200"
+                    ),
+                },
+                {
+                    "method": "GET",
+                    "relative_url": (
+                        f"{act}/insights"
+                        "?fields=impressions,clicks,spend,actions"
+                        "&breakdowns=publisher_platform,platform_position"
+                        f"&date_preset=last_30d&level=campaign{campaign_filter_param}"
+                    ),
+                },
+                {
+                    "method": "GET",
+                    "relative_url": (
+                        f"{cid}/insights"
+                        "?fields=campaign_id,spend"
+                        "&date_preset=yesterday&level=campaign"
+                    ),
+                },
+            ]
+        else:
+            batch = [
+                {
+                    "method": "GET",
+                    "relative_url": (
+                        f"{act}/insights"
+                        f"?fields={insight_fields}"
+                        "&date_preset=last_30d&level=campaign&limit=50"
+                    ),
+                },
+                {
+                    "method": "GET",
+                    "relative_url": (
+                        f"{act}/insights"
+                        f"?fields={insight_fields}"
+                        "&date_preset=last_7d&level=adset&limit=100"
+                    ),
+                },
+                {
+                    "method": "GET",
+                    "relative_url": (
+                        f"{act}/insights"
+                        "?fields=impressions,ctr,frequency,video_play_curve_actions"
+                        "&date_preset=last_14d&level=ad&limit=200"
+                    ),
+                },
+                {
+                    "method": "GET",
+                    "relative_url": (
+                        f"{act}/insights"
+                        "?fields=impressions,clicks,spend,actions"
+                        "&breakdowns=publisher_platform,platform_position"
+                        "&date_preset=last_30d&level=account"
+                    ),
+                },
+                {
+                    "method": "GET",
+                    "relative_url": (
+                        f"{act}/insights"
+                        "?fields=campaign_id,spend"
+                        "&date_preset=yesterday&level=campaign"
+                    ),
+                },
+            ]
 
         raw_responses = await self._post_batch(batch)
         result = {
@@ -567,6 +686,11 @@ class MetaAuditService:
     async def run(self, audit_id: int, db: AsyncSession) -> None:
         """
         Orchestrate: fetch all 3 batches → evaluate checks → persist results → update audit row.
+
+        When self.meta_campaign_id is set the audit is scoped to that campaign: structure
+        and insight batches are filtered to the single campaign so per-campaign scores are
+        accurate.  Account-level checks (pixel, CAPI, audiences) still evaluate the full ad
+        account because they are not campaign-specific by nature.
         """
         audit = await db.get(AdsAudit, audit_id)
         try:
@@ -611,12 +735,18 @@ class MetaAuditService:
             audit.checks_fail = score.checks_fail
             audit.checks_manual = score.checks_manual
             audit.checks_na = score.checks_na
+            # Store per-check raw values plus scope metadata
             audit.raw_data = {
-                r.check_id: {
-                    "meta_value": r.meta_value,
-                    "threshold_value": r.threshold_value,
-                }
-                for r in results
+                "_scope": {
+                    "campaign_id": self.meta_campaign_id,
+                },
+                **{
+                    r.check_id: {
+                        "meta_value": r.meta_value,
+                        "threshold_value": r.threshold_value,
+                    }
+                    for r in results
+                },
             }
             audit.completed_at = datetime.utcnow()
             await db.commit()
