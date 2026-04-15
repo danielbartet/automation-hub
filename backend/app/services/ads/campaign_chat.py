@@ -107,18 +107,16 @@ def _format_campaign_data(campaigns_metrics: list[dict]) -> str:
         purchases = sum(v for k, v in actions.items() if "purchase" in k.lower())
         cpa_purchase = next((v for k, v in cpa_map.items() if "purchase" in k.lower()), 0)
 
-        # ROAS — prefer purchase_roas field, fall back to action_values / spend
+        # ROAS — use Meta's native purchase_roas field only (same as optimizer).
+        # Do NOT fall back to action_values / spend: action_values sums revenue
+        # across ALL action types when unfiltered, and even when filtered by
+        # "purchase" it may differ from Meta's own attribution model, producing
+        # a wildly different number than what the optimizer reports.
         purchase_roas_list = metrics.get("purchase_roas", [])
         if isinstance(purchase_roas_list, list) and purchase_roas_list:
             roas = float(purchase_roas_list[0].get("value", 0) or 0)
         else:
-            action_values_list = metrics.get("action_values", [])
-            purchase_value = sum(
-                float(a.get("value", 0))
-                for a in action_values_list
-                if isinstance(a, dict) and "purchase" in a.get("action_type", "").lower()
-            )
-            roas = (purchase_value / spend) if spend > 0 else 0
+            roas = 0.0
 
         lines.append(f"""
 Campaign: {name}
