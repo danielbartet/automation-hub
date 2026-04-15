@@ -953,7 +953,7 @@ async def list_campaign_ads(
                 f"{META_BASE}/act_{ad_account_id}/ads",
                 params={
                     "campaign_id": campaign.meta_campaign_id,
-                    "fields": "id,name",
+                    "fields": "id,name,campaign_id",
                     "access_token": token,
                 },
             )
@@ -961,7 +961,11 @@ async def list_campaign_ads(
             if "error" in ads_data:
                 raise HTTPException(502, f"Meta API error: {ads_data['error'].get('message', 'unknown')}")
 
-            raw_ads = ads_data.get("data", [])
+            # Filter strictly — Meta occasionally returns stale ads from other campaigns
+            raw_ads = [
+                ad for ad in ads_data.get("data", [])
+                if ad.get("campaign_id") == campaign.meta_campaign_id
+            ]
 
             # 2. For each ad, fetch creative details
             output = []
