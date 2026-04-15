@@ -115,10 +115,10 @@ export function CreateCampaignModal({ projectSlug, projectId, onClose, onSuccess
     setConceptUploadedImages(prev => ({ ...prev, [id]: url }));
 
   useEffect(() => {
-    fetchProjectPosts(projectId)
+    fetchProjectPosts(projectId, token)
       .then((data: Post[]) => setPosts(Array.isArray(data) ? data.filter(p => p.image_url) : []))
       .catch(() => {});
-  }, [projectId]);
+  }, [projectId, token]);
 
   // Restore concepts draft from localStorage on mount
   useEffect(() => {

@@ -1,7 +1,9 @@
 const API_BASE = process.env.NEXT_PUBLIC_API_URL ?? "http://localhost:8000";
 
-export async function fetchDashboard(projectSlug: string) {
+export async function fetchDashboard(projectSlug: string, token?: string) {
+  const headers: HeadersInit = token ? { Authorization: `Bearer ${token}` } : {};
   const res = await fetch(`${API_BASE}/api/v1/dashboard/${projectSlug}`, {
+    headers,
     cache: "no-store",
   });
   if (!res.ok) throw new Error("Failed to fetch dashboard data");
@@ -231,8 +233,9 @@ export async function fetchCampaignLogs(campaignId: number) {
   return res.json();
 }
 
-export async function fetchProjectPosts(projectId: string) {
-  const res = await fetch(`${API_BASE}/api/v1/content/${projectId}`, { cache: "no-store" });
+export async function fetchProjectPosts(projectId: string, token?: string) {
+  const headers: HeadersInit = token ? { Authorization: `Bearer ${token}` } : {};
+  const res = await fetch(`${API_BASE}/api/v1/content/${projectId}`, { headers, cache: "no-store" });
   if (!res.ok) throw new Error("Failed to fetch posts");
   return res.json();
 }

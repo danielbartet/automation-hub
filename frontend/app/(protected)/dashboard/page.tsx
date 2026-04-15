@@ -114,13 +114,14 @@ export default function DashboardPage() {
 
   const loadData = useCallback(() => {
     if (!selectedSlug) return;
+    const token = (session as any)?.accessToken as string | undefined;
     setLoadingData(true);
     setError(null);
-    fetchDashboard(selectedSlug)
+    fetchDashboard(selectedSlug, token)
       .then((d) => setData(d))
       .catch((err) => setError(err.message))
       .finally(() => setLoadingData(false));
-  }, [selectedSlug]);
+  }, [selectedSlug, session]);
 
   useEffect(() => {
     loadData();
