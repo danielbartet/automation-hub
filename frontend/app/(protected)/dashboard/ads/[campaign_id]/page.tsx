@@ -33,6 +33,8 @@ import {
   type CampaignAd,
 } from "@/lib/api"
 import { Loader2, Copy, Check, X, Upload } from "lucide-react"
+import { AuditScoreCard } from "../AuditScoreCard"
+import { AuditCheckList } from "../AuditCheckList"
 
 // ─── Types ───────────────────────────────────────────────────────────────────
 
@@ -223,9 +225,11 @@ export default function CampaignDetailPage() {
   const [dateRange, setDateRange] = useState("last_30d")
   const [expandedRationale, setExpandedRationale] = useState<Record<number, boolean>>({})
 
-  // ── Ads tab state ──────────────────────────────────────────────────────────
-  const [activeTab, setActiveTab] = useState<"overview" | "ads">("overview")
+  // ── Tab state ──────────────────────────────────────────────────────────────
+  const [activeTab, setActiveTab] = useState<"overview" | "ads" | "audit">("overview")
   const [campaignAds, setCampaignAds] = useState<CampaignAd[]>([])
+  const [auditLoaded, setAuditLoaded] = useState(false)
+  const [auditId, setAuditId] = useState<number | null>(null)
   const [adsLoading, setAdsLoading] = useState(false)
   const [adsError, setAdsError] = useState<string | null>(null)
   // Per-ad edit state: adId -> { headline, primary_text }
@@ -274,10 +278,13 @@ export default function CampaignDetailPage() {
     }
   }, [token, localId])
 
-  const handleTabChange = (tab: "overview" | "ads") => {
+  const handleTabChange = (tab: "overview" | "ads" | "audit") => {
     setActiveTab(tab)
     if (tab === "ads" && campaignAds.length === 0 && !adsLoading) {
       loadCampaignAds()
+    }
+    if (tab === "audit") {
+      setAuditLoaded(true)
     }
   }
 
@@ -882,7 +889,7 @@ export default function CampaignDetailPage() {
 
         {/* ── TAB BAR ─────────────────────────────────────────────────────── */}
         <div className="flex gap-1 border-b" style={{ borderColor: "#222222" }}>
-          {(["overview", "ads"] as const).map((tab) => (
+          {(["overview", "ads", "audit"] as const).map((tab) => (
             <button
               key={tab}
               onClick={() => handleTabChange(tab)}
@@ -893,7 +900,7 @@ export default function CampaignDetailPage() {
               }`}
               style={{ marginBottom: "-1px" }}
             >
-              {tab === "overview" ? "Overview" : t.ads_tab_ads}
+              {tab === "overview" ? "Overview" : tab === "ads" ? t.ads_tab_ads : t.ads_tab_audit}
             </button>
           ))}
         </div>
@@ -1045,6 +1052,22 @@ export default function CampaignDetailPage() {
                 })}
               </div>
             )}
+          </div>
+        )}
+
+        {/* ── AUDIT TAB ───────────────────────────────────────────────────── */}
+        {activeTab === "audit" && auditLoaded && projectSlug && (
+          <div className="space-y-6 pt-4">
+            <AuditScoreCard
+              projectSlug={projectSlug}
+              onAuditCompleted={(id) => setAuditId(id)}
+            />
+            {auditId && <AuditCheckList auditId={auditId} />}
+          </div>
+        )}
+        {activeTab === "audit" && auditLoaded && !projectSlug && (
+          <div className="py-16 text-center text-sm" style={{ color: "#9ca3af" }}>
+            Project context is required to run an audit. Navigate to this campaign from the campaigns list.
           </div>
         )}
 

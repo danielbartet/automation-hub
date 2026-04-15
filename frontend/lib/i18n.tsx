@@ -20,7 +20,6 @@ export const translations = {
     nav_ads: "Ads",
     nav_campanias: "Campañas",
     nav_audiences: "Audiencias",
-    nav_audit: "Audit",
     nav_campaign_chat: "Campaign Chat",
     nav_health: "Health Monitor",
     nav_meta_health: "Meta Health",
@@ -457,6 +456,7 @@ export const translations = {
     campaign_detail_toast_copied: "Copied to clipboard",
 
     // ── Ads tab (copy editor) ────────────────────────────────────────────────
+    ads_tab_audit: "Audit",
     ads_tab_ads: "Ads",
     ads_tab_ads_loading: "Loading ads...",
     ads_tab_ads_empty: "No ads found for this campaign.",
@@ -714,7 +714,6 @@ export const translations = {
     nav_ads: "Ads",
     nav_campanias: "Campañas",
     nav_audiences: "Audiencias",
-    nav_audit: "Audit",
     nav_campaign_chat: "Campaign Chat",
     nav_health: "Health Monitor",
     nav_meta_health: "Meta Health",
@@ -1151,6 +1150,7 @@ export const translations = {
     campaign_detail_toast_copied: "Copiado al portapapeles",
 
     // ── Ads tab (copy editor) ────────────────────────────────────────────────
+    ads_tab_audit: "Auditoría",
     ads_tab_ads: "Anuncios",
     ads_tab_ads_loading: "Cargando anuncios...",
     ads_tab_ads_empty: "No se encontraron anuncios para esta campaña.",
