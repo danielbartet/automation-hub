@@ -36,7 +36,6 @@ def _detect_angle_from_content(data: dict) -> str:
 
 
 MODEL_PRICING = {
-    "claude-sonnet-4-20250514": {"input": 3.0, "output": 15.0},
     "claude-sonnet-4-6": {"input": 3.0, "output": 15.0},
 }
 
@@ -49,7 +48,7 @@ def compute_cost(model: str, input_tokens: int, output_tokens: int) -> float:
 class ClaudeClient:
     """Wrapper for Anthropic Claude API calls."""
 
-    MODEL = "claude-sonnet-4-20250514"
+    MODEL = "claude-sonnet-4-6"
 
     def __init__(self) -> None:
         self.client = Anthropic(api_key=settings.ANTHROPIC_API_KEY)
