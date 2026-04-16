@@ -357,7 +357,7 @@ export function CreateCampaignModal({ projectSlug, projectId, onClose, onSuccess
 
   return (
     <div className="fixed inset-0 bg-black/70 flex items-center justify-center z-50 p-4">
-      <div className="rounded-xl shadow-xl w-full max-w-2xl max-h-[90vh] overflow-y-auto" style={{ backgroundColor: "#111111", border: "1px solid #222222" }}>
+      <div className="rounded-xl shadow-xl w-full max-w-3xl max-h-[90vh] overflow-y-auto" style={{ backgroundColor: "#111111", border: "1px solid #222222" }}>
         {/* Header */}
         <div className="flex items-center justify-between p-6" style={{ borderBottom: "1px solid #222222" }}>
           <div>
