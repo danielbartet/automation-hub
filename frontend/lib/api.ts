@@ -361,9 +361,10 @@ export async function updateUser(token: string, id: string, data: {
   return res.json();
 }
 
-export async function fetchCampaignDetail(token: string, campaignId: string | number, projectSlug?: string) {
-  const qs = projectSlug ? `?project_slug=${projectSlug}` : ""
-  const res = await fetch(`${API_BASE}/api/v1/ads/detail/${campaignId}${qs}`, {
+export async function fetchCampaignDetail(token: string, campaignId: string | number, projectSlug?: string, datePreset: string = "last_30d") {
+  const params = new URLSearchParams({ date_preset: datePreset })
+  if (projectSlug) params.set("project_slug", projectSlug)
+  const res = await fetch(`${API_BASE}/api/v1/ads/detail/${campaignId}?${params.toString()}`, {
     headers: { Authorization: `Bearer ${token}` },
   })
   if (!res.ok) throw new Error("Failed to fetch campaign detail")

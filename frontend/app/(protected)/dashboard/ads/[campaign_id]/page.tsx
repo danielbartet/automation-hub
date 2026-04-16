@@ -126,6 +126,16 @@ interface CampaignDetail {
 
 // ─── Helpers ─────────────────────────────────────────────────────────────────
 
+const DATE_PRESET_LABELS: Record<string, string> = {
+  last_7d: "Últimos 7 días",
+  last_30d: "Últimos 30 días",
+  this_month: "Este mes",
+}
+
+function fmtPeriod(preset: string): string {
+  return DATE_PRESET_LABELS[preset] ?? preset
+}
+
 function fmt(n: number | null | undefined, prefix = "$", decimals = 2): string {
   if (n == null) return "—"
   return `${prefix}${n.toFixed(decimals)}`
@@ -248,7 +258,7 @@ export default function CampaignDetailPage() {
     if (!token || !campaignId) return
     try {
       const [data, recs] = await Promise.all([
-        fetchCampaignDetail(token, campaignId, projectSlug),
+        fetchCampaignDetail(token, campaignId, projectSlug, dateRange),
         fetchCampaignRecommendations(token, detail?.campaign?.id ?? Number(campaignId)).catch(() => null),
       ])
       setDetail(data)
@@ -259,7 +269,7 @@ export default function CampaignDetailPage() {
     } finally {
       setLoading(false)
     }
-  }, [token, campaignId, projectSlug])
+  }, [token, campaignId, projectSlug, dateRange])
 
   useEffect(() => {
     loadDetail()
@@ -478,7 +488,7 @@ export default function CampaignDetailPage() {
       <div className="space-y-4">
         {/* Row 1 — main metrics */}
         <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-6 gap-4">
-          <KPICard label={t.campaign_detail_kpi_total_spent} value={fmt(ins.total_spend)} sub={ins.period} />
+          <KPICard label={t.campaign_detail_kpi_total_spent} value={fmt(ins.total_spend)} sub={fmtPeriod(ins.period)} />
           <KPICard label={t.campaign_detail_kpi_leads} value={ins.leads != null ? String(ins.leads) : String(ins.total_results ?? "—")} sub={ins.result_label} />
           <KPICard label={t.campaign_detail_kpi_cost_lead} value={ins.cpl != null ? fmt(ins.cpl) : fmt(ins.cost_per_result)} />
           <KPICard label={t.campaign_detail_kpi_ctr} value={ins.avg_ctr != null ? `${ins.avg_ctr.toFixed(2)}%` : "—"} />
@@ -531,7 +541,7 @@ export default function CampaignDetailPage() {
       <div className="space-y-4">
         {/* Row 1 */}
         <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-6 gap-4">
-          <KPICard label={t.campaign_detail_kpi_total_spent} value={fmt(ins.total_spend)} sub={ins.period} />
+          <KPICard label={t.campaign_detail_kpi_total_spent} value={fmt(ins.total_spend)} sub={fmtPeriod(ins.period)} />
           <KPICard label={t.campaign_detail_kpi_roas} value={ins.roas != null ? `${ins.roas.toFixed(2)}x` : "—"} sub={t.campaign_detail_kpi_roas_sub} />
           <KPICard label={t.campaign_detail_kpi_purchases} value={ins.purchases != null ? String(ins.purchases) : String(ins.total_results ?? "—")} sub={ins.result_label} />
           <KPICard label={t.campaign_detail_kpi_cpa} value={ins.cost_per_purchase != null ? fmt(ins.cost_per_purchase) : fmt(ins.cost_per_result)} />
@@ -568,7 +578,7 @@ export default function CampaignDetailPage() {
       <div className="space-y-4">
         {/* Row 1 */}
         <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-6 gap-4">
-          <KPICard label={t.campaign_detail_kpi_total_spent} value={fmt(ins.total_spend)} sub={ins.period} />
+          <KPICard label={t.campaign_detail_kpi_total_spent} value={fmt(ins.total_spend)} sub={fmtPeriod(ins.period)} />
           <KPICard label={t.campaign_detail_kpi_clicks} value={ins.link_clicks != null ? ins.link_clicks.toLocaleString() : ins.total_clicks != null ? ins.total_clicks.toLocaleString() : "—"} />
           <KPICard label={t.campaign_detail_kpi_cpc} value={ins.cpc_derived != null ? fmt(ins.cpc_derived) : fmt(ins.avg_cpc)} />
           <KPICard label={t.campaign_detail_kpi_ctr} value={ins.avg_ctr != null ? `${ins.avg_ctr.toFixed(2)}%` : "—"} />

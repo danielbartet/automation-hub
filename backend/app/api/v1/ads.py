@@ -11,7 +11,7 @@ from app.core.config import settings
 from app.core.security import get_project_token
 from app.services.ads.meta_campaign import MetaCampaignService
 from pydantic import BaseModel, Field
-from datetime import datetime, timedelta, timezone
+from datetime import datetime, timezone
 import httpx
 import json
 
@@ -542,6 +542,7 @@ async def manual_optimize(
 async def get_campaign_detail(
     campaign_id: str,
     project_slug: str | None = None,
+    date_preset: str = "last_30d",
     db: AsyncSession = Depends(get_session),
 ) -> dict:
     """Return full campaign detail. campaign_id can be a DB integer id or a Meta campaign ID string."""
@@ -585,10 +586,10 @@ async def get_campaign_detail(
     adsets_raw: list = []
     ads_raw: list = []
 
-    # Build a custom date range: 30 days ago → today (inclusive)
-    today = datetime.now(timezone.utc).date()
-    since = today - timedelta(days=29)
-    time_range = {"since": str(since), "until": str(today)}
+    # Validate and normalise the date_preset parameter
+    allowed_presets = {"last_7d", "last_30d", "this_month"}
+    if date_preset not in allowed_presets:
+        date_preset = "last_30d"
 
     if token and meta_campaign_id:
         try:
@@ -603,12 +604,12 @@ async def get_campaign_detail(
                 )
                 campaign_info = ci_resp.json()
 
-                # b. Insights last 30d (summary)
+                # b. Insights for the selected period (summary)
                 ins_resp = await client.get(
                     f"{META_BASE}/{meta_campaign_id}/insights",
                     params={
                         "fields": "spend,impressions,reach,clicks,ctr,cpc,cpm,frequency,actions,action_values,cost_per_action_type,purchase_roas",
-                        "time_range": json.dumps(time_range),
+                        "date_preset": date_preset,
                         "access_token": token,
                     },
                 )
@@ -621,7 +622,7 @@ async def get_campaign_detail(
                     f"{META_BASE}/{meta_campaign_id}/insights",
                     params={
                         "fields": "spend,impressions,reach,clicks,ctr,cpc,cpm,frequency,actions,action_values,cost_per_action_type,purchase_roas",
-                        "time_range": json.dumps(time_range),
+                        "date_preset": date_preset,
                         "time_increment": "1",
                         "access_token": token,
                     },
@@ -787,7 +788,7 @@ async def get_campaign_detail(
         cost_per_purchase = None
 
     insights_summary = {
-        "period": f"{since} / {today}",
+        "period": date_preset,
         "total_spend": total_spend,
         "total_impressions": total_impressions,
         "total_reach": total_reach,
