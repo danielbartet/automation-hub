@@ -435,13 +435,14 @@ export default function ContentPage() {
 
   const loadContent = useCallback(() => {
     if (!selectedProjectSlug) return;
+    const token = (session as any)?.accessToken as string | undefined;
     setLoadingContent(true);
     setError(null);
-    fetchContent(selectedProjectSlug)
+    fetchContent(selectedProjectSlug, token)
       .then((data) => setContent(Array.isArray(data) ? data : []))
       .catch((err) => setError(err.message))
       .finally(() => setLoadingContent(false));
-  }, [selectedProjectSlug]);
+  }, [selectedProjectSlug, session]);
 
   useEffect(() => {
     loadContent();

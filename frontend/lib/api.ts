@@ -69,8 +69,9 @@ export async function updateProject(slug: string, data: {
   return res.json();
 }
 
-export async function fetchContent(projectSlug: string) {
-  const res = await fetch(`${API_BASE}/api/v1/content/list/${projectSlug}?per_page=100`, { cache: "no-store" });
+export async function fetchContent(projectSlug: string, token?: string) {
+  const headers: HeadersInit = token ? { Authorization: `Bearer ${token}` } : {};
+  const res = await fetch(`${API_BASE}/api/v1/content/list/${projectSlug}?per_page=100`, { headers, cache: "no-store" });
   if (!res.ok) throw new Error("Failed to fetch content");
   const data = await res.json();
   // /list/{slug} returns { items: [...], total, page, per_page }
@@ -99,8 +100,9 @@ export async function generateContent(
   return res.json();
 }
 
-export async function fetchAds(projectId: string) {
-  const res = await fetch(`${API_BASE}/api/v1/ads/${projectId}`, { cache: "no-store" });
+export async function fetchAds(projectId: string, token?: string) {
+  const headers: HeadersInit = token ? { Authorization: `Bearer ${token}` } : {};
+  const res = await fetch(`${API_BASE}/api/v1/ads/${projectId}`, { headers, cache: "no-store" });
   if (!res.ok) throw new Error("Failed to fetch ads");
   return res.json();
 }
@@ -172,10 +174,13 @@ export async function batchGenerateContent(
 export async function fetchContentByDateRange(
   projectSlug: string,
   dateFrom: string,
-  dateTo: string
+  dateTo: string,
+  token?: string
 ) {
   const params = new URLSearchParams({ date_from: dateFrom, date_to: dateTo });
+  const headers: HeadersInit = token ? { Authorization: `Bearer ${token}` } : {};
   const res = await fetch(`${API_BASE}/api/v1/content/list/${projectSlug}?${params}`, {
+    headers,
     cache: "no-store",
   });
   if (!res.ok) throw new Error("Failed to fetch content");

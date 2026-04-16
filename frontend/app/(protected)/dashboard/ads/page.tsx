@@ -130,7 +130,7 @@ export default function AdsPage() {
     if (!selectedSlug) return;
     setLoadingData(true);
     setError(null);
-    fetchDashboard(selectedSlug)
+    fetchDashboard(selectedSlug, token)
       .then((d) => {
         setData(d);
         // Fetch recommendations in parallel for all active campaigns

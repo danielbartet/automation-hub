@@ -110,6 +110,7 @@ export default function CalendarPage() {
 
   const loadPosts = async (project: Project, date: Date, viewMode: "week" | "month") => {
     if (!project) return;
+    const token = (session as any)?.accessToken as string | undefined;
     setLoading(true);
     try {
       let from: Date, to: Date;
@@ -126,7 +127,8 @@ export default function CalendarPage() {
       const data = await fetchContentByDateRange(
         project.slug,
         from.toISOString(),
-        to.toISOString()
+        to.toISOString(),
+        token
       );
       setPosts(data.items || []);
     } catch (e) {
