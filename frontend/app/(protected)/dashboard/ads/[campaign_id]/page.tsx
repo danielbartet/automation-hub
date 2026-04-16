@@ -1111,12 +1111,9 @@ export default function CampaignDetailPage() {
           </div>
         )}
 
-        {/* ── KPI CARDS ───────────────────────────────────────────────────── */}
-        {activeTab === "overview" && kpiRows}
-
-        {/* ── DATE RANGE + CHARTS ─────────────────────────────────────────── */}
-        {activeTab === "overview" && <div>
-          <div className="flex items-center gap-2 mb-4">
+        {/* ── DATE RANGE TOGGLE ───────────────────────────────────────────── */}
+        {activeTab === "overview" && (
+          <div className="flex items-center gap-2 mb-6">
             <span className="text-gray-400 text-sm">{t.campaign_detail_period}</span>
             {(["last_7d", "last_30d", "this_month"] as const).map((r) => (
               <button
@@ -1133,7 +1130,13 @@ export default function CampaignDetailPage() {
               </button>
             ))}
           </div>
+        )}
 
+        {/* ── KPI CARDS ───────────────────────────────────────────────────── */}
+        {activeTab === "overview" && kpiRows}
+
+        {/* ── CHARTS ──────────────────────────────────────────────────────── */}
+        {activeTab === "overview" && <div>
           <div className="grid grid-cols-1 lg:grid-cols-2 gap-4">
             {/* Left — Daily Spend */}
             <div className="rounded-lg p-4" style={{ backgroundColor: "#111111", border: "1px solid #222222" }}>
