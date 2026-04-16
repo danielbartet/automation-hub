@@ -140,11 +140,16 @@ export async function updateContent(
     slides?: unknown[];
     scheduled_at?: string;
     status?: string;
-  }
+  },
+  token?: string
 ) {
+  const headers: HeadersInit = {
+    "Content-Type": "application/json",
+    ...(token ? { Authorization: `Bearer ${token}` } : {}),
+  };
   const res = await fetch(`${API_BASE}/api/v1/content/${contentId}`, {
     method: "PUT",
-    headers: { "Content-Type": "application/json" },
+    headers,
     body: JSON.stringify(data),
   });
   if (!res.ok) throw new Error("Failed to update content");

@@ -1,5 +1,6 @@
 "use client";
 import { useState } from "react";
+import { useSession } from "next-auth/react";
 import { X, Loader2, CalendarDays, Pencil, Trash2 } from "lucide-react";
 import { batchGenerateContent, updateContent } from "@/lib/api";
 import { EditContentModal } from "./EditContentModal";
@@ -85,6 +86,7 @@ export function PlanContentModal({
   onClose,
   onSuccess,
 }: PlanContentModalProps) {
+  const { data: session } = useSession();
   const [projectSlug, setProjectSlug] = useState(defaultProject.slug);
   const [period, setPeriod] = useState("this_week");
   const [customStart, setCustomStart] = useState("");
@@ -129,7 +131,8 @@ export function PlanContentModal({
     if (!batchResult) return;
     setLoading(true);
     try {
-      await Promise.all(batchResult.map((p) => updateContent(p.id, { status: "pending_approval" })));
+      const token = (session as any)?.accessToken as string | undefined;
+      await Promise.all(batchResult.map((p) => updateContent(p.id, { status: "pending_approval" }, token)));
       onSuccess();
     } catch (e) {
       setError(e instanceof Error ? e.message : "Failed");

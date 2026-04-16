@@ -25,6 +25,7 @@ interface ReelModalProps {
 
 function ReelModal({ post, projectSlug, onClose, onSuccess }: ReelModalProps) {
   const t = useT();
+  const { data: session } = useSession();
   const [tab, setTab] = useState<"upload" | "kling">("upload");
   const [videoFile, setVideoFile] = useState<File | null>(null);
   const [uploading, setUploading] = useState(false);
@@ -64,7 +65,8 @@ function ReelModal({ post, projectSlug, onClose, onSuccess }: ReelModalProps) {
       const { url: videoUrl } = await uploadRes.json();
 
       // Save video_url to the post
-      await updateContent(post.id, { video_url: videoUrl });
+      const token = (session as any)?.accessToken as string | undefined;
+      await updateContent(post.id, { video_url: videoUrl }, token);
 
       // Trigger publish/n8n
       await fetch(`${API_BASE}/api/v1/content/${post.id}/publish`, { method: "POST" }).catch(() => {});

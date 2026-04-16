@@ -1,5 +1,6 @@
 "use client";
 import { useState } from "react";
+import { useSession } from "next-auth/react";
 import { X, Loader2, ImageIcon, RefreshCw, Wand2, Upload } from "lucide-react";
 import { generateImage, buildAutoPrompt, updateContent } from "@/lib/api";
 import { ImageUploadZone } from "@/components/dashboard/ImageUploadZone";
@@ -39,6 +40,7 @@ export function ImageGeneratorModal({
   slideIndex,
   onImageSaved,
 }: ImageGeneratorModalProps) {
+  const { data: session } = useSession();
   const defaultPalette =
     (project.media_config?.image_color_palette as string) || "dark_purple";
 
@@ -85,6 +87,7 @@ export function ImageGeneratorModal({
     setSaving(true);
     setError(null);
     try {
+      const token = (session as any)?.accessToken as string | undefined;
       if (slideIndex !== undefined) {
         // Update only the specific slide in image_urls
         const currentUrls: string[] = Array.isArray(post.image_urls)
@@ -97,10 +100,10 @@ export function ImageGeneratorModal({
           currentUrls.push("");
         }
         currentUrls[slideIndex] = generatedUrl;
-        await updateContent(post.id, { image_urls: currentUrls });
+        await updateContent(post.id, { image_urls: currentUrls }, token);
         onImageSaved(generatedUrl, slideIndex);
       } else {
-        await updateContent(post.id, { image_url: generatedUrl });
+        await updateContent(post.id, { image_url: generatedUrl }, token);
         onImageSaved(generatedUrl);
       }
       onClose();
@@ -118,6 +121,7 @@ export function ImageGeneratorModal({
     setSaving(true);
     setError(null);
     try {
+      const token = (session as any)?.accessToken as string | undefined;
       if (slideIndex !== undefined) {
         const currentUrls: string[] = Array.isArray(post.image_urls)
           ? [...post.image_urls]
@@ -128,10 +132,10 @@ export function ImageGeneratorModal({
           currentUrls.push("");
         }
         currentUrls[slideIndex] = uploadedUrl;
-        await updateContent(post.id, { image_urls: currentUrls });
+        await updateContent(post.id, { image_urls: currentUrls }, token);
         onImageSaved(uploadedUrl, slideIndex);
       } else {
-        await updateContent(post.id, { image_url: uploadedUrl });
+        await updateContent(post.id, { image_url: uploadedUrl }, token);
         onImageSaved(uploadedUrl);
       }
       onClose();

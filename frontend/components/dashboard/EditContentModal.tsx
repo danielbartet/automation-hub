@@ -1,5 +1,6 @@
 "use client";
 import { useState } from "react";
+import { useSession } from "next-auth/react";
 import { X, Loader2, Save, CheckCircle, XCircle, Sparkles, RefreshCw, Instagram } from "lucide-react";
 import { ImageUploadZone } from "./ImageUploadZone";
 import { updateContent, rerenderSlide, retryInstagram, retryFacebook } from "@/lib/api";
@@ -55,6 +56,7 @@ function parseImageUrls(raw: string | string[] | undefined, fallbackUrl?: string
 }
 
 export function EditContentModal({ post, projectSlug, project, onClose, onSaved }: EditContentModalProps) {
+  const { data: session } = useSession();
   const isPublished = post.status === "published";
   const [caption, setCaption] = useState(post.caption || "");
   const [imageUrl, setImageUrl] = useState(post.image_url || "");
@@ -89,6 +91,7 @@ export function EditContentModal({ post, projectSlug, project, onClose, onSaved 
         .split(",")
         .map((t) => t.trim().replace(/^#/, ""))
         .filter(Boolean);
+      const token = (session as any)?.accessToken as string | undefined;
       await updateContent(post.id, {
         caption,
         image_url: imageUrl || undefined,
@@ -96,7 +99,7 @@ export function EditContentModal({ post, projectSlug, project, onClose, onSaved 
         hashtags: tags,
         slides: slides.length > 0 ? slides : undefined,
         scheduled_at: scheduledAt || undefined,
-      });
+      }, token);
       onSaved();
       onClose();
     } catch (e) {
@@ -140,10 +143,11 @@ export function EditContentModal({ post, projectSlug, project, onClose, onSaved 
     setLoading(true);
     setError(null);
     try {
+      const token = (session as any)?.accessToken as string | undefined;
       await updateContent(post.id, {
         status: newStatus,
         scheduled_at: scheduledAt || undefined,
-      });
+      }, token);
       onSaved();
       onClose();
     } catch (e) {
