@@ -193,7 +193,7 @@ export function CreateCampaignModal({ projectSlug, projectId, onClose, onSuccess
         destination_url: destinationUrlStep1 || undefined,
         audience_type: audienceType,
         pixel_event: objective === "OUTCOME_SALES" ? pixelEvent : undefined,
-      });
+      }, token);
       setConcepts(result.concepts);
       setDiversityAudit(result.diversity_audit);
       // Approve all by default
@@ -213,7 +213,7 @@ export function CreateCampaignModal({ projectSlug, projectId, onClose, onSuccess
       destination_url: destinationUrlStep1 || undefined,
       audience_type: audienceType,
       pixel_event: objective === "OUTCOME_SALES" ? pixelEvent : undefined,
-    });
+    }, token);
     const newConcept = result.concepts[0];
     if (!newConcept) return;
     const wasApproved = approvedIds.has(conceptId);
@@ -274,7 +274,7 @@ export function CreateCampaignModal({ projectSlug, projectId, onClose, onSuccess
             format: c.format,
             image_url: conceptImages[c.id] || conceptUploadedImages[c.id] || undefined,
           })),
-        });
+        }, token);
       } else {
         // Legacy single-creative path
         await createCampaign(projectSlug, {
@@ -291,7 +291,7 @@ export function CreateCampaignModal({ projectSlug, projectId, onClose, onSuccess
           lookalike_audience_ids: lookalikeAudienceIds,
           placements,
           advantage_placements: advantagePlacements,
-        });
+        }, token);
       }
       localStorage.removeItem(`ad_concepts_draft_${projectSlug}`);
       onSuccess();

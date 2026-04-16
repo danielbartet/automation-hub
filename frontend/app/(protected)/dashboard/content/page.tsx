@@ -51,11 +51,13 @@ function ReelModal({ post, projectSlug, onClose, onSuccess }: ReelModalProps) {
     setUploading(true);
     setError(null);
     try {
+      const token = (session as any)?.accessToken as string | undefined;
       // Upload file to S3
       const formData = new FormData();
       formData.append("file", videoFile);
       const uploadRes = await fetch(`${API_BASE}/api/v1/upload/${projectSlug}`, {
         method: "POST",
+        headers: token ? { Authorization: `Bearer ${token}` } : {},
         body: formData,
       });
       if (!uploadRes.ok) {
@@ -65,11 +67,13 @@ function ReelModal({ post, projectSlug, onClose, onSuccess }: ReelModalProps) {
       const { url: videoUrl } = await uploadRes.json();
 
       // Save video_url to the post
-      const token = (session as any)?.accessToken as string | undefined;
       await updateContent(post.id, { video_url: videoUrl }, token);
 
       // Trigger publish/n8n
-      await fetch(`${API_BASE}/api/v1/content/${post.id}/publish`, { method: "POST" }).catch(() => {});
+      await fetch(`${API_BASE}/api/v1/content/${post.id}/publish`, {
+        method: "POST",
+        headers: token ? { Authorization: `Bearer ${token}` } : {},
+      }).catch(() => {});
 
       onSuccess();
       onClose();
@@ -191,6 +195,7 @@ interface StoryCreatorModalProps {
 
 function StoryCreatorModal({ projectSlug, onClose, onSuccess }: StoryCreatorModalProps) {
   const t = useT();
+  const { data: storySession } = useSession();
   const [imageUrl, setImageUrl] = useState("");
   const [textOverlay, setTextOverlay] = useState("");
   const [scheduledAt, setScheduledAt] = useState("");
@@ -205,13 +210,14 @@ function StoryCreatorModal({ projectSlug, onClose, onSuccess }: StoryCreatorModa
     setLoading(true);
     setError(null);
     try {
+      const storyToken = (storySession as any)?.accessToken as string | undefined;
       const body: Record<string, unknown> = { image_url: imageUrl };
       if (textOverlay.trim()) body.text_overlay = textOverlay.trim();
       if (scheduledAt) body.scheduled_at = scheduledAt;
 
       const res = await fetch(`${API_BASE}/api/v1/content/create-story/${projectSlug}`, {
         method: "POST",
-        headers: { "Content-Type": "application/json" },
+        headers: { "Content-Type": "application/json", ...(storyToken ? { Authorization: `Bearer ${storyToken}` } : {}) },
         body: JSON.stringify(body),
       });
 
@@ -401,7 +407,8 @@ export default function ContentPage() {
     if (!selectedProjectSlug) return;
     setImportingMeta(true);
     try {
-      const result = await importFromMeta(selectedProjectSlug);
+      const token = (session as any)?.accessToken as string | undefined;
+      const result = await importFromMeta(selectedProjectSlug, token);
       showToast("success", result.message || t.content_import_success(result.imported));
       loadContent();
     } catch (err) {

@@ -342,7 +342,7 @@ export default function CampaignDetailPage() {
     if (!token) return
     setOptimizing(true)
     try {
-      const result = await optimizeCampaign(localId)
+      const result = await optimizeCampaign(localId, token)
       showToast(t.campaign_detail_toast_analysis(result.decision || ""))
       const fresh = await fetchCampaignDetail(token, campaignId)
       setDetail(fresh)
@@ -356,7 +356,7 @@ export default function CampaignDetailPage() {
   const handleStatusChange = async (status: string) => {
     setStatusChanging(true)
     try {
-      await updateCampaignStatus(localId, status as "active" | "paused")
+      await updateCampaignStatus(localId, status as "active" | "paused", token)
       const fresh = await fetchCampaignDetail(token, campaignId)
       setDetail(fresh)
       showToast(status === "paused" ? t.campaign_detail_toast_paused : t.campaign_detail_toast_activated)

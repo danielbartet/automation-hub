@@ -1,5 +1,6 @@
 "use client";
 import { useEffect, useState } from "react";
+import { useSession } from "next-auth/react";
 import { X, Loader2, TrendingUp, TrendingDown, Minus, Zap, Play, Pause } from "lucide-react";
 import { fetchCampaignLogs, optimizeCampaign, updateCampaignStatus } from "@/lib/api";
 
@@ -43,6 +44,7 @@ interface OptimizeResult {
 }
 
 export function CampaignOptimizationPanel({ campaign, onClose, onStatusChanged }: CampaignOptimizationPanelProps) {
+  const { data: session } = useSession();
   const [logs, setLogs] = useState<OptLog[]>([]);
   const [loading, setLoading] = useState(true);
   const [optimizing, setOptimizing] = useState(false);
@@ -51,19 +53,21 @@ export function CampaignOptimizationPanel({ campaign, onClose, onStatusChanged }
   const [latestResult, setLatestResult] = useState<OptimizeResult | null>(null);
 
   useEffect(() => {
-    fetchCampaignLogs(campaign.id)
+    const token = (session as any)?.accessToken as string | undefined;
+    fetchCampaignLogs(campaign.id, token)
       .then(setLogs)
       .catch((e: Error) => setError(e.message))
       .finally(() => setLoading(false));
-  }, [campaign.id]);
+  }, [campaign.id, session]);
 
   const handleOptimize = async () => {
     setOptimizing(true); setError(null); setLatestResult(null);
     try {
-      const result = await optimizeCampaign(campaign.id);
+      const token = (session as any)?.accessToken as string | undefined;
+      const result = await optimizeCampaign(campaign.id, token);
       setLatestResult(result);
       // Reload logs
-      const newLogs = await fetchCampaignLogs(campaign.id);
+      const newLogs = await fetchCampaignLogs(campaign.id, token);
       setLogs(newLogs);
     } catch (e) {
       setError(e instanceof Error ? e.message : "Optimization failed");
@@ -75,8 +79,9 @@ export function CampaignOptimizationPanel({ campaign, onClose, onStatusChanged }
   const handleToggleStatus = async () => {
     setToggling(true); setError(null);
     try {
+      const token = (session as any)?.accessToken as string | undefined;
       const newStatus = campaign.status === "active" ? "paused" : "active";
-      await updateCampaignStatus(campaign.id, newStatus);
+      await updateCampaignStatus(campaign.id, newStatus, token);
       onStatusChanged();
     } catch (e) {
       setError(e instanceof Error ? e.message : "Failed to update status");

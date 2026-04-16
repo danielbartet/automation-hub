@@ -67,12 +67,13 @@ export function ImageGeneratorModal({
     setGenerating(true);
     setError(null);
     try {
+      const token = (session as any)?.accessToken as string | undefined;
       const result = await generateImage(post.id, {
         prompt: prompt.trim() || undefined,
         style,
         aspect_ratio: aspectRatio,
         color_palette: colorPalette,
-      });
+      }, token);
       setGeneratedUrl(result.image_url);
       setCredits(result.credits_remaining);
     } catch (e) {

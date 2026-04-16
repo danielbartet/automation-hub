@@ -168,7 +168,7 @@ export function MetaAssetSelectModal({ slug, assets, onClose, onSuccess, authTok
           ...(selectedPageId ? { facebook_page_id: selectedPageId } : {}),
           ...(selectedInstagramId ? { instagram_account_id: selectedInstagramId } : {}),
           ...(selectedAdAccountId ? { ad_account_id: selectedAdAccountId } : {}),
-        });
+        }, authToken);
       }
       onSuccess(updated);
     } catch (err) {

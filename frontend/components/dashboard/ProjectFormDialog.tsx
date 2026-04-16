@@ -212,6 +212,7 @@ export function ProjectFormDialog({ project, onClose, onSuccess }: ProjectFormDi
     setLoading(true);
     setError(null);
     try {
+      const token = (session as any)?.accessToken as string | undefined;
       const updatedContentConfig = {
         ...cc,
         tone,
@@ -255,7 +256,7 @@ export function ProjectFormDialog({ project, onClose, onSuccess }: ProjectFormDi
         facebook_page_id: facebookPageId || undefined,
         instagram_account_id: instagramAccountId || undefined,
         ad_account_id: adAccountId || undefined,
-      });
+      }, token);
 
       onSuccess(result);
       onClose();

@@ -114,7 +114,8 @@ export function EditContentModal({ post, projectSlug, project, onClose, onSaved 
     setError(null);
     setRetrySuccess(false);
     try {
-      await retryInstagram(post.id);
+      const token = (session as any)?.accessToken as string | undefined;
+      await retryInstagram(post.id, token);
       setRetrySuccess(true);
       onSaved();
     } catch (e) {
@@ -129,7 +130,8 @@ export function EditContentModal({ post, projectSlug, project, onClose, onSaved 
     setError(null);
     setRetryFbSuccess(false);
     try {
-      await retryFacebook(post.id);
+      const token = (session as any)?.accessToken as string | undefined;
+      await retryFacebook(post.id, token);
       setRetryFbSuccess(true);
       onSaved();
     } catch (e) {
@@ -165,7 +167,8 @@ export function EditContentModal({ post, projectSlug, project, onClose, onSaved 
     setRerenderingSlides((prev) => new Set(prev).add(slideIdx));
     setError(null);
     try {
-      const result = await rerenderSlide(post.id, slideIdx);
+      const token = (session as any)?.accessToken as string | undefined;
+      const result = await rerenderSlide(post.id, slideIdx, token);
       setSlideImageUrls((prev) => {
         const next = [...prev];
         while (next.length <= slideIdx) next.push("");

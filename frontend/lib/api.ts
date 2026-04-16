@@ -56,10 +56,10 @@ export async function updateProject(slug: string, data: {
   instagram_account_id?: string;
   ad_account_id?: string;
   n8n_webhook_base_url?: string;
-}) {
+}, token?: string) {
   const res = await fetch(`${API_BASE}/api/v1/projects/${slug}`, {
     method: "PUT",
-    headers: { "Content-Type": "application/json" },
+    headers: { "Content-Type": "application/json", ...(token ? { Authorization: `Bearer ${token}` } : {}) },
     body: JSON.stringify(data),
   });
   if (!res.ok) {
@@ -85,16 +85,16 @@ export async function generateContent(
     category?: string;
     hint?: string;
     image_mode?: string;
-  }
+  },
+  token?: string
 ) {
   const res = await fetch(`${API_BASE}/api/v1/content/generate/${projectSlug}`, {
     method: "POST",
-    ...(body
-      ? {
-          headers: { "Content-Type": "application/json" },
-          body: JSON.stringify(body),
-        }
-      : {}),
+    headers: {
+      ...(token ? { Authorization: `Bearer ${token}` } : {}),
+      ...(body ? { "Content-Type": "application/json" } : {}),
+    },
+    ...(body ? { body: JSON.stringify(body) } : {}),
   });
   if (!res.ok) throw new Error("Failed to generate content");
   return res.json();
@@ -118,11 +118,12 @@ export async function createContentManual(
     caption?: string;
     hashtags?: string[];
     scheduled_at?: string;
-  }
+  },
+  token?: string
 ) {
   const res = await fetch(`${API_BASE}/api/v1/content/create/${projectSlug}`, {
     method: "POST",
-    headers: { "Content-Type": "application/json" },
+    headers: { "Content-Type": "application/json", ...(token ? { Authorization: `Bearer ${token}` } : {}) },
     body: JSON.stringify(data),
   });
   if (!res.ok) throw new Error("Failed to create content");
@@ -165,11 +166,12 @@ export async function batchGenerateContent(
     days_of_week: number[];
     publish_time: string;
     content_type?: string;
-  }
+  },
+  token?: string
 ) {
   const res = await fetch(`${API_BASE}/api/v1/content/batch/${projectSlug}`, {
     method: "POST",
-    headers: { "Content-Type": "application/json" },
+    headers: { "Content-Type": "application/json", ...(token ? { Authorization: `Bearer ${token}` } : {}) },
     body: JSON.stringify(data),
   });
   if (!res.ok) throw new Error("Failed to batch generate");
@@ -206,10 +208,10 @@ export async function createCampaign(projectSlug: string, data: {
   lookalike_audience_ids?: string[];
   placements?: string[];
   advantage_placements?: boolean;
-}) {
+}, token?: string) {
   const res = await fetch(`${API_BASE}/api/v1/ads/create/${projectSlug}`, {
     method: "POST",
-    headers: { "Content-Type": "application/json" },
+    headers: { "Content-Type": "application/json", ...(token ? { Authorization: `Bearer ${token}` } : {}) },
     body: JSON.stringify(data),
   });
   if (!res.ok) {
@@ -219,26 +221,28 @@ export async function createCampaign(projectSlug: string, data: {
   return res.json();
 }
 
-export async function updateCampaignStatus(campaignId: number, status: "active" | "paused") {
+export async function updateCampaignStatus(campaignId: number, status: "active" | "paused", token?: string) {
   const res = await fetch(`${API_BASE}/api/v1/ads/${campaignId}/status`, {
     method: "PUT",
-    headers: { "Content-Type": "application/json" },
+    headers: { "Content-Type": "application/json", ...(token ? { Authorization: `Bearer ${token}` } : {}) },
     body: JSON.stringify({ status }),
   });
   if (!res.ok) throw new Error("Failed to update campaign status");
   return res.json();
 }
 
-export async function optimizeCampaign(campaignId: number) {
+export async function optimizeCampaign(campaignId: number, token?: string) {
   const res = await fetch(`${API_BASE}/api/v1/ads/${campaignId}/optimize`, {
     method: "POST",
+    ...(token ? { headers: { Authorization: `Bearer ${token}` } } : {}),
   });
   if (!res.ok) throw new Error("Failed to run optimization");
   return res.json();
 }
 
-export async function fetchCampaignLogs(campaignId: number) {
-  const res = await fetch(`${API_BASE}/api/v1/ads/${campaignId}/logs`, { cache: "no-store" });
+export async function fetchCampaignLogs(campaignId: number, token?: string) {
+  const headers: HeadersInit = token ? { Authorization: `Bearer ${token}` } : {};
+  const res = await fetch(`${API_BASE}/api/v1/ads/${campaignId}/logs`, { headers, cache: "no-store" });
   if (!res.ok) throw new Error("Failed to fetch logs");
   return res.json();
 }
@@ -385,7 +389,8 @@ export async function generateAdConcepts(
     audience_type?: string;
     pixel_event?: string;
     excluded_hooks?: string[];
-  }
+  },
+  token?: string
 ): Promise<{
   project_slug: string;
   objective: string;
@@ -394,7 +399,7 @@ export async function generateAdConcepts(
 }> {
   const res = await fetch(`${API_BASE}/api/v1/ads/generate-concepts/${projectSlug}`, {
     method: "POST",
-    headers: { "Content-Type": "application/json" },
+    headers: { "Content-Type": "application/json", ...(token ? { Authorization: `Bearer ${token}` } : {}) },
     body: JSON.stringify({ count: 12, ...data }),
   });
   if (!res.ok) {
@@ -449,11 +454,12 @@ export async function createCampaignWithConcepts(
       format: string;
       image_url?: string;
     }>;
-  }
+  },
+  token?: string
 ) {
   const res = await fetch(`${API_BASE}/api/v1/ads/create/${projectSlug}`, {
     method: "POST",
-    headers: { "Content-Type": "application/json" },
+    headers: { "Content-Type": "application/json", ...(token ? { Authorization: `Bearer ${token}` } : {}) },
     body: JSON.stringify(data),
   });
   if (!res.ok) {
@@ -476,9 +482,10 @@ export async function generateConceptImage(
   return res.json();
 }
 
-export async function generateVideo(contentId: number): Promise<{ video_url: string; credits_remaining: number }> {
+export async function generateVideo(contentId: number, token?: string): Promise<{ video_url: string; credits_remaining: number }> {
   const res = await fetch(`${API_BASE}/api/v1/content/${contentId}/generate-video`, {
     method: "POST",
+    ...(token ? { headers: { Authorization: `Bearer ${token}` } } : {}),
   });
   if (!res.ok) {
     const err = await res.json().catch(() => ({}));
@@ -487,7 +494,7 @@ export async function generateVideo(contentId: number): Promise<{ video_url: str
   return res.json();
 }
 
-export async function importCampaigns(projectSlug: string): Promise<{
+export async function importCampaigns(projectSlug: string, token?: string): Promise<{
   imported: number
   updated: number
   total: number
@@ -502,7 +509,9 @@ export async function importCampaigns(projectSlug: string): Promise<{
     action: "imported" | "updated"
   }>
 }> {
+  const headers: HeadersInit = token ? { Authorization: `Bearer ${token}` } : {};
   const res = await fetch(`${API_BASE}/api/v1/ads/import/${projectSlug}`, {
+    headers,
     cache: "no-store",
   });
   if (!res.ok) {
@@ -512,9 +521,10 @@ export async function importCampaigns(projectSlug: string): Promise<{
   return res.json();
 }
 
-export async function importFromMeta(projectSlug: string): Promise<{ imported: number; skipped: number; errors: string[]; message: string }> {
+export async function importFromMeta(projectSlug: string, token?: string): Promise<{ imported: number; skipped: number; errors: string[]; message: string }> {
   const res = await fetch(`${API_BASE}/api/v1/content/import-from-meta/${projectSlug}`, {
     method: "POST",
+    ...(token ? { headers: { Authorization: `Bearer ${token}` } } : {}),
   });
   if (!res.ok) {
     const err = await res.json().catch(() => ({}));
@@ -523,9 +533,10 @@ export async function importFromMeta(projectSlug: string): Promise<{ imported: n
   return res.json();
 }
 
-export async function retryInstagram(contentId: number): Promise<{ success: boolean; instagram_media_id: string }> {
+export async function retryInstagram(contentId: number, token?: string): Promise<{ success: boolean; instagram_media_id: string }> {
   const res = await fetch(`${API_BASE}/api/v1/content/${contentId}/retry-instagram`, {
     method: "POST",
+    ...(token ? { headers: { Authorization: `Bearer ${token}` } } : {}),
   });
   if (!res.ok) {
     const err = await res.json().catch(() => ({}));
@@ -534,9 +545,10 @@ export async function retryInstagram(contentId: number): Promise<{ success: bool
   return res.json();
 }
 
-export async function retryFacebook(contentId: number): Promise<{ success: boolean; facebook_post_id: string }> {
+export async function retryFacebook(contentId: number, token?: string): Promise<{ success: boolean; facebook_post_id: string }> {
   const res = await fetch(`${API_BASE}/api/v1/content/${contentId}/retry-facebook`, {
     method: "POST",
+    ...(token ? { headers: { Authorization: `Bearer ${token}` } } : {}),
   });
   if (!res.ok) {
     const err = await res.json().catch(() => ({}));
@@ -547,11 +559,12 @@ export async function retryFacebook(contentId: number): Promise<{ success: boole
 
 export async function rerenderSlide(
   contentId: number,
-  slideIndex: number
+  slideIndex: number,
+  token?: string
 ): Promise<{ image_url: string; slide_index: number }> {
   const res = await fetch(`${API_BASE}/api/v1/content/${contentId}/rerender-slide`, {
     method: "POST",
-    headers: { "Content-Type": "application/json" },
+    headers: { "Content-Type": "application/json", ...(token ? { Authorization: `Bearer ${token}` } : {}) },
     body: JSON.stringify({ slide_index: slideIndex }),
   });
   if (!res.ok) {
@@ -568,11 +581,12 @@ export async function generateImage(
     style?: string;
     aspect_ratio?: string;
     color_palette?: string;
-  }
+  },
+  token?: string
 ): Promise<{ image_url: string; credits_remaining: number }> {
   const res = await fetch(`${API_BASE}/api/v1/content/${contentId}/generate-image`, {
     method: "POST",
-    headers: { "Content-Type": "application/json" },
+    headers: { "Content-Type": "application/json", ...(token ? { Authorization: `Bearer ${token}` } : {}) },
     body: JSON.stringify(body),
   });
   if (!res.ok) {
@@ -731,7 +745,8 @@ export async function fetchCampaignRecommendations(
 
 export async function recommendToday(
   projectSlug: string,
-  forceRefresh = false
+  forceRefresh = false,
+  token?: string
 ): Promise<{
   recommendation: {
     format: string;
@@ -763,7 +778,7 @@ export async function recommendToday(
 }> {
   const res = await fetch(`${API_BASE}/api/v1/content/recommend-today/${projectSlug}`, {
     method: "POST",
-    headers: { "Content-Type": "application/json" },
+    headers: { "Content-Type": "application/json", ...(token ? { Authorization: `Bearer ${token}` } : {}) },
     body: JSON.stringify({ force_refresh: forceRefresh }),
   });
   if (!res.ok) {

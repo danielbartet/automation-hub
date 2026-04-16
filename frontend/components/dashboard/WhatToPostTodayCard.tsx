@@ -1,5 +1,6 @@
 "use client";
 import { useState, useEffect } from "react";
+import { useSession } from "next-auth/react";
 import { Calendar, Sparkles, Clock, AlertTriangle, RefreshCw, CalendarDays, Loader2 } from "lucide-react";
 import { recommendToday } from "@/lib/api";
 import { useT, useLang } from "@/lib/i18n";
@@ -50,6 +51,7 @@ function getTodayLabel(lang: string) {
 export function WhatToPostTodayCard({ projectSlug, onGenerateContent, onPlanWeek }: WhatToPostTodayCardProps) {
   const t = useT();
   const { lang } = useLang();
+  const { data: session } = useSession();
   const [state, setState] = useState<"collapsed" | "loading" | "recommendation">("collapsed");
   const [data, setData] = useState<RecommendationData | null>(null);
   const [error, setError] = useState<string | null>(null);
@@ -64,7 +66,8 @@ export function WhatToPostTodayCard({ projectSlug, onGenerateContent, onPlanWeek
     setState("loading");
     setError(null);
     try {
-      const result = await recommendToday(projectSlug, forceRefresh);
+      const token = (session as any)?.accessToken as string | undefined;
+      const result = await recommendToday(projectSlug, forceRefresh, token);
       setData(result);
       setState("recommendation");
     } catch {

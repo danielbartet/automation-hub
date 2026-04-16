@@ -1,5 +1,6 @@
 "use client";
 import { useState, useEffect } from "react";
+import { useSession } from "next-auth/react";
 import { X, Loader2, Sparkles, PenLine } from "lucide-react";
 import { ImageUploadZone } from "./ImageUploadZone";
 import { generateContent, createContentManual } from "@/lib/api";
@@ -45,6 +46,7 @@ const SPINNER_LABELS: Record<ContentType, string> = {
 };
 
 export function GenerateContentModal({ projectSlug, project, initialHint, initialContentType, initialCategory, onClose, onSuccess }: GenerateContentModalProps) {
+  const { data: session } = useSession();
   const [tab, setTab] = useState<"auto" | "manual">("auto");
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
@@ -110,6 +112,7 @@ export function GenerateContentModal({ projectSlug, project, initialHint, initia
     setResult(null);
     setGeneratedData(null);
     try {
+      const token = (session as any)?.accessToken as string | undefined;
       const data = await generateContent(projectSlug, {
         content_type: autoContentType,
         category: autoCategory ?? undefined,
@@ -117,7 +120,7 @@ export function GenerateContentModal({ projectSlug, project, initialHint, initia
         // Only send image_mode when forcing placeholder; otherwise let the backend
         // use the project's media_config.image_provider (HTML renderer by default).
         image_mode: autoImageMode === "placeholder" ? "placeholder" : undefined,
-      });
+      }, token);
       setGeneratedData(data);
       setResult(data.content?.caption || data.content?.title || "Contenido generado con éxito");
     } catch (e) {
@@ -141,6 +144,7 @@ export function GenerateContentModal({ projectSlug, project, initialHint, initia
         .map((t) => t.trim().replace(/^#/, ""))
         .filter(Boolean);
       const isCarousel = slideCount > 1;
+      const token = (session as any)?.accessToken as string | undefined;
       await createContentManual(projectSlug, {
         topic: topic.trim(),
         tone: tone.trim() || undefined,
@@ -150,7 +154,7 @@ export function GenerateContentModal({ projectSlug, project, initialHint, initia
         caption: caption.trim() || undefined,
         hashtags: tags,
         scheduled_at: scheduledAt || undefined,
-      });
+      }, token);
       onSuccess();
       onClose();
     } catch (e) {

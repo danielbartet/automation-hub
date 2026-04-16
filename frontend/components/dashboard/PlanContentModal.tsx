@@ -111,6 +111,7 @@ export function PlanContentModal({
     setError(null);
     try {
       const { start, end } = getPeriodDates(period, customStart, customEnd);
+      const token = (session as any)?.accessToken as string | undefined;
       const data = await batchGenerateContent(projectSlug, {
         period_start: start.toISOString(),
         period_end: end.toISOString(),
@@ -118,7 +119,7 @@ export function PlanContentModal({
         days_of_week: daysOfWeek,
         publish_time: publishTime,
         content_type: contentType,
-      });
+      }, token);
       setBatchResult(data.posts || []);
     } catch (e) {
       setError(e instanceof Error ? e.message : "Failed to generate batch");

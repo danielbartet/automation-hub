@@ -214,7 +214,7 @@ export default function AdsPage() {
     setImportResult(null);
     setImportError(null);
     try {
-      const result = await importCampaigns(selectedSlug);
+      const result = await importCampaigns(selectedSlug, token);
       setImportResult({ imported: result.imported, updated: result.updated });
       loadData();
     } catch (err) {
