@@ -4,10 +4,11 @@ import json
 import logging
 from urllib.parse import quote
 
-from fastapi import APIRouter, Depends, HTTPException
+from fastapi import APIRouter, Depends, HTTPException, Query
 from fastapi.responses import RedirectResponse
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy import select
+from jose import JWTError, jwt as jose_jwt
 
 from app.api.deps import get_session, get_current_user_optional
 from app.core.config import settings
@@ -42,6 +43,7 @@ async def meta_oauth_start(
     current_user=Depends(get_current_user_optional),
     project_slug: str | None = None,
     mode: str = "project",
+    jwt: str | None = Query(default=None),
 ) -> RedirectResponse:
     """Initiate the Meta OAuth flow.
 
@@ -50,11 +52,31 @@ async def meta_oauth_start(
       ``project_slug``. Browser redirect — no auth header needed.
     - ``mode="user"``: connects a personal Meta token to the authenticated user.
       No ``project_slug`` needed. Requires an authenticated session.
+
+    Because ``mode="user"`` is initiated via a browser redirect (anchor href), the
+    Authorization header is not available. The frontend passes the JWT as the ``jwt``
+    query parameter as a fallback so the user can be identified.
     """
     if mode == "user":
-        if not current_user:
+        # Try header-based auth first (API clients), then fall back to the jwt
+        # query param (browser redirect flow from Settings page).
+        resolved_user = current_user
+        if resolved_user is None and jwt:
+            try:
+                payload = jose_jwt.decode(jwt, settings.JWT_SECRET, algorithms=[settings.JWT_ALGORITHM])
+                user_id_from_jwt: str | None = payload.get("sub")
+                if user_id_from_jwt:
+                    from app.models.user import User
+                    result = await db.execute(
+                        select(User).where(User.id == user_id_from_jwt, User.is_active == True)
+                    )
+                    resolved_user = result.scalar_one_or_none()
+            except JWTError:
+                pass
+
+        if not resolved_user:
             raise HTTPException(status_code=401, detail="Not authenticated")
-        state = generate_state(mode="user", user_id=current_user.id)
+        state = generate_state(mode="user", user_id=resolved_user.id)
     else:
         # mode="project" — project_slug is required
         if not project_slug:

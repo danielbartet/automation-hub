@@ -120,22 +120,17 @@ export function CreateCampaignModal({ projectSlug, projectId, onClose, onSuccess
       .catch(() => {});
   }, [projectId, token]);
 
-  // Restore concepts draft from localStorage on mount
+  // Clear any stale localStorage draft when the modal mounts (fresh open).
+  // Drafts were previously restored on mount, causing state to persist across
+  // sessions even after logout. We now start clean every time — the draft is
+  // still saved during the session so a same-session page navigation won't lose
+  // work, but reopening the modal always starts from scratch.
   useEffect(() => {
     try {
-      const raw = localStorage.getItem(`ad_concepts_draft_${projectSlug}`);
-      if (raw) {
-        const parsed = JSON.parse(raw);
-        if (parsed.concepts && Array.isArray(parsed.concepts) && parsed.concepts.length > 0) {
-          setConcepts(parsed.concepts);
-          setApprovedIds(new Set(parsed.approvedConcepts ?? []));
-          if (parsed.conceptImages && typeof parsed.conceptImages === "object") {
-            setConceptImages(parsed.conceptImages);
-          }
-        }
-      }
+      localStorage.removeItem(`ad_concepts_draft_${projectSlug}`);
     } catch {}
-  }, [projectSlug]);
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
 
   const toggleCountry = (code: string) => {
     setCountries(prev => prev.includes(code) ? prev.filter(c => c !== code) : [...prev, code]);
@@ -1092,6 +1087,7 @@ export function CreateCampaignModal({ projectSlug, projectId, onClose, onSuccess
                               ) : (
                                 <ImageUploadZone
                                   projectSlug={projectSlug}
+                                  token={token}
                                   onUpload={(url) => setConceptImage(concept.id, url)}
                                 />
                               )}
@@ -1163,6 +1159,7 @@ export function CreateCampaignModal({ projectSlug, projectId, onClose, onSuccess
                     ) : (
                       <ImageUploadZone
                         projectSlug={projectSlug}
+                        token={token}
                         onUpload={setImageUrl}
                         currentUrl={imageUrl}
                       />

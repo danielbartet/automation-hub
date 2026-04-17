@@ -104,6 +104,7 @@ export function CreativeUploadModal({
               <p className="text-gray-300 text-xs font-medium mb-1">Imagen del creativo</p>
               <ImageUploadZone
                 projectSlug="ads-creative"
+                token={token}
                 onUpload={setImageUrl}
                 currentUrl={imageUrl}
               />

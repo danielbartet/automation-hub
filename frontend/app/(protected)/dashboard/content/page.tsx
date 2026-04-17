@@ -196,6 +196,7 @@ interface StoryCreatorModalProps {
 function StoryCreatorModal({ projectSlug, onClose, onSuccess }: StoryCreatorModalProps) {
   const t = useT();
   const { data: storySession } = useSession();
+  const storyToken = (storySession as any)?.accessToken as string | undefined;
   const [imageUrl, setImageUrl] = useState("");
   const [textOverlay, setTextOverlay] = useState("");
   const [scheduledAt, setScheduledAt] = useState("");
@@ -210,7 +211,6 @@ function StoryCreatorModal({ projectSlug, onClose, onSuccess }: StoryCreatorModa
     setLoading(true);
     setError(null);
     try {
-      const storyToken = (storySession as any)?.accessToken as string | undefined;
       const body: Record<string, unknown> = { image_url: imageUrl };
       if (textOverlay.trim()) body.text_overlay = textOverlay.trim();
       if (scheduledAt) body.scheduled_at = scheduledAt;
@@ -252,6 +252,7 @@ function StoryCreatorModal({ projectSlug, onClose, onSuccess }: StoryCreatorModa
             </label>
             <ImageUploadZone
               projectSlug={projectSlug}
+              token={storyToken}
               onUpload={setImageUrl}
               currentUrl={imageUrl}
             />

@@ -6,9 +6,10 @@ interface ImageUploadZoneProps {
   projectSlug: string;
   onUpload: (url: string) => void;
   currentUrl?: string;
+  token?: string;
 }
 
-export function ImageUploadZone({ projectSlug, onUpload, currentUrl }: ImageUploadZoneProps) {
+export function ImageUploadZone({ projectSlug, onUpload, currentUrl, token }: ImageUploadZoneProps) {
   const [preview, setPreview] = useState<string | null>(currentUrl || null);
   const [uploading, setUploading] = useState(false);
   const [progress, setProgress] = useState(0);
@@ -37,9 +38,11 @@ export function ImageUploadZone({ projectSlug, onUpload, currentUrl }: ImageUplo
     try {
       const formData = new FormData();
       formData.append("file", file);
+      const headers: HeadersInit = {};
+      if (token) headers["Authorization"] = `Bearer ${token}`;
       const res = await fetch(
         `${process.env.NEXT_PUBLIC_API_URL || "http://localhost:8000"}/api/v1/upload/${projectSlug}`,
-        { method: "POST", body: formData }
+        { method: "POST", body: formData, headers }
       );
       setProgress(80);
       if (!res.ok) {

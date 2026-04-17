@@ -47,6 +47,7 @@ const SPINNER_LABELS: Record<ContentType, string> = {
 
 export function GenerateContentModal({ projectSlug, project, initialHint, initialContentType, initialCategory, onClose, onSuccess }: GenerateContentModalProps) {
   const { data: session } = useSession();
+  const token = (session as any)?.accessToken as string | undefined;
   const [tab, setTab] = useState<"auto" | "manual">("auto");
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
@@ -423,6 +424,7 @@ export function GenerateContentModal({ projectSlug, project, initialHint, initia
                           <p className="text-xs mb-1" style={{ color: "#9ca3af" }}>Slide {i + 1}</p>
                           <ImageUploadZone
                             projectSlug={projectSlug}
+                            token={token}
                             onUpload={(url) => handleSlideImageUpload(i, url)}
                             currentUrl={imageUrls[i] || ""}
                           />
@@ -433,7 +435,7 @@ export function GenerateContentModal({ projectSlug, project, initialHint, initia
                 ) : (
                   <>
                     <label className="block text-sm font-medium mb-2" style={{ color: "#d1d5db" }}>Image</label>
-                    <ImageUploadZone projectSlug={projectSlug} onUpload={setImageUrl} currentUrl={imageUrl} />
+                    <ImageUploadZone projectSlug={projectSlug} token={token} onUpload={setImageUrl} currentUrl={imageUrl} />
                   </>
                 )}
               </div>

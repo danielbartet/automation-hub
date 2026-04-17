@@ -57,7 +57,8 @@ export function MetaTokenSection() {
       .finally(() => setLoading(false));
   }, [session]);
 
-  const connectUrl = `${API_BASE}/api/v1/auth/meta/start?mode=user`;
+  const rawToken = (session as any)?.accessToken as string | undefined;
+  const connectUrl = `${API_BASE}/api/v1/auth/meta/start?mode=user${rawToken ? `&jwt=${encodeURIComponent(rawToken)}` : ""}`;
 
   const expired = status?.connected && isExpired(status.expires_at ?? null);
   const connected = status?.connected && !expired;

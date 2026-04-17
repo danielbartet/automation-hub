@@ -41,6 +41,7 @@ export function ImageGeneratorModal({
   onImageSaved,
 }: ImageGeneratorModalProps) {
   const { data: session } = useSession();
+  const token = (session as any)?.accessToken as string | undefined;
   const defaultPalette =
     (project.media_config?.image_color_palette as string) || "dark_purple";
 
@@ -232,6 +233,7 @@ export function ImageGeneratorModal({
             <div className="space-y-4">
               <ImageUploadZone
                 projectSlug={project.slug}
+                token={token}
                 onUpload={handleManualUpload}
               />
               {saving && (

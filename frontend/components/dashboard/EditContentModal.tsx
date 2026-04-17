@@ -57,6 +57,7 @@ function parseImageUrls(raw: string | string[] | undefined, fallbackUrl?: string
 
 export function EditContentModal({ post, projectSlug, project, onClose, onSaved }: EditContentModalProps) {
   const { data: session } = useSession();
+  const token = (session as any)?.accessToken as string | undefined;
   const isPublished = post.status === "published";
   const [caption, setCaption] = useState(post.caption || "");
   const [imageUrl, setImageUrl] = useState(post.image_url || "");
@@ -435,7 +436,7 @@ export function EditContentModal({ post, projectSlug, project, onClose, onSaved 
                     </button>
                   )}
                 </div>
-                <ImageUploadZone projectSlug={projectSlug} onUpload={(url) => {
+                <ImageUploadZone projectSlug={projectSlug} token={token} onUpload={(url) => {
                   setImageUrl(url);
                   setSlideImageUrls((prev) => {
                     const next = [...prev];
