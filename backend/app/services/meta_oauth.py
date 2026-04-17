@@ -169,7 +169,7 @@ async def upgrade_to_long_lived(short_token: str) -> tuple[str, datetime]:
 
     data = resp.json()
     long_lived_token = data["access_token"]
-    expires_at = datetime.utcnow() + timedelta(seconds=data["expires_in"])
+    expires_at = datetime.utcnow() + timedelta(seconds=data.get("expires_in", 5184000))  # default 60 days
     return long_lived_token, expires_at
 
 
