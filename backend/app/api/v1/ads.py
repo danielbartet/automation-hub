@@ -1906,3 +1906,156 @@ async def campaign_chat(
                 "cooldown_remaining_seconds": e.remaining_seconds,
             },
         )
+
+
+@router.get("/attribution-check")
+async def attribution_check(
+    project_slug: str | None = None,
+    db: AsyncSession = Depends(get_session),
+    current_user=Depends(require_super_admin()),
+) -> dict:
+    """Diagnostic endpoint (super_admin only): checks what attribution window is configured
+    at the ad-account and campaign level, and compares insights with and without explicit
+    action_attribution_windows to reveal any discrepancy.
+    """
+    # Resolve project
+    if project_slug:
+        proj_result = await db.execute(select(Project).where(Project.slug == project_slug))
+        project = proj_result.scalar_one_or_none()
+        if not project:
+            raise HTTPException(404, f"Project '{project_slug}' not found")
+    else:
+        proj_result = await db.execute(select(Project).limit(1))
+        project = proj_result.scalar_one_or_none()
+
+    if not project:
+        raise HTTPException(404, "No project found")
+
+    token = await get_project_token(project, db)
+    if not token:
+        raise HTTPException(400, "No Meta access token available for this project")
+
+    ad_account_id = (project.ad_account_id or "").removeprefix("act_")
+    if not ad_account_id:
+        raise HTTPException(400, "No ad account ID configured for this project")
+
+    result: dict = {
+        "ad_account_id": f"act_{ad_account_id}",
+        "project_slug": project.slug,
+        "ad_account_info": {},
+        "campaign_attribution_spec": {},
+        "insights_comparison": {},
+        "notes": [],
+    }
+
+    async with httpx.AsyncClient(timeout=30.0) as client:
+        # 1. Fetch ad account attribution_spec and timezone
+        account_resp = await client.get(
+            f"{META_BASE}/act_{ad_account_id}",
+            params={
+                "fields": "attribution_spec,timezone_name,timezone_offset_hours_utc",
+                "access_token": token,
+            },
+        )
+        account_data = account_resp.json()
+        if "error" in account_data:
+            result["notes"].append(f"Ad account fetch error: {account_data['error']}")
+        else:
+            result["ad_account_info"] = {
+                "attribution_spec": account_data.get("attribution_spec"),
+                "timezone_name": account_data.get("timezone_name"),
+                "timezone_offset_hours_utc": account_data.get("timezone_offset_hours_utc"),
+            }
+
+        # 2. Get first active campaign to check its attribution_spec
+        campaigns_resp = await client.get(
+            f"{META_BASE}/act_{ad_account_id}/campaigns",
+            params={
+                "fields": "id,name,objective,attribution_spec,status",
+                "limit": "5",
+                "access_token": token,
+            },
+        )
+        campaigns_data = campaigns_resp.json()
+        campaigns_list = campaigns_data.get("data", [])
+
+        if not campaigns_list:
+            result["notes"].append("No campaigns found in this ad account")
+        else:
+            # Pick the first active campaign, or just first
+            test_campaign = next((c for c in campaigns_list if c.get("status") == "ACTIVE"), campaigns_list[0])
+            result["campaign_attribution_spec"] = {
+                "campaign_id": test_campaign.get("id"),
+                "campaign_name": test_campaign.get("name"),
+                "objective": test_campaign.get("objective"),
+                "status": test_campaign.get("status"),
+                "attribution_spec": test_campaign.get("attribution_spec"),
+            }
+
+            meta_campaign_id = test_campaign["id"]
+
+            # 3a. Insights WITHOUT explicit attribution window (Meta uses account default)
+            ins_default_resp = await client.get(
+                f"{META_BASE}/{meta_campaign_id}/insights",
+                params={
+                    "fields": "spend,actions,action_values,purchase_roas",
+                    "date_preset": "last_30d",
+                    "access_token": token,
+                },
+            )
+            ins_default = ins_default_resp.json()
+            ins_default_rows = ins_default.get("data", [{}])
+            ins_default_row = ins_default_rows[0] if ins_default_rows else {}
+            actions_default = {a["action_type"]: float(a["value"]) for a in ins_default_row.get("actions", [])}
+
+            # 3b. Insights WITH explicit 7d_click + 1d_view window
+            ins_7d_resp = await client.get(
+                f"{META_BASE}/{meta_campaign_id}/insights",
+                params={
+                    "fields": "spend,actions,action_values,purchase_roas",
+                    "date_preset": "last_30d",
+                    "action_attribution_windows": json.dumps(["7d_click", "1d_view"]),
+                    "access_token": token,
+                },
+            )
+            ins_7d = ins_7d_resp.json()
+            ins_7d_rows = ins_7d.get("data", [{}])
+            ins_7d_row = ins_7d_rows[0] if ins_7d_rows else {}
+            actions_7d = {a["action_type"]: float(a["value"]) for a in ins_7d_row.get("actions", [])}
+
+            purchase_types = ["purchase", "omni_purchase", "offsite_conversion.fb_pixel_purchase"]
+            purchases_default = sum(actions_default.get(k, 0) for k in purchase_types)
+            purchases_7d = sum(actions_7d.get(k, 0) for k in purchase_types)
+
+            result["insights_comparison"] = {
+                "period": "last_30d",
+                "campaign_id": meta_campaign_id,
+                "without_attribution_window_param": {
+                    "spend": ins_default_row.get("spend"),
+                    "purchases": purchases_default,
+                    "all_actions": actions_default,
+                    "purchase_roas": ins_default_row.get("purchase_roas"),
+                    "note": "Meta uses the account/campaign default attribution window",
+                },
+                "with_7d_click_1d_view": {
+                    "spend": ins_7d_row.get("spend"),
+                    "purchases": purchases_7d,
+                    "all_actions": actions_7d,
+                    "purchase_roas": ins_7d_row.get("purchase_roas"),
+                    "note": "Explicit 7d_click + 1d_view — what this app uses in all KPI calls",
+                },
+                "match": abs(purchases_default - purchases_7d) < 0.01,
+            }
+
+            if result["insights_comparison"]["match"]:
+                result["notes"].append(
+                    "Purchase counts match: account default attribution == 7d_click + 1d_view. App numbers should be consistent with Ads Manager."
+                )
+            else:
+                result["notes"].append(
+                    f"Purchase counts DIFFER: default={purchases_default}, 7d_click+1d_view={purchases_7d}. "
+                    "The account may be configured with a different attribution window (e.g. 1d_click or 28d_click). "
+                    "Consider adjusting action_attribution_windows in the insights calls to match the account setting."
+                )
+
+    return result

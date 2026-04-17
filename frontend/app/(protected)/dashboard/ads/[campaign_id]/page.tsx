@@ -177,10 +177,22 @@ function filterByDateRange(
 
 // ─── KPI Card ────────────────────────────────────────────────────────────────
 
-function KPICard({ label, value, sub }: { label: string; value: string; sub?: string }) {
+function KPICard({ label, value, sub, tooltip }: { label: string; value: string; sub?: string; tooltip?: string }) {
   return (
     <div className="rounded-lg p-4" style={{ backgroundColor: "#111111", border: "1px solid #222222" }}>
-      <p className="text-gray-400 text-xs mb-1">{label}</p>
+      <div className="flex items-center gap-1 mb-1">
+        <p className="text-gray-400 text-xs">{label}</p>
+        {tooltip && (
+          <span className="relative group cursor-default inline-flex items-center">
+            <svg className="w-3 h-3 text-gray-600 hover:text-gray-400 transition-colors" fill="currentColor" viewBox="0 0 20 20">
+              <path fillRule="evenodd" d="M18 10a8 8 0 11-16 0 8 8 0 0116 0zm-7-4a1 1 0 11-2 0 1 1 0 012 0zM9 9a1 1 0 000 2v3a1 1 0 001 1h1a1 1 0 100-2v-3a1 1 0 00-1-1H9z" clipRule="evenodd" />
+            </svg>
+            <span className="absolute bottom-full left-1/2 -translate-x-1/2 mb-2 w-56 px-2 py-1.5 rounded text-xs text-gray-300 pointer-events-none opacity-0 group-hover:opacity-100 transition-opacity z-50 leading-relaxed" style={{ backgroundColor: "#1f2937", border: "1px solid #374151" }}>
+              {tooltip}
+            </span>
+          </span>
+        )}
+      </div>
       <p className="text-white text-2xl font-bold">{value}</p>
       {sub && <p className="text-gray-500 text-xs mt-1">{sub}</p>}
     </div>
@@ -482,18 +494,24 @@ export default function CampaignDetailPage() {
   // ── KPI grid based on objective ────────────────────────────────────────────
   const hasEngagement = (ins.post_reactions ?? 0) > 0 || (ins.comments ?? 0) > 0 || (ins.post_saves ?? 0) > 0 || (ins.video_views ?? 0) > 0 || (ins.page_engagement ?? 0) > 0
 
+  // ── Attribution tooltips ───────────────────────────────────────────────────
+  const TT_SPEND = "Dato de Meta Ads API · Actualización ~1h · Período seleccionado en el toggle superior"
+  const TT_CONVERSIONS = "Dato de Meta Ads API · Ventana: 7 días clic + 1 día vista · Puede diferir del Ads Manager si tu cuenta usa una ventana de atribución personalizada"
+  const TT_ROAS = "Dato de Meta Ads API · Ventana: 7 días clic + 1 día vista · Puede diferir del Ads Manager si tu cuenta usa una ventana de atribución personalizada"
+  const TT_REACH = "Dato de Meta Ads API · Actualización ~1h"
+
   let kpiRows: React.ReactNode
   if (objective === "OUTCOME_LEADS") {
     kpiRows = (
       <div className="space-y-4">
         {/* Row 1 — main metrics */}
         <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-6 gap-4">
-          <KPICard label={t.campaign_detail_kpi_total_spent} value={fmt(ins.total_spend)} sub={fmtPeriod(ins.period)} />
-          <KPICard label={t.campaign_detail_kpi_leads} value={ins.leads != null ? String(ins.leads) : String(ins.total_results ?? "—")} sub={ins.result_label} />
-          <KPICard label={t.campaign_detail_kpi_cost_lead} value={ins.cpl != null ? fmt(ins.cpl) : fmt(ins.cost_per_result)} />
+          <KPICard label={t.campaign_detail_kpi_total_spent} value={fmt(ins.total_spend)} sub={fmtPeriod(ins.period)} tooltip={TT_SPEND} />
+          <KPICard label={t.campaign_detail_kpi_leads} value={ins.leads != null ? String(ins.leads) : String(ins.total_results ?? "—")} sub={ins.result_label} tooltip={TT_CONVERSIONS} />
+          <KPICard label={t.campaign_detail_kpi_cost_lead} value={ins.cpl != null ? fmt(ins.cpl) : fmt(ins.cost_per_result)} tooltip={TT_CONVERSIONS} />
           <KPICard label={t.campaign_detail_kpi_ctr} value={ins.avg_ctr != null ? `${ins.avg_ctr.toFixed(2)}%` : "—"} />
           <KPICard label={t.campaign_detail_kpi_frequency} value={ins.avg_frequency != null ? ins.avg_frequency.toFixed(2) : "—"} />
-          <KPICard label={t.campaign_detail_kpi_reach} value={ins.total_reach != null ? ins.total_reach.toLocaleString() : "—"} />
+          <KPICard label={t.campaign_detail_kpi_reach} value={ins.total_reach != null ? ins.total_reach.toLocaleString() : "—"} tooltip={TT_REACH} />
         </div>
         {/* Row 2 — funnel (only if data exists) */}
         {(ins.landing_page_views != null || ins.click_to_lead_rate != null || ins.landing_page_conversion_rate != null || ins.cpc_derived != null) && (
@@ -541,16 +559,16 @@ export default function CampaignDetailPage() {
       <div className="space-y-4">
         {/* Row 1 */}
         <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-6 gap-4">
-          <KPICard label={t.campaign_detail_kpi_total_spent} value={fmt(ins.total_spend)} sub={fmtPeriod(ins.period)} />
-          <KPICard label={t.campaign_detail_kpi_roas} value={ins.roas != null ? `${ins.roas.toFixed(2)}x` : "—"} sub={t.campaign_detail_kpi_roas_sub} />
-          <KPICard label={t.campaign_detail_kpi_purchases} value={ins.purchases != null ? String(ins.purchases) : String(ins.total_results ?? "—")} sub={ins.result_label} />
-          <KPICard label={t.campaign_detail_kpi_cpa} value={ins.cost_per_purchase != null ? fmt(ins.cost_per_purchase) : fmt(ins.cost_per_result)} />
+          <KPICard label={t.campaign_detail_kpi_total_spent} value={fmt(ins.total_spend)} sub={fmtPeriod(ins.period)} tooltip={TT_SPEND} />
+          <KPICard label={t.campaign_detail_kpi_roas} value={ins.roas != null ? `${ins.roas.toFixed(2)}x` : "—"} sub={t.campaign_detail_kpi_roas_sub} tooltip={TT_ROAS} />
+          <KPICard label={t.campaign_detail_kpi_purchases} value={ins.purchases != null ? String(ins.purchases) : String(ins.total_results ?? "—")} sub={ins.result_label} tooltip={TT_CONVERSIONS} />
+          <KPICard label={t.campaign_detail_kpi_cpa} value={ins.cost_per_purchase != null ? fmt(ins.cost_per_purchase) : fmt(ins.cost_per_result)} tooltip={TT_CONVERSIONS} />
           <KPICard label={t.campaign_detail_kpi_ctr} value={ins.avg_ctr != null ? `${ins.avg_ctr.toFixed(2)}%` : "—"} />
           <KPICard label={t.campaign_detail_kpi_frequency} value={ins.avg_frequency != null ? ins.avg_frequency.toFixed(2) : "—"} />
         </div>
         {/* Row 2 */}
         <div className="grid grid-cols-2 sm:grid-cols-4 gap-4">
-          {ins.revenue != null && <KPICard label={t.campaign_detail_kpi_revenue} value={fmt(ins.revenue)} />}
+          {ins.revenue != null && <KPICard label={t.campaign_detail_kpi_revenue} value={fmt(ins.revenue)} tooltip={TT_CONVERSIONS} />}
           {ins.cpl != null && <KPICard label={t.campaign_detail_kpi_cpl} value={fmt(ins.cpl)} />}
           {ins.landing_page_views != null && <KPICard label={t.campaign_detail_kpi_landing_views} value={ins.landing_page_views.toLocaleString()} />}
           {ins.click_to_lead_rate != null && (
@@ -578,11 +596,11 @@ export default function CampaignDetailPage() {
       <div className="space-y-4">
         {/* Row 1 */}
         <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-6 gap-4">
-          <KPICard label={t.campaign_detail_kpi_total_spent} value={fmt(ins.total_spend)} sub={fmtPeriod(ins.period)} />
+          <KPICard label={t.campaign_detail_kpi_total_spent} value={fmt(ins.total_spend)} sub={fmtPeriod(ins.period)} tooltip={TT_SPEND} />
           <KPICard label={t.campaign_detail_kpi_clicks} value={ins.link_clicks != null ? ins.link_clicks.toLocaleString() : ins.total_clicks != null ? ins.total_clicks.toLocaleString() : "—"} />
           <KPICard label={t.campaign_detail_kpi_cpc} value={ins.cpc_derived != null ? fmt(ins.cpc_derived) : fmt(ins.avg_cpc)} />
           <KPICard label={t.campaign_detail_kpi_ctr} value={ins.avg_ctr != null ? `${ins.avg_ctr.toFixed(2)}%` : "—"} />
-          <KPICard label={t.campaign_detail_kpi_reach} value={ins.total_reach != null ? ins.total_reach.toLocaleString() : "—"} />
+          <KPICard label={t.campaign_detail_kpi_reach} value={ins.total_reach != null ? ins.total_reach.toLocaleString() : "—"} tooltip={TT_REACH} />
           <KPICard label={t.campaign_detail_kpi_cpm} value={fmt(ins.avg_cpm)} />
         </div>
         {/* Row 2 */}
@@ -1130,6 +1148,13 @@ export default function CampaignDetailPage() {
               </button>
             ))}
           </div>
+        )}
+
+        {/* ── ATTRIBUTION NOTE ────────────────────────────────────────────── */}
+        {activeTab === "overview" && (
+          <p className="text-xs mb-4" style={{ color: "#6b7280" }}>
+            Los datos provienen de Meta Ads API · Ventana de atribución: 7 días clic + 1 día vista · Pequeñas diferencias con el Ads Manager son normales (zona horaria de reporte, ventana configurada a nivel cuenta, actualización ~1h).
+          </p>
         )}
 
         {/* ── KPI CARDS ───────────────────────────────────────────────────── */}
