@@ -605,11 +605,14 @@ async def get_campaign_detail(
                 campaign_info = ci_resp.json()
 
                 # b. Insights for the selected period (summary)
+                # action_attribution_windows scopes attribution to 7d_click + 1d_view,
+                # matching the Meta Ads Manager default so purchase counts are consistent.
                 ins_resp = await client.get(
                     f"{META_BASE}/{meta_campaign_id}/insights",
                     params={
                         "fields": "spend,impressions,reach,clicks,ctr,cpc,cpm,frequency,actions,action_values,cost_per_action_type,purchase_roas",
                         "date_preset": date_preset,
+                        "action_attribution_windows": json.dumps(["7d_click", "1d_view"]),
                         "access_token": token,
                     },
                 )
@@ -624,6 +627,7 @@ async def get_campaign_detail(
                         "fields": "spend,impressions,reach,clicks,ctr,cpc,cpm,frequency,actions,action_values,cost_per_action_type,purchase_roas",
                         "date_preset": date_preset,
                         "time_increment": "1",
+                        "action_attribution_windows": json.dumps(["7d_click", "1d_view"]),
                         "access_token": token,
                     },
                 )

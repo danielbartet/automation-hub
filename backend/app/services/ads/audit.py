@@ -387,6 +387,9 @@ class MetaAuditService:
             "actions,action_values,cost_per_action_type,purchase_roas,"
             "video_play_actions,video_p25_watched_actions,video_p100_watched_actions"
         )
+        # Scope attribution to 7d_click + 1d_view to match Meta Ads Manager default.
+        # This prevents inflated purchase counts from 28d_click or other wider windows.
+        _attr_windows = "&action_attribution_windows=%5B%227d_click%22%2C%221d_view%22%5D"
 
         # Build optional campaign filter suffix — appended to each batch URL when scoped
         if self.meta_campaign_id:
@@ -403,7 +406,7 @@ class MetaAuditService:
                     "relative_url": (
                         f"{cid}/insights"
                         f"?fields={insight_fields}"
-                        "&date_preset=last_30d&level=campaign&limit=10"
+                        f"&date_preset=last_30d&level=campaign&limit=10{_attr_windows}"
                     ),
                 },
                 {
@@ -411,7 +414,7 @@ class MetaAuditService:
                     "relative_url": (
                         f"{cid}/insights"
                         f"?fields={insight_fields}"
-                        "&date_preset=last_7d&level=adset&limit=100"
+                        f"&date_preset=last_7d&level=adset&limit=100{_attr_windows}"
                     ),
                 },
                 {
@@ -428,7 +431,7 @@ class MetaAuditService:
                         f"{act}/insights"
                         "?fields=impressions,clicks,spend,actions"
                         "&breakdowns=publisher_platform,platform_position"
-                        f"&date_preset=last_30d&level=campaign{campaign_filter_param}"
+                        f"&date_preset=last_30d&level=campaign{campaign_filter_param}{_attr_windows}"
                     ),
                 },
                 {
@@ -447,7 +450,7 @@ class MetaAuditService:
                     "relative_url": (
                         f"{act}/insights"
                         f"?fields={insight_fields}"
-                        "&date_preset=last_30d&level=campaign&limit=50"
+                        f"&date_preset=last_30d&level=campaign&limit=50{_attr_windows}"
                     ),
                 },
                 {
@@ -455,7 +458,7 @@ class MetaAuditService:
                     "relative_url": (
                         f"{act}/insights"
                         f"?fields={insight_fields}"
-                        "&date_preset=last_7d&level=adset&limit=100"
+                        f"&date_preset=last_7d&level=adset&limit=100{_attr_windows}"
                     ),
                 },
                 {
@@ -472,7 +475,7 @@ class MetaAuditService:
                         f"{act}/insights"
                         "?fields=impressions,clicks,spend,actions"
                         "&breakdowns=publisher_platform,platform_position"
-                        "&date_preset=last_30d&level=account"
+                        f"&date_preset=last_30d&level=account{_attr_windows}"
                     ),
                 },
                 {

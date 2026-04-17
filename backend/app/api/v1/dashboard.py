@@ -92,6 +92,8 @@ async def fetch_campaign_insights(client: httpx.AsyncClient, campaign_id: str, t
             params={
                 "fields": "spend,impressions,reach,clicks,ctr,cpm,cpc,frequency,actions,cost_per_action_type",
                 "date_preset": date_preset,
+                # Scope to 7d_click + 1d_view to match Meta Ads Manager default attribution.
+                "action_attribution_windows": json.dumps(["7d_click", "1d_view"]),
                 "access_token": token,
             },
             timeout=10.0,

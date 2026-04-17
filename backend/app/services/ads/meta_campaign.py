@@ -527,6 +527,11 @@ class MetaCampaignService:
         """
         params: dict = {
             "fields": "spend,impressions,reach,clicks,ctr,cpm,cpc,frequency,actions,action_values,cost_per_action_type,purchase_roas",
+            # Explicitly request only 7d_click + 1d_view attribution windows so that
+            # purchase counts match the Meta Ads Manager default attribution setting.
+            # Without this param, Meta returns all applicable windows combined, which
+            # can inflate conversion counts vs. what Ads Manager shows.
+            "action_attribution_windows": json.dumps(["7d_click", "1d_view"]),
             "access_token": token,
         }
         if time_range:
