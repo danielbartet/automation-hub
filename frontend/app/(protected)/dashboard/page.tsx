@@ -2,20 +2,14 @@
 
 import { useEffect, useState, useCallback } from "react";
 import { useSession } from "next-auth/react";
-import { useSearchParams, useRouter } from "next/navigation";
+import { useRouter } from "next/navigation";
 import { Header } from "@/components/layout/Header";
 import { KPICard } from "@/components/dashboard/KPICard";
 import { WhatToPostTodayCard } from "@/components/dashboard/WhatToPostTodayCard";
-import { fetchDashboard, fetchProjects } from "@/lib/api";
+import { fetchDashboard } from "@/lib/api";
 import { Loader2, FileText } from "lucide-react";
 import { useT } from "@/lib/i18n";
-
-interface Project {
-  id: string;
-  name: string;
-  slug: string;
-  is_active: boolean;
-}
+import { useProject } from "@/lib/project-context";
 
 interface ContentPost {
   id: string;
@@ -86,31 +80,12 @@ function formatDate(dateStr: string) {
 export default function DashboardPage() {
   const t = useT();
   const { data: session } = useSession();
-  const searchParams = useSearchParams();
   const router = useRouter();
-  const projectParam = searchParams.get("project");
+  const { selectedSlug, selectedProject } = useProject();
 
-  const [projects, setProjects] = useState<Project[]>([]);
-  const [selectedSlug, setSelectedSlug] = useState<string>(projectParam ?? "");
   const [data, setData] = useState<DashboardData | null>(null);
-  const [loadingProjects, setLoadingProjects] = useState(true);
   const [loadingData, setLoadingData] = useState(false);
   const [error, setError] = useState<string | null>(null);
-
-  useEffect(() => {
-    const token = (session as any)?.accessToken as string | undefined;
-    fetchProjects(token)
-      .then((list: Project[]) => {
-        const arr = Array.isArray(list) ? list : [];
-        setProjects(arr);
-        if (!selectedSlug && arr.length > 0) {
-          setSelectedSlug(arr[0].slug);
-        }
-      })
-      .catch((err) => setError(err.message))
-      .finally(() => setLoadingProjects(false));
-  // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [session]);
 
   const loadData = useCallback(() => {
     if (!selectedSlug) return;
@@ -132,38 +107,18 @@ export default function DashboardPage() {
 
   const projectName =
     data?.project?.name ??
-    projects.find((p) => p.slug === selectedSlug)?.name ??
+    selectedProject?.name ??
     selectedSlug;
 
   return (
     <div>
       <Header title={`Dashboard${projectName ? ` — ${projectName}` : ""}`} />
       <div className="p-6 space-y-6">
-        {/* Project selector */}
-        <div className="flex items-center gap-3">
-          <label className="text-sm font-medium" style={{ color: "#9ca3af" }}>{t.overview_project_label}</label>
-          {loadingProjects ? (
-            <span className="text-sm" style={{ color: "#9ca3af" }}>{t.overview_loading}</span>
-          ) : (
-            <select
-              value={selectedSlug}
-              onChange={(e) => setSelectedSlug(e.target.value)}
-              className="text-sm rounded-md px-3 py-2 focus:outline-none focus:ring-2"
-              style={{
-                border: "1px solid #333333",
-                backgroundColor: "#1a1a1a",
-                color: "#ffffff",
-              }}
-            >
-              {projects.map((p) => (
-                <option key={p.id} value={p.slug}>
-                  {p.name}
-                </option>
-              ))}
-            </select>
-          )}
-          {loadingData && <Loader2 className="h-4 w-4 animate-spin" style={{ color: "#9ca3af" }} />}
-        </div>
+        {loadingData && (
+          <div className="flex items-center gap-2">
+            <Loader2 className="h-4 w-4 animate-spin" style={{ color: "#9ca3af" }} />
+          </div>
+        )}
 
         {error && (
           <div className="rounded-md p-4 text-sm" style={{ backgroundColor: "#450a0a", border: "1px solid #7f1d1d", color: "#fca5a5" }}>

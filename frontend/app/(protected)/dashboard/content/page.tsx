@@ -4,7 +4,8 @@ import { useEffect, useState, useCallback, useRef } from "react";
 import { useSession } from "next-auth/react";
 import { useSearchParams } from "next/navigation";
 import { Header } from "@/components/layout/Header";
-import { fetchProjects, fetchContent, importFromMeta, updateContent } from "@/lib/api";
+import { fetchContent, importFromMeta, updateContent } from "@/lib/api";
+import { useProject } from "@/lib/project-context";
 import { PlusCircle, FileText, Loader2, Pencil, Video, Image, ChevronDown, Upload, X } from "lucide-react";
 import { GenerateContentModal } from "@/components/dashboard/GenerateContentModal";
 import { EditContentModal } from "@/components/dashboard/EditContentModal";
@@ -318,16 +319,6 @@ function StoryCreatorModal({ projectSlug, onClose, onSuccess }: StoryCreatorModa
   );
 }
 
-interface Project {
-  id: string;
-  name: string;
-  slug: string;
-  is_active: boolean;
-  credits_balance?: number;
-  media_config?: any;
-  content_config?: any;
-}
-
 interface ContentPost {
   id: number;
   caption: string;
@@ -377,14 +368,12 @@ export default function ContentPage() {
   const { data: session } = useSession();
   const searchParams = useSearchParams();
   const isClient = session?.user?.role === "client";
-  const [projects, setProjects] = useState<Project[]>([]);
-  const [selectedProjectId, setSelectedProjectId] = useState<string>("");
-  const [selectedProjectSlug, setSelectedProjectSlug] = useState<string>("");
+  const { selectedProject, selectedSlug: selectedProjectSlug, loading: loadingProjects } = useProject();
+  const selectedProjectId = selectedProject?.id ?? "";
   const [pendingHint, setPendingHint] = useState<string | null>(null);
   const [pendingFormat, setPendingFormat] = useState<string | null>(null);
   const [pendingCategory, setPendingCategory] = useState<string | null>(null);
   const [content, setContent] = useState<ContentPost[]>([]);
-  const [loadingProjects, setLoadingProjects] = useState(true);
   const [loadingContent, setLoadingContent] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [filter, setFilter] = useState<StatusFilter>("all");
@@ -428,20 +417,6 @@ export default function ContentPage() {
     if (category) setPendingCategory(category);
   }, [searchParams]);
 
-  useEffect(() => {
-    const token = (session as any)?.accessToken as string | undefined;
-    fetchProjects(token)
-      .then((data: Project[]) => {
-        const list = Array.isArray(data) ? data : [];
-        setProjects(list);
-        if (list.length > 0) {
-          setSelectedProjectId(list[0].id);
-          setSelectedProjectSlug(list[0].slug);
-        }
-      })
-      .catch((err) => setError(err.message))
-      .finally(() => setLoadingProjects(false));
-  }, [session]);
 
   const loadContent = useCallback(() => {
     if (!selectedProjectSlug) return;
@@ -475,13 +450,6 @@ export default function ContentPage() {
     return () => document.removeEventListener("mousedown", handler);
   }, []);
 
-  const handleProjectChange = (e: React.ChangeEvent<HTMLSelectElement>) => {
-    const proj = projects.find((p) => p.slug === e.target.value);
-    if (proj) {
-      setSelectedProjectId(proj.id);
-      setSelectedProjectSlug(proj.slug);
-    }
-  };
 
   const filtered =
     filter === "all" ? content : content.filter((c) => c.status === filter);
@@ -501,25 +469,6 @@ export default function ContentPage() {
       <div className="p-6 space-y-6">
         {/* Top bar */}
         <div className="flex flex-col sm:flex-row items-start sm:items-center gap-4 justify-between">
-          <div className="flex items-center gap-3">
-            <label className="text-sm font-medium" style={{ color: "#9ca3af" }}>Project:</label>
-            {loadingProjects ? (
-              <span className="text-sm" style={{ color: "#9ca3af" }}>Loading...</span>
-            ) : (
-              <select
-                value={selectedProjectSlug}
-                onChange={handleProjectChange}
-                className="text-sm rounded-md px-3 py-2 text-white focus:outline-none focus:ring-2 focus:ring-[#7c3aed]"
-                style={{ border: "1px solid #333333", backgroundColor: "#1a1a1a" }}
-              >
-                {projects.map((p) => (
-                  <option key={p.id} value={p.slug}>
-                    {p.name}
-                  </option>
-                ))}
-              </select>
-            )}
-          </div>
           {!isClient && (
             <div className="flex items-center gap-2">
               <button
@@ -771,7 +720,7 @@ export default function ContentPage() {
       {showModal && selectedProjectSlug && (
         <GenerateContentModal
           projectSlug={selectedProjectSlug}
-          project={projects.find((p) => p.slug === selectedProjectSlug)}
+          project={selectedProject ?? undefined}
           initialHint={pendingHint ?? undefined}
           initialContentType={pendingFormat ?? undefined}
           initialCategory={pendingCategory ?? undefined}
@@ -783,7 +732,7 @@ export default function ContentPage() {
         <EditContentModal
           post={editPost}
           projectSlug={selectedProjectSlug}
-          project={projects.find((p) => p.slug === selectedProjectSlug)}
+          project={selectedProject ?? undefined}
           onClose={() => setEditPost(null)}
           onSaved={() => {
             setEditPost(null);
@@ -792,7 +741,6 @@ export default function ContentPage() {
         />
       )}
       {imageGenPost && (() => {
-        const selectedProject = projects.find((p) => p.slug === selectedProjectSlug);
         return (
           <ImageGeneratorModal
             open={true}

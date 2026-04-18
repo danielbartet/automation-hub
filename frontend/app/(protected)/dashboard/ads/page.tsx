@@ -8,7 +8,6 @@ import { CreateCampaignModal } from "@/components/dashboard/CreateCampaignModal"
 import { CampaignOptimizationPanel } from "@/components/dashboard/CampaignOptimizationPanel";
 import InspirationTab from "@/components/dashboard/InspirationTab";
 import {
-  fetchProjects,
   fetchDashboard,
   importCampaigns,
   fetchCampaignRecommendations,
@@ -18,6 +17,7 @@ import {
   type CampaignRecommendation,
   type InspirationPrefill,
 } from "@/lib/api";
+import { useProject } from "@/lib/project-context";
 import { Loader2, Plus, Download } from "lucide-react";
 import Link from "next/link";
 import { useT } from "@/lib/i18n";
@@ -30,13 +30,6 @@ import {
   Tooltip,
   ResponsiveContainer,
 } from "recharts";
-
-interface Project {
-  id: string;
-  name: string;
-  slug: string;
-  is_active: boolean;
-}
 
 interface CampaignKPIs {
   leads?: number;
@@ -103,10 +96,8 @@ export default function AdsPage() {
   const { data: session } = useSession();
   const isClient = session?.user?.role === "client";
   const token = (session as { accessToken?: string } | null)?.accessToken ?? "";
-  const [projects, setProjects] = useState<Project[]>([]);
-  const [selectedSlug, setSelectedSlug] = useState<string>("");
+  const { selectedSlug, selectedProject: ctxSelectedProject, loading: loadingProjects } = useProject();
   const [data, setData] = useState<DashboardData | null>(null);
-  const [loadingProjects, setLoadingProjects] = useState(true);
   const [loadingData, setLoadingData] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [showCreateModal, setShowCreateModal] = useState(false);
@@ -118,18 +109,6 @@ export default function AdsPage() {
   const [recsToast, setRecsToast] = useState<string | null>(null);
   const [activeTab, setActiveTab] = useState<"campaigns" | "inspiration">("campaigns");
   const [inspirationPrefill, setInspirationPrefill] = useState<InspirationPrefill | undefined>(undefined);
-  useEffect(() => {
-    const token = (session as any)?.accessToken as string | undefined;
-    fetchProjects(token)
-      .then((list: Project[]) => {
-        const arr = Array.isArray(list) ? list : [];
-        setProjects(arr);
-        if (arr.length > 0) setSelectedSlug(arr[0].slug);
-      })
-      .catch((err) => setError(err.message))
-      .finally(() => setLoadingProjects(false));
-  }, [session]);
-
   const loadData = useCallback(() => {
     if (!selectedSlug) return;
     setLoadingData(true);
@@ -237,7 +216,7 @@ export default function AdsPage() {
     setShowCreateModal(true);
   };
 
-  const selectedProject = projects.find(p => p.slug === selectedSlug) ?? null;
+  const selectedProject = ctxSelectedProject;
   const metaAds = data?.meta_ads;
   const metaTotals = metaAds?.totals ?? metaAds;
   const campaigns = metaAds?.campaigns ?? [];
@@ -247,25 +226,8 @@ export default function AdsPage() {
     <div>
       <Header title="Ads" />
       <div className="p-6 space-y-6">
-        {/* Project selector + Create Campaign button */}
+        {/* Actions bar */}
         <div className="flex items-center gap-3 flex-wrap">
-          <label className="text-sm font-medium" style={{ color: "#9ca3af" }}>Project:</label>
-          {loadingProjects ? (
-            <span className="text-sm" style={{ color: "#9ca3af" }}>Loading...</span>
-          ) : (
-            <select
-              value={selectedSlug}
-              onChange={(e) => setSelectedSlug(e.target.value)}
-              className="text-sm rounded-md px-3 py-2 focus:outline-none focus:ring-2 focus:ring-[#7c3aed]"
-              style={{ backgroundColor: "#1a1a1a", border: "1px solid #333333", color: "#ffffff" }}
-            >
-              {projects.map((p) => (
-                <option key={p.id} value={p.slug}>
-                  {p.name}
-                </option>
-              ))}
-            </select>
-          )}
           {loadingData && <Loader2 className="h-4 w-4 animate-spin text-gray-400" />}
           {!isClient && (
             <div className="ml-auto flex items-center gap-2">

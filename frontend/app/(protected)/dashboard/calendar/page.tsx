@@ -3,7 +3,8 @@ import { useEffect, useState } from "react";
 import { useSession } from "next-auth/react";
 import { Header } from "@/components/layout/Header";
 import { ChevronLeft, ChevronRight, Plus, CalendarDays } from "lucide-react";
-import { fetchProjects, fetchContentByDateRange } from "@/lib/api";
+import { fetchContentByDateRange } from "@/lib/api";
+import { useProject } from "@/lib/project-context";
 import { PlanContentModal } from "@/components/dashboard/PlanContentModal";
 import { EditContentModal } from "@/components/dashboard/EditContentModal";
 
@@ -87,26 +88,14 @@ function getPostDate(post: ContentPost): Date {
 export default function CalendarPage() {
   const { data: session } = useSession();
   const isClient = session?.user?.role === "client";
+  const { selectedProject, projects } = useProject();
   const [view, setView] = useState<"week" | "month">("week");
   const [currentDate, setCurrentDate] = useState(new Date());
-  const [projects, setProjects] = useState<Project[]>([]);
-  const [selectedProject, setSelectedProject] = useState<Project | null>(null);
   const [posts, setPosts] = useState<ContentPost[]>([]);
   const [loading, setLoading] = useState(false);
   const [showPlanModal, setShowPlanModal] = useState(false);
   const [editPost, setEditPost] = useState<ContentPost | null>(null);
   const [selectedDay, setSelectedDay] = useState<Date | null>(null);
-
-  useEffect(() => {
-    const token = (session as any)?.accessToken as string | undefined;
-    fetchProjects(token)
-      .then((data: Project[]) => {
-        const list = Array.isArray(data) ? data : [];
-        setProjects(list);
-        if (list.length > 0) setSelectedProject(list[0]);
-      })
-      .catch(console.error);
-  }, [session]);
 
   const loadPosts = async (project: Project, date: Date, viewMode: "week" | "month") => {
     if (!project) return;
@@ -175,21 +164,6 @@ export default function CalendarPage() {
         {/* Top bar */}
         <div className="flex flex-col sm:flex-row items-start sm:items-center gap-4 justify-between">
           <div className="flex items-center gap-4">
-            {/* Project selector */}
-            <select
-              value={selectedProject?.slug || ""}
-              onChange={(e) =>
-                setSelectedProject(projects.find((p) => p.slug === e.target.value) || null)
-              }
-              className="text-sm rounded-md px-3 py-2 text-white focus:outline-none focus:ring-2 focus:ring-[#7c3aed]"
-              style={{ border: "1px solid #333333", backgroundColor: "#1a1a1a" }}
-            >
-              {projects.map((p) => (
-                <option key={p.id} value={p.slug}>
-                  {p.name}
-                </option>
-              ))}
-            </select>
             {/* View toggle */}
             <div className="flex rounded-lg overflow-hidden" style={{ border: "1px solid #333333" }}>
               {(["week", "month"] as const).map((v) => (

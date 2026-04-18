@@ -6,6 +6,7 @@ import { useEffect, useState } from "react";
 import { LayoutDashboard, FileText, Megaphone, FolderKanban, CalendarDays, UsersRound, Activity, Users2, Settings, ChevronDown, ChevronRight, Link2, Layers } from "lucide-react";
 import { getHealthSummary } from "@/lib/api";
 import { useT } from "@/lib/i18n";
+import { useProject } from "@/lib/project-context";
 
 export function Sidebar() {
   const pathname = usePathname();
@@ -76,6 +77,8 @@ export function Sidebar() {
     { href: "/dashboard/projects", label: t.nav_projects, icon: FolderKanban },
     { href: "/dashboard/settings", label: t.nav_settings_meta, icon: Link2, exact: true },
   ];
+
+  const { projects: ctxProjects, selectedSlug: ctxSelectedSlug, setSelectedSlug: ctxSetSelectedSlug, loading: ctxLoading } = useProject();
 
   const token = session?.accessToken as string | undefined;
 
@@ -166,6 +169,34 @@ export function Sidebar() {
       <div className="p-6 flex-shrink-0" style={{ borderBottom: "1px solid #1a1a1a" }}>
         <h1 className="text-xl font-bold text-white">Automation Hub</h1>
         <p className="text-xs mt-1" style={{ color: "#9ca3af" }}>Quantoria Labs</p>
+      </div>
+
+      {/* Project selector */}
+      <div className="px-4 py-3 flex-shrink-0" style={{ borderBottom: "1px solid #1a1a1a" }}>
+        {ctxLoading ? (
+          <div className="h-8 rounded-md animate-pulse" style={{ backgroundColor: "#1a1a1a" }} />
+        ) : ctxProjects.length > 1 ? (
+          <select
+            value={ctxSelectedSlug}
+            onChange={(e) => ctxSetSelectedSlug(e.target.value)}
+            className="w-full text-sm rounded-md px-2 py-1.5 focus:outline-none focus:ring-1 focus:ring-[#7c3aed]"
+            style={{
+              backgroundColor: "#111111",
+              border: "1px solid #2a2a2a",
+              color: "#e5e7eb",
+            }}
+          >
+            {ctxProjects.map((p) => (
+              <option key={p.id} value={p.slug}>
+                {p.name}
+              </option>
+            ))}
+          </select>
+        ) : ctxProjects.length === 1 ? (
+          <p className="text-sm font-medium truncate" style={{ color: "#e5e7eb" }}>
+            {ctxProjects[0].name}
+          </p>
+        ) : null}
       </div>
 
       {/* Main nav — scrollable */}
