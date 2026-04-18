@@ -201,6 +201,7 @@ export async function createCampaign(projectSlug: string, data: {
   countries: string[];
   image_url: string;
   ad_copy: string;
+  headline?: string;
   destination_url?: string;
   pixel_event?: string;
   audience_type?: string;
@@ -1030,4 +1031,68 @@ export async function updateAdImage(
     throw new Error((err as { detail?: string }).detail || "Failed to update ad image")
   }
   return res.json()
+}
+
+export interface CompetitorAdAnalysis {
+  index: number;
+  hook_analysis: string;
+  psychological_angle: string;
+  inferred_objective: string;
+  audience_signal: string;
+  strength: string;
+  opportunity: string;
+  days_active_signal: string;
+}
+
+export interface CompetitorAd {
+  competitor: string;
+  page_name: string;
+  body: string;
+  title: string;
+  days_active: number;
+  platforms: string[];
+  snapshot_url: string;
+  analysis?: CompetitorAdAnalysis;
+}
+
+export interface InspirationPrefill {
+  name: string;
+  objective: string;
+  ad_copy: string;
+  headline: string;
+  rationale: string;
+  source_competitor: string;
+  destination_url: string;
+}
+
+export async function fetchCompetitorAds(
+  projectSlug: string,
+  token: string
+): Promise<{ ads: CompetitorAd[]; count: number }> {
+  const res = await fetch(`${API_BASE}/api/v1/ads/competitor-ads/${projectSlug}`, {
+    headers: { Authorization: `Bearer ${token}` },
+    cache: "no-store",
+  });
+  if (!res.ok) {
+    const err = await res.json().catch(() => ({}));
+    throw new Error((err as { detail?: string }).detail || "Failed to fetch competitor ads");
+  }
+  return res.json();
+}
+
+export async function adaptCompetitorAd(
+  projectSlug: string,
+  token: string,
+  payload: { ad_index: number; competitor_ad: CompetitorAd; analysis: CompetitorAdAnalysis }
+): Promise<{ prefill: InspirationPrefill }> {
+  const res = await fetch(`${API_BASE}/api/v1/ads/adapt-competitor/${projectSlug}`, {
+    method: "POST",
+    headers: authHeaders(token),
+    body: JSON.stringify(payload),
+  });
+  if (!res.ok) {
+    const err = await res.json().catch(() => ({}));
+    throw new Error((err as { detail?: string }).detail || "Failed to adapt competitor ad");
+  }
+  return res.json();
 }

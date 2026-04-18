@@ -171,6 +171,7 @@ export function ProjectFormDialog({ project, onClose, onSuccess }: ProjectFormDi
   const [imageMood, setImageMood] = useState((cc.image_mood as string) ?? "");
   const [brandFonts, setBrandFonts] = useState((cc.brand_fonts as string) ?? "");
   const [competitors, setCompetitors] = useState((cc.competitors as string) ?? "");
+  const [website, setWebsite] = useState((cc.website as string) ?? "");
   const [businessObjective, setBusinessObjective] = useState((cc.business_objective as string) ?? "generate_leads");
   const [targetPlatforms, setTargetPlatforms] = useState<string[]>(
     Array.isArray(cc.target_platforms) ? (cc.target_platforms as string[]) : []
@@ -233,6 +234,7 @@ export function ProjectFormDialog({ project, onClose, onSuccess }: ProjectFormDi
         image_mood: imageMood,
         brand_fonts: brandFonts,
         competitors,
+        website,
         business_objective: businessObjective,
         target_platforms: targetPlatforms,
         posting_frequency: postingFrequency,
@@ -611,6 +613,19 @@ export function ProjectFormDialog({ project, onClose, onSuccess }: ProjectFormDi
                   className="w-full rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-[#7c3aed]"
                   style={inputStyle}
                   placeholder={"@midudev\n@hola.devs\n@codewithchris"}
+                />
+              </div>
+
+              {/* Website / Landing URL */}
+              <div>
+                <label className="block text-sm font-medium text-white mb-1">Website / Landing URL</label>
+                <input
+                  type="url"
+                  value={website}
+                  onChange={(e) => setWebsite(e.target.value)}
+                  className="w-full rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-[#7c3aed]"
+                  style={inputStyle}
+                  placeholder="https://..."
                 />
               </div>
 

@@ -19,6 +19,7 @@ class CompetitorResearchCache(Base):
         Integer, ForeignKey("projects.id"), nullable=False, unique=True, index=True
     )
     research_json: Mapped[dict] = mapped_column(JSON, nullable=False, default=dict)
+    analysis_json: Mapped[dict | None] = mapped_column(JSON, nullable=True, default=None)
     fetched_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), nullable=False)
 
     project: Mapped["Project"] = relationship("Project", back_populates="competitor_cache")

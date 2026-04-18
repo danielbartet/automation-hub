@@ -76,6 +76,20 @@ class MetaAdLibraryService:
         all_ads.sort(key=lambda x: x["days_active"], reverse=True)
         return all_ads[:20]
 
+    def _merge_analysis(self, ads: list[dict], analyses: list[dict]) -> list[dict]:
+        """Inject analysis into each ad dict, matching by analysis['index']."""
+        index_map = {item["index"]: item for item in analyses if isinstance(item, dict) and "index" in item}
+        result = []
+        for i, ad in enumerate(ads):
+            analysis = index_map.get(i)
+            if analysis is None and i < len(analyses):
+                analysis = analyses[i]
+            merged = dict(ad)
+            if analysis is not None:
+                merged["analysis"] = analysis
+            result.append(merged)
+        return result
+
     async def get_competitor_ads_cached(
         self,
         db: AsyncSession,
@@ -85,6 +99,7 @@ class MetaAdLibraryService:
         """
         Returns competitor ads for a project, using a 48-hour cache stored in
         competitor_research_cache. Fetches fresh data if the cache is stale or missing.
+        Runs Claude analysis on the ads and persists results to analysis_json.
         """
         from app.models.competitor_cache import CompetitorResearchCache
 
@@ -99,7 +114,20 @@ class MetaAdLibraryService:
         cache = result.scalar_one_or_none()
 
         if cache and cache.fetched_at > cutoff:
-            return cache.research_json.get("ads", [])
+            ads = cache.research_json.get("ads", [])
+            if cache.analysis_json is not None:
+                return self._merge_analysis(ads, cache.analysis_json)
+            # Cache hit but no analysis — run analysis now
+            try:
+                from app.services.claude.client import ClaudeClient
+                analyses = await ClaudeClient().analyze_competitor_ads(
+                    ads=ads, brand_config=project.content_config or {}
+                )
+                cache.analysis_json = analyses
+                await db.commit()
+                return self._merge_analysis(ads, analyses)
+            except Exception:
+                return ads
 
         # Fetch fresh data
         config = project.content_config or {}
@@ -114,21 +142,33 @@ class MetaAdLibraryService:
         ]
         ads = await self.get_competitor_ads(access_token=access_token, competitors=competitors_list)
 
-        # Upsert cache
+        # Upsert cache (without analysis yet)
         now = datetime.now(timezone.utc)
         if cache:
             cache.research_json = {"ads": ads}
+            cache.analysis_json = None
             cache.fetched_at = now
         else:
             cache = CompetitorResearchCache(
                 project_id=project.id,
                 research_json={"ads": ads},
+                analysis_json=None,
                 fetched_at=now,
             )
             db.add(cache)
         await db.commit()
 
-        return ads
+        # Run analysis
+        try:
+            from app.services.claude.client import ClaudeClient
+            analyses = await ClaudeClient().analyze_competitor_ads(
+                ads=ads, brand_config=project.content_config or {}
+            )
+            cache.analysis_json = analyses
+            await db.commit()
+            return self._merge_analysis(ads, analyses)
+        except Exception:
+            return ads
 
     def _days_since(self, date_str: str) -> int:
         if not date_str:

@@ -280,6 +280,25 @@ export const translations = {
     ads_kpi_spend_today: "Spend Today",
     ads_kpi_active_campaigns: "Active Campaigns",
 
+    // ── Ads — Inspiration tab ────────────────────────────────────────────────
+    ads_campaigns_tab: "Campaigns",
+    ads_inspiration_tab: "Inspiration",
+    ads_inspiration_loading: "Loading competitor ads...",
+    ads_inspiration_empty: "No competitors configured. Add competitor handles in project settings.",
+    ads_inspiration_error: "Could not load competitor ads.",
+    ads_inspiration_retry: "Retry",
+    ads_inspiration_replicate: "Replicate for my brand",
+    ads_inspiration_replicating: "Adapting...",
+    ads_inspiration_days_active: (n: number) => `${n}d active`,
+    ads_inspiration_strength: "Strength",
+    ads_inspiration_opportunity: "Opportunity",
+    ads_inspiration_see_original: "See original ad →",
+    ads_inspiration_see_more: "See more",
+    ads_inspiration_see_less: "See less",
+    ads_inspiration_hook: "Hook",
+    ads_inspiration_angle: "Angle",
+    inspiration_prefill_banner: "Concept based on a competitor ad. All fields are editable — review each step before launching.",
+
     // ── Campaign Chat (Intelligence panel) ──────────────────────────────────
     ads_chat_title: "Campaign Intelligence",
     ads_chat_subtitle: "Ask Claude a question about your campaigns",
@@ -973,6 +992,25 @@ export const translations = {
     ads_kpi_spend_month: "Gasto este mes",
     ads_kpi_spend_today: "Gasto hoy",
     ads_kpi_active_campaigns: "Campañas activas",
+
+    // ── Ads — Inspiration tab ────────────────────────────────────────────────
+    ads_campaigns_tab: "Campañas",
+    ads_inspiration_tab: "Inspiración",
+    ads_inspiration_loading: "Cargando anuncios de competidores...",
+    ads_inspiration_empty: "Sin competidores configurados. Agregá handles en la configuración del proyecto.",
+    ads_inspiration_error: "No se pudieron cargar los anuncios de competidores.",
+    ads_inspiration_retry: "Reintentar",
+    ads_inspiration_replicate: "Replicar para mi marca",
+    ads_inspiration_replicating: "Adaptando...",
+    ads_inspiration_days_active: (n: number) => `${n}d activo`,
+    ads_inspiration_strength: "Fortaleza",
+    ads_inspiration_opportunity: "Oportunidad",
+    ads_inspiration_see_original: "Ver anuncio original →",
+    ads_inspiration_see_more: "Ver más",
+    ads_inspiration_see_less: "Ver menos",
+    ads_inspiration_hook: "Hook",
+    ads_inspiration_angle: "Ángulo",
+    inspiration_prefill_banner: "Concepto basado en un anuncio de competidor. Todos los campos son editables — revisá cada paso antes de lanzar.",
 
     // ── Campaign Chat (Intelligence panel) ──────────────────────────────────
     ads_chat_title: "Campaign Intelligence",

@@ -2,7 +2,7 @@
 from fastapi import APIRouter, Depends, HTTPException, UploadFile, File
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy import select
-from app.api.deps import get_session, get_current_user, require_super_admin
+from app.api.deps import get_session, get_current_user, require_super_admin, require_role
 from app.models.ad_campaign import AdCampaign
 from app.models.notification import Notification
 from app.models.project import Project
@@ -2059,3 +2059,69 @@ async def attribution_check(
                 )
 
     return result
+
+
+class AdaptCompetitorRequest(BaseModel):
+    ad_index: int
+    competitor_ad: dict
+    analysis: dict
+
+
+@router.get("/competitor-ads/{project_slug}")
+async def get_competitor_ads(
+    project_slug: str,
+    db: AsyncSession = Depends(get_session),
+    _current_user=Depends(require_role("admin", "operator", "super_admin")),
+) -> dict:
+    """Fetch competitor ads (with Claude analysis) for a project using the Meta Ad Library."""
+    from app.services.meta.ad_library import MetaAdLibraryService
+
+    proj_result = await db.execute(select(Project).where(Project.slug == project_slug))
+    project = proj_result.scalar_one_or_none()
+    if not project:
+        raise HTTPException(404, f"Project '{project_slug}' not found")
+
+    token = await get_project_token(project, db)
+    if not token:
+        raise HTTPException(400, "No Meta access token configured for this project")
+
+    ads = await MetaAdLibraryService().get_competitor_ads_cached(db, project, token)
+    return {"project_slug": project_slug, "ads": ads, "count": len(ads)}
+
+
+@router.post("/adapt-competitor/{project_slug}")
+async def adapt_competitor_ad(
+    project_slug: str,
+    body: AdaptCompetitorRequest,
+    db: AsyncSession = Depends(get_session),
+    _current_user=Depends(require_role("admin", "operator", "super_admin")),
+) -> dict:
+    """Adapt a competitor ad into a campaign concept for the project using Claude."""
+    from app.services.claude.client import ClaudeClient
+
+    proj_result = await db.execute(select(Project).where(Project.slug == project_slug))
+    project = proj_result.scalar_one_or_none()
+    if not project:
+        raise HTTPException(404, f"Project '{project_slug}' not found")
+
+    try:
+        result = await ClaudeClient().adapt_competitor_ad(
+            project=project,
+            competitor_ad=body.competitor_ad,
+            analysis=body.analysis,
+        )
+    except Exception as e:
+        raise HTTPException(500, f"Adaptation failed: {str(e)}")
+
+    return {
+        "project_slug": project_slug,
+        "prefill": {
+            "name": result.get("campaign_name", ""),
+            "objective": result.get("objective", "OUTCOME_LEADS"),
+            "ad_copy": result.get("ad_copy", ""),
+            "headline": result.get("headline", ""),
+            "rationale": result.get("rationale", ""),
+            "source_competitor": body.competitor_ad.get("page_name", ""),
+            "destination_url": (project.content_config or {}).get("website", ""),
+        },
+    }

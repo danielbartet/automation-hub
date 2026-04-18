@@ -6,6 +6,7 @@ import { Header } from "@/components/layout/Header";
 import { KPICard } from "@/components/dashboard/KPICard";
 import { CreateCampaignModal } from "@/components/dashboard/CreateCampaignModal";
 import { CampaignOptimizationPanel } from "@/components/dashboard/CampaignOptimizationPanel";
+import InspirationTab from "@/components/dashboard/InspirationTab";
 import {
   fetchProjects,
   fetchDashboard,
@@ -15,6 +16,7 @@ import {
   rejectOptimizerAction,
   type CampaignRecommendations,
   type CampaignRecommendation,
+  type InspirationPrefill,
 } from "@/lib/api";
 import { Loader2, Plus, Download } from "lucide-react";
 import Link from "next/link";
@@ -114,6 +116,8 @@ export default function AdsPage() {
   const [importError, setImportError] = useState<string | null>(null);
   const [allRecommendations, setAllRecommendations] = useState<CampaignRecommendations[]>([]);
   const [recsToast, setRecsToast] = useState<string | null>(null);
+  const [activeTab, setActiveTab] = useState<"campaigns" | "inspiration">("campaigns");
+  const [inspirationPrefill, setInspirationPrefill] = useState<InspirationPrefill | undefined>(undefined);
   useEffect(() => {
     const token = (session as any)?.accessToken as string | undefined;
     fetchProjects(token)
@@ -228,6 +232,11 @@ export default function AdsPage() {
     loadData();
   }, [loadData]);
 
+  const handleAdapted = (prefill: InspirationPrefill) => {
+    setInspirationPrefill(prefill);
+    setShowCreateModal(true);
+  };
+
   const selectedProject = projects.find(p => p.slug === selectedSlug) ?? null;
   const metaAds = data?.meta_ads;
   const metaTotals = metaAds?.totals ?? metaAds;
@@ -294,13 +303,42 @@ export default function AdsPage() {
           )}
         </div>
 
+        {/* Tab bar — admin/operator only */}
+        {!isClient && (
+          <div className="flex gap-1" style={{ borderBottom: "1px solid #222222" }}>
+            {(["campaigns", "inspiration"] as const).map((tab) => (
+              <button
+                key={tab}
+                onClick={() => { setActiveTab(tab); setInspirationPrefill(undefined); }}
+                className="px-4 py-2 text-sm font-medium transition-colors"
+                style={
+                  activeTab === tab
+                    ? { color: "#ffffff", borderBottom: "2px solid #7c3aed" }
+                    : { color: "#9ca3af", borderBottom: "2px solid transparent" }
+                }
+              >
+                {tab === "campaigns" ? t.ads_campaigns_tab : t.ads_inspiration_tab}
+              </button>
+            ))}
+          </div>
+        )}
+
         {error && (
           <div className="rounded-md p-4 text-sm text-red-400" style={{ backgroundColor: "#450a0a", border: "1px solid #7f1d1d" }}>
             Error: {error}
           </div>
         )}
 
-        {importResult && (
+        {/* ── Inspiration tab ── */}
+        {activeTab === "inspiration" && !isClient && selectedProject && (
+          <InspirationTab
+            projectSlug={selectedProject.slug}
+            token={token}
+            onAdapted={handleAdapted}
+          />
+        )}
+
+        {activeTab === "campaigns" && importResult && (
           <div className="rounded-md p-4 text-sm text-green-400 flex items-center justify-between" style={{ backgroundColor: "#052e16", border: "1px solid #166534" }}>
             <span>
               {importResult.imported > 0 && (
@@ -323,7 +361,7 @@ export default function AdsPage() {
           </div>
         )}
 
-        {importError && (
+        {activeTab === "campaigns" && importError && (
           <div className="rounded-md p-4 text-sm text-red-400 flex items-center justify-between" style={{ backgroundColor: "#450a0a", border: "1px solid #7f1d1d" }}>
             <span>{t.ads_import_error_prefix} {importError}</span>
             <button
@@ -336,7 +374,7 @@ export default function AdsPage() {
         )}
 
         {/* Recommendations toast */}
-        {recsToast && (
+        {activeTab === "campaigns" && recsToast && (
           <div className="fixed bottom-6 right-6 z-50 px-4 py-3 rounded-lg text-sm font-medium text-white shadow-lg"
             style={{ backgroundColor: "#1a1a1a", border: "1px solid #333333" }}>
             {recsToast}
@@ -344,7 +382,7 @@ export default function AdsPage() {
         )}
 
         {/* ── RECOMENDACIONES PENDIENTES ───────────────────────────────────── */}
-        {allRecommendations.length > 0 && (
+        {activeTab === "campaigns" && allRecommendations.length > 0 && (
           <div className="rounded-lg overflow-hidden" style={{ backgroundColor: "#111111", border: "1px solid #2d2d00" }}>
             <div className="px-6 py-4 flex items-center gap-2" style={{ borderBottom: "1px solid #2d2d00" }}>
               <span className="text-yellow-400 font-semibold text-sm">
@@ -423,8 +461,8 @@ export default function AdsPage() {
           </div>
         )}
 
-        {/* KPI Cards */}
-        <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
+        {/* KPI Cards — campaigns tab only */}
+        {activeTab === "campaigns" && <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
           <KPICard
             title={t.ads_kpi_spend_month}
             value={`$${((metaTotals as any)?.spend_this_month ?? 0).toFixed(2)}`}
@@ -440,10 +478,10 @@ export default function AdsPage() {
             value={(metaTotals as any)?.active_campaigns ?? 0}
             subtitle="Meta Ads"
           />
-        </div>
+        </div>}
 
         {/* Spend chart */}
-        {spendData.length > 0 && (
+        {activeTab === "campaigns" && spendData.length > 0 && (
           <div className="rounded-lg p-6" style={{ backgroundColor: "#111111", border: "1px solid #222222" }}>
             <h3 className="text-base font-semibold text-white mb-4">{t.ads_spend_chart_title}</h3>
             <ResponsiveContainer width="100%" height={220}>
@@ -469,7 +507,7 @@ export default function AdsPage() {
         )}
 
         {/* Campaigns table */}
-        <div className="rounded-lg overflow-hidden" style={{ backgroundColor: "#111111", border: "1px solid #222222" }}>
+        {activeTab === "campaigns" && <div className="rounded-lg overflow-hidden" style={{ backgroundColor: "#111111", border: "1px solid #222222" }}>
           <div className="px-6 py-4" style={{ borderBottom: "1px solid #222222" }}>
             <h3 className="text-base font-semibold text-white">{t.ads_col_campaigns}</h3>
           </div>
@@ -575,7 +613,7 @@ export default function AdsPage() {
               </table>
             </div>
           )}
-        </div>
+        </div>}
       </div>
 
       {/* Modals */}
@@ -583,9 +621,11 @@ export default function AdsPage() {
         <CreateCampaignModal
           projectSlug={selectedProject.slug}
           projectId={selectedProject.id}
-          onClose={() => setShowCreateModal(false)}
+          prefill={inspirationPrefill}
+          onClose={() => { setShowCreateModal(false); setInspirationPrefill(undefined); }}
           onSuccess={() => {
             setShowCreateModal(false);
+            setInspirationPrefill(undefined);
             loadData();
           }}
         />

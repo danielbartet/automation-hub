@@ -813,3 +813,171 @@ Return ONLY valid JSON:
                     break
 
         return validated
+
+    async def analyze_competitor_ads(self, ads: list[dict], brand_config: dict) -> list[dict]:
+        """Analyze a batch of competitor ads (up to 20) and return 1:1 analysis list."""
+        brand_name = brand_config.get("brand_name", "")
+        language = brand_config.get("language", "es")
+
+        default_analysis = lambda i: {
+            "index": i,
+            "hook_analysis": "",
+            "psychological_angle": "",
+            "inferred_objective": "OUTCOME_AWARENESS",
+            "audience_signal": "",
+            "strength": "",
+            "opportunity": "",
+            "days_active_signal": "",
+        }
+
+        if not ads:
+            return []
+
+        ads_payload = json.dumps(
+            [
+                {
+                    "index": i,
+                    "page_name": ad.get("page_name", ""),
+                    "body": ad.get("body", ""),
+                    "title": ad.get("title", ""),
+                    "days_active": ad.get("days_active", 0),
+                    "platforms": ad.get("platforms", []),
+                }
+                for i, ad in enumerate(ads)
+            ],
+            ensure_ascii=False,
+        )
+
+        system_prompt = f"""You are a paid advertising strategist analyzing competitor ads for {brand_name}.
+Language for analysis: {language}.
+
+For each ad in the input array, provide strategic intelligence.
+inferred_objective MUST be exactly one of: OUTCOME_LEADS | OUTCOME_SALES | OUTCOME_TRAFFIC | OUTCOME_AWARENESS
+
+Return ONLY valid JSON — an array aligned 1:1 with the input:
+[
+  {{
+    "index": 0,
+    "hook_analysis": "what makes the opening attention-grabbing or weak",
+    "psychological_angle": "Logical | Emotional | Social Proof | Problem-Solution | Urgency | Identity",
+    "inferred_objective": "OUTCOME_LEADS | OUTCOME_SALES | OUTCOME_TRAFFIC | OUTCOME_AWARENESS",
+    "audience_signal": "who this ad is targeting based on messaging signals",
+    "strength": "what this ad does well that could be replicated",
+    "opportunity": "gap or weakness that {brand_name} could exploit",
+    "days_active_signal": "what the days_active count signals about performance"
+  }}
+]"""
+
+        try:
+            response = self.client.messages.create(
+                model=self.MODEL,
+                max_tokens=3000,
+                system=[
+                    {
+                        "type": "text",
+                        "text": system_prompt,
+                        "cache_control": {"type": "ephemeral"},
+                    }
+                ],
+                messages=[
+                    {
+                        "role": "user",
+                        "content": f"Analyze these competitor ads:\n{ads_payload}",
+                    }
+                ],
+                extra_headers={"anthropic-beta": "prompt-caching-2024-07-31"},
+            )
+            content = response.content[0].text.strip()
+            if content.startswith("```"):
+                content = content.split("```", 2)[1]
+                if content.startswith("json"):
+                    content = content[4:]
+                content = content.rsplit("```", 1)[0].strip()
+            analyses = json.loads(content)
+            if not isinstance(analyses, list):
+                return [default_analysis(i) for i in range(len(ads))]
+            result = []
+            index_map = {item["index"]: item for item in analyses if isinstance(item, dict) and "index" in item}
+            for i in range(len(ads)):
+                if i in index_map:
+                    result.append(index_map[i])
+                elif i < len(analyses):
+                    item = analyses[i]
+                    item["index"] = i
+                    result.append(item)
+                else:
+                    result.append(default_analysis(i))
+            return result
+        except Exception:
+            return [default_analysis(i) for i in range(len(ads))]
+
+    async def adapt_competitor_ad(self, project, competitor_ad: dict, analysis: dict) -> dict:
+        """Generate a campaign concept adapted from a competitor ad for the given project."""
+        config = project.content_config or {}
+        brand_name = config.get("brand_name", project.name)
+        core_message = config.get("core_message", "")
+        target_audience = config.get("target_audience", "")
+        tone = config.get("tone", "")
+        language = config.get("language", "es")
+
+        valid_objectives = {"OUTCOME_LEADS", "OUTCOME_SALES", "OUTCOME_TRAFFIC", "OUTCOME_AWARENESS"}
+
+        system_prompt = f"""You are a paid advertising strategist.
+Brand: {brand_name}
+Core message: {core_message}
+Target audience: {target_audience}
+Tone: {tone}
+Language: {language}
+
+Adapt the competitor ad intelligence into a campaign concept for {brand_name}.
+objective MUST be exactly one of: OUTCOME_LEADS | OUTCOME_SALES | OUTCOME_TRAFFIC | OUTCOME_AWARENESS
+
+Return ONLY valid JSON:
+{{
+  "campaign_name": "short descriptive name for the campaign",
+  "objective": "OUTCOME_LEADS | OUTCOME_SALES | OUTCOME_TRAFFIC | OUTCOME_AWARENESS",
+  "ad_copy": "primary text for the ad (max 125 chars)",
+  "headline": "ad headline (max 40 chars)",
+  "rationale": "1-2 sentences explaining why this adaptation works for the brand"
+}}"""
+
+        competitor_payload = json.dumps(
+            {
+                "competitor_ad": {
+                    "page_name": competitor_ad.get("page_name", ""),
+                    "body": competitor_ad.get("body", ""),
+                    "title": competitor_ad.get("title", ""),
+                    "days_active": competitor_ad.get("days_active", 0),
+                },
+                "analysis": {
+                    "hook_analysis": analysis.get("hook_analysis", ""),
+                    "psychological_angle": analysis.get("psychological_angle", ""),
+                    "inferred_objective": analysis.get("inferred_objective", ""),
+                    "strength": analysis.get("strength", ""),
+                    "opportunity": analysis.get("opportunity", ""),
+                },
+            },
+            ensure_ascii=False,
+        )
+
+        response = self.client.messages.create(
+            model=self.MODEL,
+            max_tokens=500,
+            messages=[
+                {
+                    "role": "user",
+                    "content": f"Adapt this competitor ad for {brand_name}:\n{competitor_payload}",
+                }
+            ],
+            system=system_prompt,
+        )
+        content = response.content[0].text.strip()
+        if content.startswith("```"):
+            content = content.split("```", 2)[1]
+            if content.startswith("json"):
+                content = content[4:]
+            content = content.rsplit("```", 1)[0].strip()
+        result = json.loads(content)
+        if result.get("objective") not in valid_objectives:
+            result["objective"] = "OUTCOME_LEADS"
+        return result

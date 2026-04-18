@@ -5,7 +5,7 @@ import { X, Loader2, ChevronRight, ChevronLeft, Check, RefreshCw, Sparkles, Aler
 import { ImageUploadZone } from "./ImageUploadZone";
 import { ConceptsGrid } from "./ConceptsGrid";
 import { CreateAudienceModal } from "./CreateAudienceModal";
-import { createCampaign, fetchProjectPosts, generateAdConcepts, createCampaignWithConcepts, fetchAudiences, generateConceptImage, AdConcept, DiversityAudit } from "@/lib/api";
+import { createCampaign, fetchProjectPosts, generateAdConcepts, createCampaignWithConcepts, fetchAudiences, generateConceptImage, AdConcept, DiversityAudit, InspirationPrefill } from "@/lib/api";
 
 interface Post {
   id: number;
@@ -18,6 +18,7 @@ interface CreateCampaignModalProps {
   projectId: string;
   onClose: () => void;
   onSuccess: () => void;
+  prefill?: InspirationPrefill;
 }
 
 const OBJECTIVES = [
@@ -63,10 +64,11 @@ const COUNTRY_OPTIONS = [
 
 const STEPS = ["Campaña", "Conceptos", "Imágenes", "Creativo", "Lanzar"];
 
-export function CreateCampaignModal({ projectSlug, projectId, onClose, onSuccess }: CreateCampaignModalProps) {
+export function CreateCampaignModal({ projectSlug, projectId, onClose, onSuccess, prefill }: CreateCampaignModalProps) {
   const { data: session } = useSession();
   const token = (session as any)?.accessToken as string | undefined;
   const [step, setStep] = useState(1);
+  const [prefillActive, setPrefillActive] = useState(!!prefill);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [posts, setPosts] = useState<Post[]>([]);
@@ -98,6 +100,7 @@ export function CreateCampaignModal({ projectSlug, projectId, onClose, onSuccess
   const [imageUrl, setImageUrl] = useState("");
   const [imageSource, setImageSource] = useState<"posts" | "upload">("posts");
   const [adCopy, setAdCopy] = useState("");
+  const [headline, setHeadline] = useState("");
   const [destinationUrl, setDestinationUrl] = useState("");
 
   // Step 3 — Image review (pre-launch image generation)
@@ -155,6 +158,19 @@ export function CreateCampaignModal({ projectSlug, projectId, onClose, onSuccess
       );
     } catch {}
   }, [concepts, approvedIds, conceptImages, projectSlug]);
+
+  // Apply prefill on mount when provided
+  useEffect(() => {
+    if (!prefill) return;
+    setName(prefill.name);
+    const matchedObjective = OBJECTIVES.find(o => o.value === prefill.objective);
+    if (matchedObjective) setObjective(matchedObjective.value);
+    setAdCopy(prefill.ad_copy);
+    if (prefill.headline) setHeadline(prefill.headline);
+    setDestinationUrl(prefill.destination_url);
+    setDestinationUrlStep1(prefill.destination_url);
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
 
   // Fetch audiences when audience type changes away from "broad"
   useEffect(() => {
@@ -279,6 +295,7 @@ export function CreateCampaignModal({ projectSlug, projectId, onClose, onSuccess
           countries,
           image_url: imageUrl,
           ad_copy: adCopy,
+          headline: headline || undefined,
           destination_url: destinationUrl || destinationUrlStep1 || undefined,
           pixel_event: objective === "OUTCOME_SALES" ? pixelEvent : undefined,
           audience_type: audienceType,
@@ -391,13 +408,22 @@ export function CreateCampaignModal({ projectSlug, projectId, onClose, onSuccess
           {/* ── PASO 1: Campaña ── */}
           {step === 1 && (
             <div className="space-y-5">
+              {prefill && prefillActive && (
+                <div
+                  className="flex items-start gap-3 p-3 rounded-lg text-sm"
+                  style={{ backgroundColor: "#0c1a3a", border: "1px solid #1d4ed8", color: "#93c5fd" }}
+                >
+                  <AlertTriangle className="h-4 w-4 flex-shrink-0 mt-0.5" style={{ color: "#60a5fa" }} />
+                  <span>Concepto basado en un anuncio de competidor. Todos los campos son editables — revisá cada paso antes de lanzar.</span>
+                </div>
+              )}
               <div>
                 <label className="block text-sm font-medium mb-1" style={{ color: "#d1d5db" }}>
                   Nombre de campaña *
                 </label>
                 <input
                   value={name}
-                  onChange={e => setName(e.target.value)}
+                  onChange={e => { setName(e.target.value); setPrefillActive(false); }}
                   className="w-full rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-[#7c3aed] text-white placeholder-gray-500"
                   style={{ border: "1px solid #333333", backgroundColor: "#1a1a1a" }}
                   placeholder="ej. Campaña Leads Marzo"
@@ -1180,6 +1206,23 @@ export function CreateCampaignModal({ projectSlug, projectId, onClose, onSuccess
                       className="w-full rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-[#7c3aed] text-white placeholder-gray-500"
                       style={{ border: "1px solid #333333", backgroundColor: "#1a1a1a" }}
                       placeholder="Escribe un copy convincente..."
+                    />
+                  </div>
+
+                  <div>
+                    <div className="flex justify-between mb-1">
+                      <label className="text-sm font-medium" style={{ color: "#d1d5db" }}>Titular</label>
+                      <span className={`text-xs ${headline.length > 40 ? "text-orange-400" : "text-gray-500"}`}>
+                        {headline.length} / 40
+                      </span>
+                    </div>
+                    <input
+                      value={headline}
+                      onChange={e => setHeadline(e.target.value)}
+                      maxLength={40}
+                      className="w-full rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-[#7c3aed] text-white placeholder-gray-500"
+                      style={{ border: "1px solid #333333", backgroundColor: "#1a1a1a" }}
+                      placeholder="max 40 chars"
                     />
                   </div>
 
