@@ -119,7 +119,10 @@ class MetaAdLibraryService:
         )
         cache = result.scalar_one_or_none()
 
-        if cache and cache.fetched_at > cutoff:
+        fetched_at = cache.fetched_at if cache else None
+        if fetched_at and fetched_at.tzinfo is None:
+            fetched_at = fetched_at.replace(tzinfo=timezone.utc)
+        if cache and fetched_at > cutoff:
             ads = cache.research_json.get("ads", [])
             if cache.analysis_json is not None:
                 return self._merge_analysis(ads, cache.analysis_json)
