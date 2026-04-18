@@ -1,7 +1,10 @@
 import httpx
+import logging
 from datetime import datetime, timedelta, timezone
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy import select
+
+logger = logging.getLogger(__name__)
 
 
 class MetaAdLibraryService:
@@ -52,6 +55,9 @@ class MetaAdLibraryService:
                     )
                 if response.status_code == 200:
                     data = response.json()
+                    if "error" in data:
+                        logger.warning("Ad Library API error for '%s': %s", page_name, data["error"])
+                        continue
                     ads = data.get("data", [])
                     for ad in ads:
                         start = ad.get("ad_delivery_start_time", "")
@@ -69,8 +75,8 @@ class MetaAdLibraryService:
                             "platforms": ad.get("publisher_platforms", []),
                             "snapshot_url": ad.get("ad_snapshot_url", "")
                         })
-            except Exception:
-                # Skip silently on any error for this competitor
+            except Exception as e:
+                logger.warning("Ad Library fetch failed for competitor '%s': %s", page_name, e)
                 continue
 
         all_ads.sort(key=lambda x: x["days_active"], reverse=True)

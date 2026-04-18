@@ -2085,8 +2085,16 @@ async def get_competitor_ads(
     if not token:
         raise HTTPException(400, "No Meta access token configured for this project")
 
+    config = project.content_config or {}
+    competitors_configured = bool(config.get("competitors", "").strip())
+
     ads = await MetaAdLibraryService().get_competitor_ads_cached(db, project, token)
-    return {"project_slug": project_slug, "ads": ads, "count": len(ads)}
+    return {
+        "project_slug": project_slug,
+        "ads": ads,
+        "count": len(ads),
+        "competitors_configured": competitors_configured,
+    }
 
 
 @router.post("/adapt-competitor/{project_slug}")

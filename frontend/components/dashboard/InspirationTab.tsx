@@ -153,6 +153,7 @@ interface InspirationTabProps {
 export default function InspirationTab({ projectSlug, token, onAdapted }: InspirationTabProps) {
   const t = useT();
   const [ads, setAds] = useState<CompetitorAd[]>([]);
+  const [competitorsConfigured, setCompetitorsConfigured] = useState<boolean | null>(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const [adapting, setAdapting] = useState<number | null>(null);
@@ -161,7 +162,10 @@ export default function InspirationTab({ projectSlug, token, onAdapted }: Inspir
     setLoading(true);
     setError(null);
     fetchCompetitorAds(projectSlug, token)
-      .then((data) => setAds(data.ads))
+      .then((data) => {
+        setAds(data.ads);
+        setCompetitorsConfigured(data.competitors_configured ?? true);
+      })
       .catch((err) => setError(err instanceof Error ? err.message : t.ads_inspiration_error))
       .finally(() => setLoading(false));
   }, [projectSlug, token]); // eslint-disable-line react-hooks/exhaustive-deps
@@ -212,21 +216,35 @@ export default function InspirationTab({ projectSlug, token, onAdapted }: Inspir
   }
 
   if (ads.length === 0) {
+    const noConfig = competitorsConfigured === false;
     return (
       <div
         className="rounded-lg p-8 text-center"
         style={{ backgroundColor: "#111111", border: "1px solid #222222" }}
       >
         <p className="text-sm mb-3" style={{ color: "#9ca3af" }}>
-          {t.ads_inspiration_empty}
+          {noConfig
+            ? t.ads_inspiration_empty
+            : "No se encontraron anuncios activos para los competidores configurados."}
         </p>
-        <Link
-          href="/dashboard/settings"
-          className="text-xs font-medium transition-colors"
-          style={{ color: "#7c3aed" }}
-        >
-          Project settings →
-        </Link>
+        {noConfig && (
+          <Link
+            href="/dashboard/settings"
+            className="text-xs font-medium transition-colors"
+            style={{ color: "#7c3aed" }}
+          >
+            Configuración del proyecto →
+          </Link>
+        )}
+        {!noConfig && (
+          <button
+            onClick={loadAds}
+            className="text-xs font-medium transition-colors"
+            style={{ color: "#7c3aed", background: "none", border: "none", cursor: "pointer" }}
+          >
+            {t.ads_inspiration_retry}
+          </button>
+        )}
       </div>
     );
   }
