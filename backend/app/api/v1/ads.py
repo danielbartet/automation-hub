@@ -793,9 +793,9 @@ async def get_campaign_detail(
         })
 
     # Build insights summary
-    actions = {a["action_type"]: float(a["value"]) for a in insights_summary_raw.get("actions", [])}
-    action_values = {a["action_type"]: float(a["value"]) for a in insights_summary_raw.get("action_values", [])}
-    cpa_dict = {a["action_type"]: float(a["value"]) for a in insights_summary_raw.get("cost_per_action_type", [])}
+    actions = {a["action_type"]: float(a["value"]) for a in insights_summary_raw.get("actions", []) if "value" in a}
+    action_values = {a["action_type"]: float(a["value"]) for a in insights_summary_raw.get("action_values", []) if "value" in a}
+    cpa_dict = {a["action_type"]: float(a["value"]) for a in insights_summary_raw.get("cost_per_action_type", []) if "value" in a}
     objective = (campaign_info.get("objective") or (campaign.objective if campaign else None) or "").upper()
 
     total_spend = float(insights_summary_raw.get("spend", 0))
@@ -926,8 +926,8 @@ async def get_campaign_detail(
     # Build daily insights
     daily_insights = []
     for day in daily_insights_raw:
-        day_actions = {a["action_type"]: float(a["value"]) for a in day.get("actions", [])}
-        day_cpa = {a["action_type"]: float(a["value"]) for a in day.get("cost_per_action_type", [])}
+        day_actions = {a["action_type"]: float(a["value"]) for a in day.get("actions", []) if "value" in a}
+        day_cpa = {a["action_type"]: float(a["value"]) for a in day.get("cost_per_action_type", []) if "value" in a}
         if "LEADS" in objective:
             day_results = day_actions.get("lead", 0)
             day_cpr = day_cpa.get("lead", 0)
@@ -2103,7 +2103,7 @@ async def attribution_check(
             ins_default = ins_default_resp.json()
             ins_default_rows = ins_default.get("data", [{}])
             ins_default_row = ins_default_rows[0] if ins_default_rows else {}
-            actions_default = {a["action_type"]: float(a["value"]) for a in ins_default_row.get("actions", [])}
+            actions_default = {a["action_type"]: float(a["value"]) for a in ins_default_row.get("actions", []) if "value" in a}
 
             # 3b. Insights WITH explicit 7d_click + 1d_view window
             ins_7d_resp = await client.get(
@@ -2118,7 +2118,7 @@ async def attribution_check(
             ins_7d = ins_7d_resp.json()
             ins_7d_rows = ins_7d.get("data", [{}])
             ins_7d_row = ins_7d_rows[0] if ins_7d_rows else {}
-            actions_7d = {a["action_type"]: float(a["value"]) for a in ins_7d_row.get("actions", [])}
+            actions_7d = {a["action_type"]: float(a["value"]) for a in ins_7d_row.get("actions", []) if "value" in a}
 
             purchase_types = ["purchase", "omni_purchase", "offsite_conversion.fb_pixel_purchase"]
             purchases_default = sum(actions_default.get(k, 0) for k in purchase_types)
