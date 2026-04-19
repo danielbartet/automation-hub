@@ -4,9 +4,9 @@ import { useEffect, useState, useCallback, useRef } from "react";
 import { useSession } from "next-auth/react";
 import { useSearchParams } from "next/navigation";
 import { Header } from "@/components/layout/Header";
-import { fetchContent, importFromMeta, updateContent } from "@/lib/api";
+import { fetchContent, importFromMeta, updateContent, deleteContentPost } from "@/lib/api";
 import { useProject } from "@/lib/project-context";
-import { PlusCircle, FileText, Loader2, Pencil, Video, Image, ChevronDown, Upload, X } from "lucide-react";
+import { PlusCircle, FileText, Loader2, Pencil, Trash2, Video, Image, ChevronDown, Upload, X } from "lucide-react";
 import { GenerateContentModal } from "@/components/dashboard/GenerateContentModal";
 import { EditContentModal } from "@/components/dashboard/EditContentModal";
 import { ImageGeneratorModal } from "@/components/dashboard/ImageGeneratorModal";
@@ -696,18 +696,41 @@ export default function ContentPage() {
                       )}
                     </td>
                     <td className="px-4 py-3">
-                      {!isClient && (
-                        <button
-                          onClick={() => setEditPost(post)}
-                          className="p-1.5 rounded-md transition-colors"
-                          style={{ color: "#9ca3af" }}
-                          onMouseEnter={e => (e.currentTarget.style.backgroundColor = "#1f1f1f")}
-                          onMouseLeave={e => (e.currentTarget.style.backgroundColor = "transparent")}
-                          title="Edit post"
-                        >
-                          <Pencil className="h-4 w-4" />
-                        </button>
-                      )}
+                      <div className="flex items-center gap-1">
+                        {!isClient && (
+                          <button
+                            onClick={() => setEditPost(post)}
+                            className="p-1.5 rounded-md transition-colors"
+                            style={{ color: "#9ca3af" }}
+                            onMouseEnter={e => (e.currentTarget.style.backgroundColor = "#1f1f1f")}
+                            onMouseLeave={e => (e.currentTarget.style.backgroundColor = "transparent")}
+                            title="Edit post"
+                          >
+                            <Pencil className="h-4 w-4" />
+                          </button>
+                        )}
+                        {post.status !== "published" && (
+                          <button
+                            onClick={async () => {
+                              if (!window.confirm("¿Eliminar este post? Esta acción no se puede deshacer.")) return;
+                              try {
+                                const token = (session as any)?.accessToken as string;
+                                await deleteContentPost(post.id, token);
+                                setContent((prev) => prev.filter((p) => p.id !== post.id));
+                              } catch {
+                                alert("No se pudo eliminar el post. Intenta de nuevo.");
+                              }
+                            }}
+                            className="p-1.5 rounded-md transition-colors"
+                            style={{ color: "#9ca3af" }}
+                            onMouseEnter={e => { (e.currentTarget as HTMLButtonElement).style.backgroundColor = "#2a1515"; (e.currentTarget as HTMLButtonElement).style.color = "#f87171"; }}
+                            onMouseLeave={e => { (e.currentTarget as HTMLButtonElement).style.backgroundColor = "transparent"; (e.currentTarget as HTMLButtonElement).style.color = "#9ca3af"; }}
+                            title="Eliminar post"
+                          >
+                            <Trash2 className="h-4 w-4" />
+                          </button>
+                        )}
+                      </div>
                     </td>
                   </tr>
                 ))}

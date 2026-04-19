@@ -248,6 +248,14 @@ export async function fetchCampaignLogs(campaignId: number, token?: string) {
   return res.json();
 }
 
+export async function deleteContentPost(postId: number, token: string): Promise<void> {
+  const res = await fetch(`${API_BASE}/api/v1/content/posts/${postId}`, {
+    method: "DELETE",
+    headers: { Authorization: `Bearer ${token}` },
+  });
+  if (!res.ok) throw new Error("No se pudo eliminar el post");
+}
+
 export async function fetchProjectPosts(projectId: string, token?: string) {
   const headers: HeadersInit = token ? { Authorization: `Bearer ${token}` } : {};
   const res = await fetch(`${API_BASE}/api/v1/content/${projectId}`, { headers, cache: "no-store" });

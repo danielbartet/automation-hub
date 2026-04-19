@@ -903,6 +903,46 @@ async def update_content(
     }
 
 
+@router.delete("/posts/{post_id}")
+async def delete_content_post(
+    post_id: int,
+    db: AsyncSession = Depends(get_session),
+    current_user=Depends(get_current_user),
+) -> dict:
+    """Delete a content post.
+
+    Not allowed if the post has already been published.
+    Checks that the post belongs to a project accessible by the current user.
+    """
+    result = await db.execute(select(ContentPost).where(ContentPost.id == post_id))
+    post = result.scalar_one_or_none()
+    if not post:
+        raise HTTPException(status_code=404, detail=f"ContentPost {post_id} not found")
+
+    # IDOR check: verify the post's project is accessible to the current user
+    if current_user.role not in ("super_admin",):
+        if current_user.role == "admin":
+            proj_check = await db.execute(select(Project).where(Project.id == post.project_id))
+            owned_project = proj_check.scalar_one_or_none()
+            if owned_project is None or owned_project.owner_id != current_user.id:
+                raise HTTPException(status_code=403, detail="Not authorized for this content post")
+        else:
+            from app.models.user_project import UserProject
+            user_projects = await db.execute(
+                select(UserProject.project_id).where(UserProject.user_id == current_user.id)
+            )
+            authorized_ids = {row[0] for row in user_projects.fetchall()}
+            if post.project_id not in authorized_ids:
+                raise HTTPException(status_code=403, detail="Not authorized for this content post")
+
+    if post.status == "published":
+        raise HTTPException(status_code=400, detail="Cannot delete a post that has already been published")
+
+    await db.delete(post)
+    await db.commit()
+    return {"ok": True}
+
+
 @router.post("/{content_id}/retry-instagram")
 async def retry_instagram(
     content_id: int,
