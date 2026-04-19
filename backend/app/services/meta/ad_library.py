@@ -152,9 +152,9 @@ class MetaAdLibraryService:
             params={"token": api_key},
             json={
                 "urls": [
-                    {"url": f"https://www.facebook.com/ads/library/?active_status=active&ad_type=all&country=ALL&q={competitor}&search_type=keyword_unordered"}
+                    {"url": f"https://www.facebook.com/ads/library/?active_status=all&ad_type=all&country=ALL&q={competitor}&search_type=keyword_unordered&media_type=all"}
                 ],
-                "maxItems": limit,
+                "count": limit,
             },
             timeout=30.0,
         )
