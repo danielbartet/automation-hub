@@ -152,7 +152,7 @@ class MetaAdLibraryService:
             params={"token": api_key},
             json={
                 "urls": [
-                    {"url": f"https://www.facebook.com/ads/library/?active_status=active&ad_type=all&country=ALL&q={competitor}&search_type=keyword_unordered&media_type=all"}
+                    {"url": f"https://www.facebook.com/ads/library/?active_status=all&ad_type=all&country=ALL&q={competitor}&search_type=keyword_unordered&media_type=all"}
                 ],
                 "count": limit,
             },
@@ -230,28 +230,29 @@ class MetaAdLibraryService:
             items = items.get("items", []) if isinstance(items, dict) else []
 
         logger.info("Apify returned %d items for competitor '%s'", len(items), competitor)
-        if items and isinstance(items[0], dict):
-            logger.info("Apify first item keys for '%s': %s", competitor, list(items[0].keys()))
-            logger.info("Apify first item sample for '%s': %s", competitor, str(items[0])[:800])
-        return [self._map_apify_item(item, competitor) for item in items if isinstance(item, dict)]
+        mapped = [self._map_apify_item(item, competitor) for item in items if isinstance(item, dict)]
+        return [ad for ad in mapped if ad is not None]
 
     def _map_apify_item(self, item: dict, competitor: str) -> dict:
         """Map an Apify Facebook Ad Library item to our standard ad shape.
 
-        The curious_coder/facebook-ads-library-scraper actor returns:
-          adArchiveID, pageName, pageID, startDate (Unix int), endDate,
-          isActive, publisherPlatform (list), snapshot (dict with title/body/cta_text/images/link_url),
-          collationCount
+        Actual actor response fields (verified):
+          page_name, start_date, publisher_platform (list),
+          ad_library_url, snapshot.body.text, snapshot.link_description
         """
-        # page_name
-        page_name = item.get("pageName") or item.get("page_name") or competitor
+        # Skip error items
+        if "error" in item and "page_name" not in item:
+            return None  # filtered out by caller
 
-        # body — extract from nested snapshot.body.markup.__html first
+        # page_name
+        page_name = item.get("page_name") or item.get("pageName") or competitor
+
+        # body — snapshot.body.text is the actual ad copy
         snapshot = item.get("snapshot") or {}
         body = ""
         raw_body = snapshot.get("body")
         if isinstance(raw_body, dict):
-            body = raw_body.get("markup", {}).get("__html", "") or ""
+            body = raw_body.get("text", "") or raw_body.get("markup", {}).get("__html", "") or ""
         elif isinstance(raw_body, str):
             body = raw_body
         if not body:
@@ -260,32 +261,30 @@ class MetaAdLibraryService:
                 bodies_fallback = [bodies_fallback]
             body = bodies_fallback[0] if bodies_fallback else ""
 
-        # title — from snapshot.title or ad_creative_link_titles
-        title = snapshot.get("title", "") or ""
+        # title — snapshot.link_description or caption
+        title = snapshot.get("link_description", "") or snapshot.get("caption", "") or snapshot.get("title", "") or ""
         if not title:
             titles_fallback = item.get("ad_creative_link_titles") or []
-            if isinstance(titles_fallback, str):
-                titles_fallback = [titles_fallback]
             if isinstance(titles_fallback, list) and titles_fallback:
                 title = titles_fallback[0]
 
-        # platforms — actor uses publisherPlatform (list)
-        platforms = item.get("publisherPlatform") or item.get("publisher_platforms") or []
+        # platforms — actor uses publisher_platform (snake_case, list)
+        platforms = item.get("publisher_platform") or item.get("publisherPlatform") or item.get("publisher_platforms") or []
         if isinstance(platforms, str):
             platforms = [platforms]
 
-        # snapshot_url
+        # snapshot_url — ad_library_url is the direct link
         snapshot_url = (
-            item.get("ad_snapshot_url")
-            or item.get("snapshot_url")
+            item.get("ad_library_url")
+            or item.get("ad_snapshot_url")
             or snapshot.get("link_url")
             or ""
         )
 
-        # days_active — startDate is a Unix timestamp integer
-        start_time = item.get("startDate") or item.get("ad_delivery_start_time") or item.get("start_date") or ""
+        # days_active — start_date (snake_case)
+        start_time = item.get("start_date") or item.get("startDate") or item.get("ad_delivery_start_time") or ""
 
-        # bodies list for ad_creative_bodies field
+        # bodies list
         bodies = [body] if body else []
 
         return {
