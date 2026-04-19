@@ -9,7 +9,7 @@ from sqlalchemy import select
 logger = logging.getLogger(__name__)
 
 APIFY_BASE_URL = "https://api.apify.com/v2"
-APIFY_ACTOR_ID = "curious_coder~facebook-ad-library-scraper"
+APIFY_ACTOR_ID = "curious_coder~facebook-ads-library-scraper"
 
 
 class MetaAdLibraryService:
@@ -151,10 +151,10 @@ class MetaAdLibraryService:
             f"{APIFY_BASE_URL}/acts/{APIFY_ACTOR_ID}/runs",
             params={"token": api_key},
             json={
-                "searchTerms": [competitor],
+                "search": competitor,
+                "country": "ALL",
                 "adType": "all",
-                "countryCode": "ALL",
-                "limit": limit,
+                "maxItems": limit,
             },
             timeout=30.0,
         )
