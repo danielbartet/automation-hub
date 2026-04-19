@@ -4,18 +4,11 @@ import { useEffect, useState, useCallback } from "react";
 import { useSession } from "next-auth/react";
 import { Header } from "@/components/layout/Header";
 import { CreateAudienceModal } from "@/components/dashboard/CreateAudienceModal";
-import { fetchProjects } from "@/lib/api";
 import { useT } from "@/lib/i18n";
+import { useProject } from "@/lib/project-context";
 import { Loader2, Plus, Trash2, UserPlus } from "lucide-react";
 
 const API_BASE = process.env.NEXT_PUBLIC_API_URL ?? "http://localhost:8000";
-
-interface Project {
-  id: string;
-  name: string;
-  slug: string;
-  is_active: boolean;
-}
 
 export interface Audience {
   id: number;
@@ -83,10 +76,8 @@ export default function AudiencesPage() {
     return t.audiences_date_months_ago(diffMonths);
   }
 
-  const [projects, setProjects] = useState<Project[]>([]);
-  const [selectedSlug, setSelectedSlug] = useState<string>("");
+  const { selectedSlug, selectedProject } = useProject();
   const [audiences, setAudiences] = useState<Audience[]>([]);
-  const [loadingProjects, setLoadingProjects] = useState(true);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [showCreateModal, setShowCreateModal] = useState(false);
@@ -100,18 +91,6 @@ export default function AudiencesPage() {
   const [addContactsLoading, setAddContactsLoading] = useState(false);
   const [addContactsResult, setAddContactsResult] = useState<string | null>(null);
   const [addContactsError, setAddContactsError] = useState<string | null>(null);
-
-  useEffect(() => {
-    const token = (session as any)?.accessToken as string | undefined;
-    fetchProjects(token)
-      .then((list: Project[]) => {
-        const arr = Array.isArray(list) ? list : [];
-        setProjects(arr);
-        if (arr.length > 0) setSelectedSlug(arr[0].slug);
-      })
-      .catch((err: Error) => setError(err.message))
-      .finally(() => setLoadingProjects(false));
-  }, [session]);
 
   const loadAudiences = useCallback(async () => {
     if (!selectedSlug || !token) return;
@@ -163,8 +142,6 @@ export default function AudiencesPage() {
     }
   };
 
-  const selectedProject = projects.find((p) => p.slug === selectedSlug) ?? null;
-
   const openAddContacts = (audience: Audience) => {
     setAddContactsAudience(audience);
     setAddContactsFile(null);
@@ -214,31 +191,6 @@ export default function AudiencesPage() {
       <div className="p-6 space-y-6">
         {/* Header row */}
         <div className="flex items-center gap-3 flex-wrap">
-          <label className="text-sm font-medium" style={{ color: "#9ca3af" }}>
-            {t.audiences_project_label}
-          </label>
-          {loadingProjects ? (
-            <span className="text-sm" style={{ color: "#9ca3af" }}>
-              {t.audiences_loading}
-            </span>
-          ) : (
-            <select
-              value={selectedSlug}
-              onChange={(e) => setSelectedSlug(e.target.value)}
-              className="text-sm rounded-md px-3 py-2 focus:outline-none focus:ring-2 focus:ring-[#7c3aed]"
-              style={{
-                backgroundColor: "#1a1a1a",
-                border: "1px solid #333333",
-                color: "#ffffff",
-              }}
-            >
-              {projects.map((p) => (
-                <option key={p.id} value={p.slug}>
-                  {p.name}
-                </option>
-              ))}
-            </select>
-          )}
           {loading && <Loader2 className="h-4 w-4 animate-spin text-gray-400" />}
           <div className="ml-auto">
             <button
