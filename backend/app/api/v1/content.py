@@ -247,7 +247,7 @@ async def generate_content(
         try:
             token = await get_project_token(project, db)
             ad_lib = MetaAdLibraryService()
-            competitor_ads = await ad_lib.get_competitor_ads_cached(db, project, token)
+            competitor_ads = await ad_lib.get_competitor_ads_cached(db, project, token, use_claude_fallback=True)
         except Exception:
             competitor_ads = []  # never block generation due to competitor fetch failure
 

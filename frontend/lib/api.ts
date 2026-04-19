@@ -1068,7 +1068,7 @@ export interface InspirationPrefill {
 export async function fetchCompetitorAds(
   projectSlug: string,
   token: string
-): Promise<{ ads: CompetitorAd[]; count: number; competitors_configured: boolean; is_synthetic?: boolean }> {
+): Promise<{ ads: CompetitorAd[]; count: number; competitors_configured: boolean; is_synthetic?: boolean; apify_pending?: boolean }> {
   const res = await fetch(`${API_BASE}/api/v1/ads/competitor-ads/${projectSlug}`, {
     headers: { Authorization: `Bearer ${token}` },
     cache: "no-store",

@@ -101,6 +101,7 @@ class MetaAdLibraryService:
         db: AsyncSession,
         project,
         access_token: str,
+        use_claude_fallback: bool = False,
     ) -> list[dict]:
         """
         Returns competitor ads for a project, using a 48-hour cache stored in
@@ -124,8 +125,8 @@ class MetaAdLibraryService:
             fetched_at = fetched_at.replace(tzinfo=timezone.utc)
         if cache and fetched_at > cutoff:
             ads = cache.research_json.get("ads", [])
-            # Cache hit but empty ads and not already synthetic — try Claude fallback
-            if not ads and not cache.research_json.get("_synthetic"):
+            # Cache hit but empty — try Claude fallback only for organic content
+            if not ads and use_claude_fallback and not cache.research_json.get("_synthetic"):
                 config = project.content_config or {}
                 competitors_raw = config.get("competitors", "")
                 competitors_list = [
@@ -173,10 +174,9 @@ class MetaAdLibraryService:
         ]
         ads = await self.get_competitor_ads(access_token=access_token, competitors=competitors_list)
 
-        # If Meta Ad Library returned no ads but competitors are configured,
-        # fall back to Claude synthetic research
+        # If Meta Ad Library returned no ads — fall back to Claude only for organic content
         is_synthetic = False
-        if not ads and competitors_list:
+        if not ads and competitors_list and use_claude_fallback:
             try:
                 from app.services.claude.client import ClaudeClient
                 ads = await ClaudeClient().research_competitors_by_name(

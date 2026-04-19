@@ -154,7 +154,7 @@ export default function InspirationTab({ projectSlug, token, onAdapted }: Inspir
   const t = useT();
   const [ads, setAds] = useState<CompetitorAd[]>([]);
   const [competitorsConfigured, setCompetitorsConfigured] = useState<boolean | null>(null);
-  const [isSynthetic, setIsSynthetic] = useState(false);
+  const [apifyPending, setApifyPending] = useState(false);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const [adapting, setAdapting] = useState<number | null>(null);
@@ -166,7 +166,7 @@ export default function InspirationTab({ projectSlug, token, onAdapted }: Inspir
       .then((data) => {
         setAds(data.ads);
         setCompetitorsConfigured(data.competitors_configured ?? true);
-        setIsSynthetic(data.is_synthetic ?? false);
+        setApifyPending(data.apify_pending ?? false);
       })
       .catch((err) => setError(err instanceof Error ? err.message : t.ads_inspiration_error))
       .finally(() => setLoading(false));
@@ -219,17 +219,16 @@ export default function InspirationTab({ projectSlug, token, onAdapted }: Inspir
 
   if (ads.length === 0) {
     const noConfig = competitorsConfigured === false;
-    return (
-      <div
-        className="rounded-lg p-8 text-center"
-        style={{ backgroundColor: "#111111", border: "1px solid #222222" }}
-      >
-        <p className="text-sm mb-3" style={{ color: "#9ca3af" }}>
-          {noConfig
-            ? t.ads_inspiration_empty
-            : "No se encontraron anuncios activos para los competidores configurados."}
-        </p>
-        {noConfig && (
+
+    if (noConfig) {
+      return (
+        <div
+          className="rounded-lg p-8 text-center"
+          style={{ backgroundColor: "#111111", border: "1px solid #222222" }}
+        >
+          <p className="text-sm mb-3" style={{ color: "#9ca3af" }}>
+            {t.ads_inspiration_empty}
+          </p>
           <Link
             href="/dashboard/settings"
             className="text-xs font-medium transition-colors"
@@ -237,27 +236,51 @@ export default function InspirationTab({ projectSlug, token, onAdapted }: Inspir
           >
             Configuración del proyecto →
           </Link>
-        )}
-        {!noConfig && (
-          <button
-            onClick={loadAds}
-            className="text-xs font-medium transition-colors"
-            style={{ color: "#7c3aed", background: "none", border: "none", cursor: "pointer" }}
-          >
-            {t.ads_inspiration_retry}
-          </button>
-        )}
+        </div>
+      );
+    }
+
+    if (apifyPending) {
+      return (
+        <div
+          className="rounded-lg p-8 text-center space-y-3"
+          style={{ backgroundColor: "#111111", border: "1px solid #222222" }}
+        >
+          <p className="text-sm font-semibold" style={{ color: "#d1d5db" }}>
+            Anuncios reales de competidores
+          </p>
+          <p className="text-sm" style={{ color: "#9ca3af" }}>
+            Conectá Apify para ver anuncios reales de competidores.
+          </p>
+          <p className="text-xs" style={{ color: "#6b7280" }}>
+            Esta función requiere integración con Apify. Mientras tanto, el análisis de competidores
+            está disponible para la generación de contenido orgánico.
+          </p>
+        </div>
+      );
+    }
+
+    return (
+      <div
+        className="rounded-lg p-8 text-center"
+        style={{ backgroundColor: "#111111", border: "1px solid #222222" }}
+      >
+        <p className="text-sm mb-3" style={{ color: "#9ca3af" }}>
+          No se encontraron anuncios activos para los competidores configurados.
+        </p>
+        <button
+          onClick={loadAds}
+          className="text-xs font-medium transition-colors"
+          style={{ color: "#7c3aed", background: "none", border: "none", cursor: "pointer" }}
+        >
+          {t.ads_inspiration_retry}
+        </button>
       </div>
     );
   }
 
   return (
     <div className="space-y-4">
-      {isSynthetic && (
-        <p className="text-xs" style={{ color: "#6b7280" }}>
-          Análisis basado en conocimiento de marca. Los datos reales se cargarán cuando esté disponible la API.
-        </p>
-      )}
       <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
         {ads.map((ad, i) => (
           <AdInspirationCard

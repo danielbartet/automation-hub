@@ -161,14 +161,16 @@ async def get_competitor_ads(
     config = project.content_config or {}
     competitors_configured = bool(config.get("competitors", "").strip())
 
-    ads = await MetaAdLibraryService().get_competitor_ads_cached(db, project, token)
-    is_synthetic = any(ad.get("_synthetic") for ad in ads)
+    # Inspiration tab: real data only — no Claude fallback
+    ads = await MetaAdLibraryService().get_competitor_ads_cached(db, project, token, use_claude_fallback=False)
+    real_ads = [ad for ad in ads if not ad.get("_synthetic")]
     return {
         "project_slug": project_slug,
-        "ads": ads,
-        "count": len(ads),
+        "ads": real_ads,
+        "count": len(real_ads),
         "competitors_configured": competitors_configured,
-        "is_synthetic": is_synthetic,
+        "is_synthetic": False,
+        "apify_pending": len(real_ads) == 0 and competitors_configured,
     }
 
 
