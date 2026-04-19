@@ -279,18 +279,47 @@ export default function InspirationTab({ projectSlug, token, onAdapted }: Inspir
     );
   }
 
+  // Group ads by competitor (fall back to page_name)
+  const grouped = ads.reduce((acc, ad) => {
+    const key = ad.competitor || ad.page_name;
+    if (!acc[key]) acc[key] = [];
+    acc[key].push(ad);
+    return acc;
+  }, {} as Record<string, CompetitorAd[]>);
+
+  const competitors = Object.keys(grouped);
+  const colClass =
+    competitors.length >= 3
+      ? "grid-cols-1 md:grid-cols-2 lg:grid-cols-3"
+      : competitors.length === 2
+      ? "grid-cols-1 md:grid-cols-2"
+      : "grid-cols-1";
+
   return (
     <div className="space-y-4">
-      <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-        {ads.map((ad, i) => (
-          <AdInspirationCard
-            key={`${ad.competitor}-${ad.snapshot_url || ad.body.slice(0, 20)}`}
-            ad={ad}
-            index={i}
-            adapting={adapting === i}
-            onReplicate={() => handleReplicate(ad, i)}
-            t={t}
-          />
+      <div className={`grid ${colClass} gap-6`}>
+        {competitors.map((competitorKey) => (
+          <div key={competitorKey} className="flex flex-col gap-3">
+            <p
+              className="text-xs font-semibold tracking-widest uppercase pb-2"
+              style={{ color: "#9ca3af", borderBottom: "1px solid #222222" }}
+            >
+              {competitorKey}
+            </p>
+            {grouped[competitorKey].map((ad) => {
+              const globalIndex = ads.indexOf(ad);
+              return (
+                <AdInspirationCard
+                  key={`${ad.competitor}-${ad.snapshot_url || ad.body.slice(0, 20)}`}
+                  ad={ad}
+                  index={globalIndex}
+                  adapting={adapting === globalIndex}
+                  onReplicate={() => handleReplicate(ad, globalIndex)}
+                  t={t}
+                />
+              );
+            })}
+          </div>
         ))}
       </div>
     </div>

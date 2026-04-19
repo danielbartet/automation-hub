@@ -63,6 +63,11 @@ class CreateCampaignRequest(BaseModel):
     advantage_placements: bool = True
 
 
+class ConceptInspirationInput(BaseModel):
+    competitor_body: str
+    competitor_rationale: str
+
+
 class GenerateConceptsRequest(BaseModel):
     campaign_objective: str  # OUTCOME_LEADS | OUTCOME_SALES | OUTCOME_TRAFFIC | OUTCOME_AWARENESS
     count: int = 12
@@ -71,6 +76,7 @@ class GenerateConceptsRequest(BaseModel):
     audience_type: str = "broad"
     pixel_event: str | None = None
     excluded_hooks: list[str] | None = None
+    inspiration: ConceptInspirationInput | None = None
 
 
 class RefreshCreativesRequest(BaseModel):
@@ -312,6 +318,7 @@ async def generate_concepts(
             destination_url=body.destination_url,
             audience_type=body.audience_type,
             pixel_event=body.pixel_event,
+            inspiration=body.inspiration.model_dump() if body.inspiration else None,
         )
     except Exception as e:
         raise HTTPException(500, f"Concept generation failed: {str(e)}")

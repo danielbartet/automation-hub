@@ -204,6 +204,10 @@ export function CreateCampaignModal({ projectSlug, projectId, onClose, onSuccess
         destination_url: destinationUrlStep1 || undefined,
         audience_type: audienceType,
         pixel_event: objective === "OUTCOME_SALES" ? pixelEvent : undefined,
+        inspiration: prefill ? {
+          competitor_body: prefill.ad_copy,
+          competitor_rationale: prefill.rationale,
+        } : undefined,
       }, token);
       setConcepts(result.concepts);
       setDiversityAudit(result.diversity_audit);

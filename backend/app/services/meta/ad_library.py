@@ -152,7 +152,7 @@ class MetaAdLibraryService:
             params={"token": api_key},
             json={
                 "urls": [
-                    {"url": f"https://www.facebook.com/ads/library/?active_status=all&ad_type=all&country=ALL&q={competitor}&search_type=keyword_unordered&media_type=all"}
+                    {"url": f"https://www.facebook.com/ads/library/?active_status=active&ad_type=all&country=ALL&q={competitor}&search_type=keyword_unordered&media_type=all"}
                 ],
                 "count": limit,
             },
@@ -233,59 +233,63 @@ class MetaAdLibraryService:
         return [self._map_apify_item(item, competitor) for item in items if isinstance(item, dict)]
 
     def _map_apify_item(self, item: dict, competitor: str) -> dict:
-        """Map an Apify Facebook Ad Library item to our standard ad shape."""
-        # The curious_coder actor typically returns these fields:
-        # page_name, ad_creative_bodies, ad_creative_link_captions,
-        # ad_creative_link_titles, ad_delivery_start_time, ad_snapshot_url,
-        # publisher_platforms, etc.
-        bodies = item.get("ad_creative_bodies") or []
-        if isinstance(bodies, str):
-            bodies = [bodies]
+        """Map an Apify Facebook Ad Library item to our standard ad shape.
 
-        titles = item.get("ad_creative_link_titles") or []
-        if isinstance(titles, str):
-            titles = [titles]
+        The curious_coder/facebook-ads-library-scraper actor returns:
+          adArchiveID, pageName, pageID, startDate (Unix int), endDate,
+          isActive, publisherPlatform (list), snapshot (dict with title/body/cta_text/images/link_url),
+          collationCount
+        """
+        # page_name
+        page_name = item.get("pageName") or item.get("page_name") or competitor
 
-        # Some actors use flat fields instead of lists
-        if not bodies:
-            body_str = item.get("body") or item.get("ad_body") or ""
-            if body_str:
-                bodies = [body_str]
+        # body — extract from nested snapshot.body.markup.__html first
+        snapshot = item.get("snapshot") or {}
+        body = ""
+        raw_body = snapshot.get("body")
+        if isinstance(raw_body, dict):
+            body = raw_body.get("markup", {}).get("__html", "") or ""
+        elif isinstance(raw_body, str):
+            body = raw_body
+        if not body:
+            bodies_fallback = item.get("ad_creative_bodies") or []
+            if isinstance(bodies_fallback, str):
+                bodies_fallback = [bodies_fallback]
+            body = bodies_fallback[0] if bodies_fallback else ""
 
-        if not titles:
-            title_str = item.get("title") or item.get("ad_title") or ""
-            if title_str:
-                titles = [title_str]
+        # title — from snapshot.title or ad_creative_link_titles
+        title = snapshot.get("title", "") or ""
+        if not title:
+            titles_fallback = item.get("ad_creative_link_titles") or []
+            if isinstance(titles_fallback, str):
+                titles_fallback = [titles_fallback]
+            if isinstance(titles_fallback, list) and titles_fallback:
+                title = titles_fallback[0]
 
-        start_time = (
-            item.get("ad_delivery_start_time")
-            or item.get("startDate")
-            or item.get("start_date")
-            or ""
-        )
-
-        platforms = item.get("publisher_platforms") or item.get("platforms") or []
+        # platforms — actor uses publisherPlatform (list)
+        platforms = item.get("publisherPlatform") or item.get("publisher_platforms") or []
         if isinstance(platforms, str):
             platforms = [platforms]
 
+        # snapshot_url
         snapshot_url = (
             item.get("ad_snapshot_url")
             or item.get("snapshot_url")
-            or item.get("url")
+            or snapshot.get("link_url")
             or ""
         )
 
-        page_name = (
-            item.get("page_name")
-            or item.get("pageName")
-            or competitor
-        )
+        # days_active — startDate is a Unix timestamp integer
+        start_time = item.get("startDate") or item.get("ad_delivery_start_time") or item.get("start_date") or ""
+
+        # bodies list for ad_creative_bodies field
+        bodies = [body] if body else []
 
         return {
             "competitor": competitor,
             "page_name": page_name,
-            "body": bodies[0] if bodies else "",
-            "title": titles[0] if titles else "",
+            "body": body,
+            "title": title,
             "ad_creative_bodies": bodies,
             "days_active": self._days_since(start_time),
             "platforms": platforms,
@@ -450,12 +454,14 @@ class MetaAdLibraryService:
         except Exception:
             return ads
 
-    def _days_since(self, date_str: str) -> int:
-        if not date_str:
+    def _days_since(self, date_val) -> int:
+        if not date_val:
             return 0
         try:
-            start = datetime.fromisoformat(date_str.replace("Z", "+00:00"))
-            now = datetime.now(timezone.utc)
-            return (now - start).days
+            if isinstance(date_val, (int, float)):
+                start = datetime.fromtimestamp(date_val, tz=timezone.utc)
+            else:
+                start = datetime.fromisoformat(str(date_val).replace("Z", "+00:00"))
+            return (datetime.now(timezone.utc) - start).days
         except Exception:
             return 0

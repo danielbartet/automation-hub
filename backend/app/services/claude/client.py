@@ -618,6 +618,7 @@ Return ONLY valid JSON (no markdown, no code blocks):
         destination_url: str | None = None,
         audience_type: str = "broad",
         pixel_event: str | None = None,
+        inspiration: dict | None = None,
     ) -> dict:
         """Generate Andromeda-compliant ad concepts for a project."""
         config = project.content_config or {}
@@ -676,6 +677,21 @@ CONVERSION CAMPAIGN RULES (audience already knows the brand):
 - CTA must be direct: "Comprar ahora", "Ver el pack", not "Mas informacion"
 """
 
+        inspiration_block = ""
+        if inspiration:
+            competitor_body = inspiration.get("competitor_body", "")
+            competitor_rationale = inspiration.get("competitor_rationale", "")
+            inspiration_block = f"""
+COMPETITOR INSPIRATION:
+Ad copy from a competitor ad that is performing well:
+"{competitor_body}"
+
+Strategic angle observed: {competitor_rationale}
+
+Use this as directional inspiration — adapt the angle and emotional trigger for our brand.
+Do NOT copy the text. Translate the strategic insight into original concepts that reflect {brand_name}'s voice and positioning.
+"""
+
         system_prompt = f"""You are an expert Meta Ads creative strategist specializing in the Andromeda algorithm.
 
 Generate {count} advertising concepts for {brand_name}.
@@ -685,7 +701,7 @@ Brand context:
 - Target audience: {target_audience}
 - Campaign objective: {campaign_objective}
 - Language: {language}
-{objective_block}{audience_block}
+{objective_block}{audience_block}{inspiration_block}
 ANDROMEDA RULES (mandatory):
 1. Each concept must have a unique Entity ID — less than 60% semantic similarity between any two
 2. Vary P.D.A. for every concept:

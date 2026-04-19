@@ -391,6 +391,7 @@ export async function generateAdConcepts(
     audience_type?: string;
     pixel_event?: string;
     excluded_hooks?: string[];
+    inspiration?: { competitor_body: string; competitor_rationale: string };
   },
   token?: string
 ): Promise<{
