@@ -29,6 +29,8 @@ router = APIRouter()
 _META_AUTHORIZE_URL = "https://www.facebook.com/dialog/oauth"
 _META_OAUTH_SCOPES = (
     "ads_management,"
+    "ads_read,"
+    "ads_library_read,"
     "pages_read_engagement,"
     "pages_manage_posts,"
     "instagram_basic,"

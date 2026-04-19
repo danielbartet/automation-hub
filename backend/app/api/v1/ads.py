@@ -132,19 +132,31 @@ class AdaptCompetitorRequest(BaseModel):
 async def get_competitor_ads(
     project_slug: str,
     db: AsyncSession = Depends(get_session),
-    _current_user=Depends(require_role("admin", "operator", "super_admin")),
+    current_user=Depends(require_role("admin", "operator", "super_admin")),
 ) -> dict:
     """Fetch competitor ads (with Claude analysis) for a project using the Meta Ad Library."""
     from app.services.meta.ad_library import MetaAdLibraryService
+    from app.models.user_meta_token import UserMetaToken
+    from app.core.security import decrypt_token
 
     proj_result = await db.execute(select(Project).where(Project.slug == project_slug))
     project = proj_result.scalar_one_or_none()
     if not project:
         raise HTTPException(404, f"Project '{project_slug}' not found")
 
-    token = await get_project_token(project, db)
+    # Ad Library requires ads_library_read — use the caller's OAuth token first,
+    # fall back to project token (System User) which may lack this permission.
+    token = None
+    umt_result = await db.execute(
+        select(UserMetaToken).where(UserMetaToken.user_id == current_user.id)
+    )
+    user_meta_token = umt_result.scalar_one_or_none()
+    if user_meta_token:
+        token = decrypt_token(user_meta_token.encrypted_token)
     if not token:
-        raise HTTPException(400, "No Meta access token configured for this project")
+        token = await get_project_token(project, db)
+    if not token:
+        raise HTTPException(400, "No Meta access token configured. Connect your Meta account in Settings.")
 
     config = project.content_config or {}
     competitors_configured = bool(config.get("competitors", "").strip())
