@@ -151,9 +151,9 @@ class MetaAdLibraryService:
             f"{APIFY_BASE_URL}/acts/{APIFY_ACTOR_ID}/runs",
             params={"token": api_key},
             json={
-                "search": competitor,
-                "country": "ALL",
-                "adType": "all",
+                "urls": [
+                    f"https://www.facebook.com/ads/library/?active_status=active&ad_type=all&country=ALL&q={competitor}&search_type=keyword_unordered"
+                ],
                 "maxItems": limit,
             },
             timeout=30.0,
