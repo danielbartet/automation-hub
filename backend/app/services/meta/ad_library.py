@@ -287,6 +287,21 @@ class MetaAdLibraryService:
         # bodies list
         bodies = [body] if body else []
 
+        # Extended fields from snapshot
+        page_like_count = snapshot.get("page_like_count")
+        image_url = ""
+        images = snapshot.get("images") or []
+        if images and isinstance(images[0], dict):
+            image_url = images[0].get("resized_image_url") or images[0].get("original_image_url") or ""
+        page_avatar = snapshot.get("page_profile_picture_url") or ""
+        cta_text = snapshot.get("cta_text") or ""
+
+        # Extended fields from top-level
+        is_active = item.get("is_active", False)
+        variations = item.get("collation_count") or 1
+        start_date_formatted = item.get("start_date_formatted") or ""
+        end_date_formatted = item.get("end_date_formatted") or ""
+
         return {
             "competitor": competitor,
             "page_name": page_name,
@@ -296,6 +311,14 @@ class MetaAdLibraryService:
             "days_active": self._days_since(start_time),
             "platforms": platforms,
             "snapshot_url": snapshot_url,
+            "page_like_count": page_like_count,
+            "image_url": image_url,
+            "page_avatar": page_avatar,
+            "cta_text": cta_text,
+            "is_active": is_active,
+            "variations": variations,
+            "start_date_formatted": start_date_formatted,
+            "end_date_formatted": end_date_formatted,
         }
 
     def _merge_analysis(self, ads: list[dict], analyses: list[dict]) -> list[dict]:

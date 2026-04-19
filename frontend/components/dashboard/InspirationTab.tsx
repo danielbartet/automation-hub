@@ -19,41 +19,109 @@ interface AdInspirationCardProps {
   t: ReturnType<typeof useT>;
 }
 
+function formatLikes(n?: number): string {
+  if (!n) return "";
+  if (n >= 1_000_000) return `${(n / 1_000_000).toFixed(1)}M seg.`;
+  if (n >= 1_000) return `${Math.round(n / 1_000)}K seg.`;
+  return `${n} seg.`;
+}
+
 function AdInspirationCard({ ad, index, adapting, onReplicate, t }: AdInspirationCardProps) {
   const [expanded, setExpanded] = useState(false);
   const isLong = ad.body.length > 120;
   const displayBody = expanded || !isLong ? ad.body : ad.body.slice(0, 120) + "…";
+  const likesLabel = formatLikes(ad.page_like_count);
+  const initials = ad.page_name ? ad.page_name.slice(0, 2).toUpperCase() : "??";
 
   return (
     <div
       className="rounded-lg p-4 space-y-3"
       style={{ backgroundColor: "#111111", border: "1px solid #222222" }}
     >
-      <div className="flex items-start justify-between gap-2 flex-wrap">
-        <p className="text-sm font-semibold text-white">{ad.page_name}</p>
-        <div className="flex items-center gap-2 flex-wrap">
-          {ad.platforms.map((p) => (
-            <span
-              key={p}
-              className="px-2 py-0.5 rounded-full text-xs font-medium"
-              style={{ backgroundColor: "#1a1a1a", color: "#9ca3af", border: "1px solid #333333" }}
-            >
-              {p}
-            </span>
-          ))}
+      {/* Header row: avatar + page name + active badge */}
+      <div className="flex items-center gap-2 flex-wrap">
+        {ad.page_avatar ? (
+          // eslint-disable-next-line @next/next/no-img-element
+          <img
+            src={ad.page_avatar}
+            alt={ad.page_name}
+            className="rounded-full w-8 h-8 object-cover flex-shrink-0"
+          />
+        ) : (
+          <div
+            className="rounded-full w-8 h-8 flex items-center justify-center flex-shrink-0 text-xs font-bold"
+            style={{ backgroundColor: "#2d1b69", color: "#a5b4fc" }}
+          >
+            {initials}
+          </div>
+        )}
+        <p className="text-sm font-semibold text-white flex-1 min-w-0 truncate">{ad.page_name}</p>
+        <span
+          className="px-2 py-0.5 rounded-full text-xs font-medium flex-shrink-0"
+          style={
+            ad.is_active
+              ? { backgroundColor: "#052e16", color: "#4ade80", border: "1px solid #166534" }
+              : { backgroundColor: "#1a1a1a", color: "#6b7280", border: "1px solid #333" }
+          }
+        >
+          {ad.is_active ? "Activo" : "Inactivo"}
+        </span>
+      </div>
+
+      {/* Metrics row */}
+      <div className="flex items-center gap-2 flex-wrap">
+        {likesLabel && (
           <span
             className="px-2 py-0.5 rounded-full text-xs font-medium"
             style={
-              ad.days_active >= 30
+              (ad.page_like_count ?? 0) >= 1_000_000
                 ? { backgroundColor: "#451a03", color: "#fbbf24", border: "1px solid #92400e" }
                 : { backgroundColor: "#1a1a1a", color: "#9ca3af", border: "1px solid #333333" }
             }
           >
-            {t.ads_inspiration_days_active(ad.days_active)}
+            {likesLabel}
           </span>
-        </div>
+        )}
+        {ad.platforms.map((p) => (
+          <span
+            key={p}
+            className="px-2 py-0.5 rounded-full text-xs font-medium"
+            style={{ backgroundColor: "#1a1a1a", color: "#9ca3af", border: "1px solid #333333" }}
+          >
+            {p}
+          </span>
+        ))}
+        <span
+          className="px-2 py-0.5 rounded-full text-xs font-medium"
+          style={
+            ad.days_active >= 30
+              ? { backgroundColor: "#451a03", color: "#fbbf24", border: "1px solid #92400e" }
+              : { backgroundColor: "#1a1a1a", color: "#9ca3af", border: "1px solid #333333" }
+          }
+        >
+          {t.ads_inspiration_days_active(ad.days_active)}
+        </span>
+        {(ad.variations ?? 1) > 1 && (
+          <span
+            className="px-2 py-0.5 rounded-full text-xs font-medium"
+            style={{ backgroundColor: "#1e1b4b", color: "#a5b4fc", border: "1px solid #3730a3" }}
+          >
+            {ad.variations} variaciones
+          </span>
+        )}
       </div>
 
+      {/* Ad creative image */}
+      {ad.image_url && (
+        // eslint-disable-next-line @next/next/no-img-element
+        <img
+          src={ad.image_url}
+          alt="Ad creative"
+          className="w-full rounded-lg object-cover max-h-40"
+        />
+      )}
+
+      {/* Body text */}
       <div>
         <p className="text-sm leading-relaxed" style={{ color: "#d1d5db" }}>
           {displayBody}
@@ -69,6 +137,17 @@ function AdInspirationCard({ ad, index, adapting, onReplicate, t }: AdInspiratio
         )}
       </div>
 
+      {/* CTA badge */}
+      {ad.cta_text && (
+        <span
+          className="inline-block px-2 py-0.5 rounded-full text-xs font-medium"
+          style={{ backgroundColor: "#0f0a1e", color: "#c084fc", border: "1px solid #7c3aed" }}
+        >
+          {ad.cta_text}
+        </span>
+      )}
+
+      {/* Analysis section */}
       {ad.analysis && (
         <div className="space-y-2 pt-2" style={{ borderTop: "1px solid #1f1f1f" }}>
           {ad.analysis.hook_analysis && (
@@ -105,6 +184,7 @@ function AdInspirationCard({ ad, index, adapting, onReplicate, t }: AdInspiratio
         </div>
       )}
 
+      {/* Footer */}
       <div className="flex items-center gap-3 pt-1 flex-wrap">
         {ad.snapshot_url && (
           <Link

@@ -1054,6 +1054,14 @@ export interface CompetitorAd {
   platforms: string[];
   snapshot_url: string;
   analysis?: CompetitorAdAnalysis;
+  page_like_count?: number;
+  image_url?: string;
+  page_avatar?: string;
+  cta_text?: string;
+  is_active?: boolean;
+  variations?: number;
+  start_date_formatted?: string;
+  end_date_formatted?: string;
 }
 
 export interface InspirationPrefill {
