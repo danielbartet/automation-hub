@@ -32,6 +32,7 @@ class Settings(BaseSettings):
     META_OAUTH_STATE_SECRET: str = "change-this-in-production"  # validated at startup
     FRONTEND_URL: str = "https://hub.quantorialabs.com"
     USER_META_TOKEN_ENABLED: bool = False
+    APIFY_API_KEY: str = ""
 
 
 settings = Settings()

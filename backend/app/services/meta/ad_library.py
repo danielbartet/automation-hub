@@ -1,10 +1,15 @@
+import asyncio
 import httpx
 import logging
+import os
 from datetime import datetime, timedelta, timezone
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy import select
 
 logger = logging.getLogger(__name__)
+
+APIFY_BASE_URL = "https://api.apify.com/v2"
+APIFY_ACTOR_ID = "curious_coder~facebook-ad-library-scraper"
 
 
 class MetaAdLibraryService:
@@ -19,6 +24,8 @@ class MetaAdLibraryService:
     ) -> list[dict]:
         """
         Fetches active ads from Meta Ad Library for competitor page names/handles.
+        NOTE: Meta Ad Library API only returns political ads. For commercial ads use
+        get_competitor_ads_apify() instead.
         Returns structured ad data sorted by days_active (proxy for performance).
         """
         if countries is None:
@@ -82,6 +89,209 @@ class MetaAdLibraryService:
         all_ads.sort(key=lambda x: x["days_active"], reverse=True)
         return all_ads[:20]
 
+    async def get_competitor_ads_apify(
+        self,
+        competitors: list[str],
+        limit: int = 10,
+        timeout: int = 60,
+    ) -> list[dict]:
+        """
+        Fetches commercial competitor ads via Apify's Facebook Ad Library scraper.
+        Uses actor: curious_coder/facebook-ad-library-scraper
+
+        Falls back to empty list on any error — never raises.
+        """
+        api_key = os.environ.get("APIFY_API_KEY", "")
+        if not api_key:
+            from app.core.config import settings
+            api_key = settings.APIFY_API_KEY
+
+        if not api_key:
+            logger.warning("APIFY_API_KEY not set — skipping Apify competitor fetch")
+            return []
+
+        logger.info("Fetching competitor ads via Apify for: %s", competitors)
+
+        all_ads: list[dict] = []
+
+        async with httpx.AsyncClient(timeout=30.0) as client:
+            for competitor in competitors:
+                page_name = competitor.replace("@", "").strip()
+                if not page_name:
+                    continue
+
+                try:
+                    ads = await self._apify_fetch_one(
+                        client=client,
+                        api_key=api_key,
+                        competitor=page_name,
+                        limit=limit,
+                        timeout=timeout,
+                    )
+                    all_ads.extend(ads)
+                except Exception as e:
+                    logger.warning("Apify fetch failed for competitor '%s': %s", page_name, e)
+                    continue
+
+        all_ads.sort(key=lambda x: x["days_active"], reverse=True)
+        return all_ads[:20]
+
+    async def _apify_fetch_one(
+        self,
+        client: httpx.AsyncClient,
+        api_key: str,
+        competitor: str,
+        limit: int,
+        timeout: int,
+    ) -> list[dict]:
+        """Start an Apify actor run for one competitor, wait, and return mapped ads."""
+
+        # Start actor run
+        start_resp = await client.post(
+            f"{APIFY_BASE_URL}/acts/{APIFY_ACTOR_ID}/runs",
+            params={"token": api_key},
+            json={
+                "searchTerms": [competitor],
+                "adType": "all",
+                "countryCode": "ALL",
+                "limit": limit,
+            },
+            timeout=30.0,
+        )
+
+        if start_resp.status_code not in (200, 201):
+            logger.warning(
+                "Apify actor start failed for '%s': HTTP %s — %s",
+                competitor, start_resp.status_code, start_resp.text[:300],
+            )
+            return []
+
+        run_data = start_resp.json()
+        run_id = run_data.get("data", {}).get("id")
+        if not run_id:
+            logger.warning("Apify actor start returned no run ID for '%s': %s", competitor, run_data)
+            return []
+
+        logger.info("Apify run started for '%s': run_id=%s", competitor, run_id)
+
+        # Poll for completion
+        deadline = asyncio.get_event_loop().time() + timeout
+        poll_interval = 3
+
+        while True:
+            remaining = deadline - asyncio.get_event_loop().time()
+            if remaining <= 0:
+                logger.warning(
+                    "Apify run timed out after %ss for competitor '%s' (run_id=%s)",
+                    timeout, competitor, run_id,
+                )
+                return []
+
+            await asyncio.sleep(poll_interval)
+
+            status_resp = await client.get(
+                f"{APIFY_BASE_URL}/actor-runs/{run_id}",
+                params={"token": api_key},
+                timeout=15.0,
+            )
+            if status_resp.status_code != 200:
+                logger.warning("Apify status check failed: HTTP %s", status_resp.status_code)
+                continue
+
+            status_data = status_resp.json().get("data", {})
+            run_status = status_data.get("status", "")
+
+            if run_status == "SUCCEEDED":
+                break
+            elif run_status in ("FAILED", "ABORTED", "TIMED-OUT"):
+                logger.warning(
+                    "Apify run ended with status '%s' for competitor '%s' (run_id=%s)",
+                    run_status, competitor, run_id,
+                )
+                return []
+            # RUNNING or READY — keep polling
+
+        # Fetch dataset items
+        dataset_resp = await client.get(
+            f"{APIFY_BASE_URL}/actor-runs/{run_id}/dataset/items",
+            params={"token": api_key},
+            timeout=30.0,
+        )
+        if dataset_resp.status_code != 200:
+            logger.warning(
+                "Apify dataset fetch failed for '%s': HTTP %s",
+                competitor, dataset_resp.status_code,
+            )
+            return []
+
+        items = dataset_resp.json()
+        if not isinstance(items, list):
+            # Some actors return {"items": [...]}
+            items = items.get("items", []) if isinstance(items, dict) else []
+
+        logger.info("Apify returned %d items for competitor '%s'", len(items), competitor)
+        return [self._map_apify_item(item, competitor) for item in items if isinstance(item, dict)]
+
+    def _map_apify_item(self, item: dict, competitor: str) -> dict:
+        """Map an Apify Facebook Ad Library item to our standard ad shape."""
+        # The curious_coder actor typically returns these fields:
+        # page_name, ad_creative_bodies, ad_creative_link_captions,
+        # ad_creative_link_titles, ad_delivery_start_time, ad_snapshot_url,
+        # publisher_platforms, etc.
+        bodies = item.get("ad_creative_bodies") or []
+        if isinstance(bodies, str):
+            bodies = [bodies]
+
+        titles = item.get("ad_creative_link_titles") or []
+        if isinstance(titles, str):
+            titles = [titles]
+
+        # Some actors use flat fields instead of lists
+        if not bodies:
+            body_str = item.get("body") or item.get("ad_body") or ""
+            if body_str:
+                bodies = [body_str]
+
+        if not titles:
+            title_str = item.get("title") or item.get("ad_title") or ""
+            if title_str:
+                titles = [title_str]
+
+        start_time = (
+            item.get("ad_delivery_start_time")
+            or item.get("startDate")
+            or item.get("start_date")
+            or ""
+        )
+
+        platforms = item.get("publisher_platforms") or item.get("platforms") or []
+        if isinstance(platforms, str):
+            platforms = [platforms]
+
+        snapshot_url = (
+            item.get("ad_snapshot_url")
+            or item.get("snapshot_url")
+            or item.get("url")
+            or ""
+        )
+
+        page_name = (
+            item.get("page_name")
+            or item.get("pageName")
+            or competitor
+        )
+
+        return {
+            "competitor": competitor,
+            "page_name": page_name,
+            "body": bodies[0] if bodies else "",
+            "title": titles[0] if titles else "",
+            "ad_creative_bodies": bodies,
+            "days_active": self._days_since(start_time),
+            "platforms": platforms,
+            "snapshot_url": snapshot_url,
+        }
+
     def _merge_analysis(self, ads: list[dict], analyses: list[dict]) -> list[dict]:
         """Inject analysis into each ad dict, matching by analysis['index']."""
         index_map = {item["index"]: item for item in analyses if isinstance(item, dict) and "index" in item}
@@ -106,7 +316,11 @@ class MetaAdLibraryService:
         """
         Returns competitor ads for a project, using a 48-hour cache stored in
         competitor_research_cache. Fetches fresh data if the cache is stale or missing.
-        Runs Claude analysis on the ads and persists results to analysis_json.
+
+        Priority:
+          1. Apify (if APIFY_API_KEY is set) — works for commercial ads
+          2. Meta Ad Library API (fallback — only returns political ads, usually empty)
+          3. Claude synthetic research (if use_claude_fallback=True and still empty)
         """
         from app.models.competitor_cache import CompetitorResearchCache
 
@@ -172,9 +386,19 @@ class MetaAdLibraryService:
             for c in competitors_raw.replace("\n", ",").split(",")
             if c.strip()
         ]
-        ads = await self.get_competitor_ads(access_token=access_token, competitors=competitors_list)
 
-        # If Meta Ad Library returned no ads — fall back to Claude only for organic content
+        # Determine fetch strategy: Apify preferred over Meta Ad Library
+        from app.core.config import settings
+        apify_key = settings.APIFY_API_KEY
+
+        if apify_key:
+            logger.info("Using Apify to fetch competitor ads (APIFY_API_KEY is set)")
+            ads = await self.get_competitor_ads_apify(competitors=competitors_list)
+        else:
+            logger.info("Using Meta Ad Library API to fetch competitor ads (no APIFY_API_KEY)")
+            ads = await self.get_competitor_ads(access_token=access_token, competitors=competitors_list)
+
+        # If still empty — fall back to Claude synthetic research
         is_synthetic = False
         if not ads and competitors_list and use_claude_fallback:
             try:
