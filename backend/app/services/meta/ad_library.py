@@ -230,6 +230,9 @@ class MetaAdLibraryService:
             items = items.get("items", []) if isinstance(items, dict) else []
 
         logger.info("Apify returned %d items for competitor '%s'", len(items), competitor)
+        if items and isinstance(items[0], dict):
+            logger.info("Apify first item keys for '%s': %s", competitor, list(items[0].keys()))
+            logger.info("Apify first item sample for '%s': %s", competitor, str(items[0])[:800])
         return [self._map_apify_item(item, competitor) for item in items if isinstance(item, dict)]
 
     def _map_apify_item(self, item: dict, competitor: str) -> dict:
