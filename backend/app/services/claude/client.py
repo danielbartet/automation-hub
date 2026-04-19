@@ -911,6 +911,100 @@ Return ONLY valid JSON — an array aligned 1:1 with the input:
         except Exception:
             return [default_analysis(i) for i in range(len(ads))]
 
+    async def research_competitors_by_name(self, competitors: list[str], brand_config: dict) -> list[dict]:
+        """Use Claude's knowledge to synthesize competitor insights when Meta Ad Library returns no ads.
+
+        Returns a list of dicts in the same format as get_competitor_ads() so the existing
+        pipeline works unchanged. Each entry is flagged with _synthetic=True.
+        """
+        if not competitors:
+            return []
+
+        language = brand_config.get("language", "es")
+        brand_name = brand_config.get("brand_name", "")
+        content_categories = brand_config.get("content_categories", [])
+        target_audience = brand_config.get("target_audience", "")
+
+        # Cap at 3 competitors
+        top_competitors = competitors[:3]
+
+        competitors_json = json.dumps(top_competitors, ensure_ascii=False)
+        brand_context = json.dumps({
+            "brand_name": brand_name,
+            "content_categories": content_categories,
+            "target_audience": target_audience,
+        }, ensure_ascii=False)
+
+        system_prompt = f"""Eres un estratega de publicidad digital con profundo conocimiento del ecosistema de redes sociales y marketing de contenidos en habla hispana.
+Tu tarea: analizar competidores de una marca basándote en tu conocimiento de su estilo de contenido, mensajes, y estrategia de comunicación.
+Idioma de respuesta: {language}.
+Marca cliente: {brand_name}. Audiencia objetivo: {target_audience}.
+
+Para cada competidor de la lista, genera UN ejemplo representativo de anuncio/publicación en su estilo, junto con un análisis estratégico.
+
+Devuelve SOLAMENTE JSON válido — un array con un objeto por competidor:
+[
+  {{
+    "competitor": "nombre_handle",
+    "page_name": "Nombre de Página Conocido o el handle si no se conoce",
+    "body": "ejemplo de copy de anuncio representativo de su estilo real (2-4 oraciones)",
+    "title": "titular representativo de su estilo",
+    "ad_creative_bodies": ["ejemplo de copy de anuncio representativo de su estilo real"],
+    "days_active": 30,
+    "platforms": ["instagram", "facebook"],
+    "snapshot_url": "",
+    "analysis": {{
+      "index": 0,
+      "hook_analysis": "qué hace llamativo o débil su apertura habitual",
+      "psychological_angle": "Logical | Emotional | Social Proof | Problem-Solution | Urgency | Identity",
+      "inferred_objective": "OUTCOME_LEADS | OUTCOME_SALES | OUTCOME_TRAFFIC | OUTCOME_AWARENESS",
+      "audience_signal": "a quién se dirige este competidor según sus mensajes",
+      "strength": "qué hace bien este competidor que podría replicarse",
+      "opportunity": "brecha o debilidad que {brand_name} podría aprovechar",
+      "days_active_signal": "basado en conocimiento de marca (dato sintético)"
+    }},
+    "_synthetic": true
+  }}
+]
+
+IMPORTANTE: El campo "body" y "title" deben ser ejemplos REALES y representativos del estilo auténtico de comunicación de cada competidor, no genéricos. Si no conoces el competidor, crea un ejemplo plausible basado en su nicho."""
+
+        try:
+            response = self.client.messages.create(
+                model=self.MODEL,
+                max_tokens=2000,
+                system=[{"type": "text", "text": system_prompt}],
+                messages=[
+                    {
+                        "role": "user",
+                        "content": f"Competidores a analizar: {competitors_json}\nContexto de marca: {brand_context}",
+                    }
+                ],
+            )
+            content = response.content[0].text.strip()
+            if content.startswith("```"):
+                content = content.split("```", 2)[1]
+                if content.startswith("json"):
+                    content = content[4:]
+                content = content.rsplit("```", 1)[0].strip()
+            result = json.loads(content)
+            if not isinstance(result, list):
+                return []
+            # Ensure required fields and correct index in analysis
+            cleaned = []
+            for i, item in enumerate(result):
+                if not isinstance(item, dict):
+                    continue
+                # Ensure analysis.index is correct
+                if isinstance(item.get("analysis"), dict):
+                    item["analysis"]["index"] = i
+                item["_synthetic"] = True
+                cleaned.append(item)
+            return cleaned
+        except Exception as e:
+            logger.warning("research_competitors_by_name failed: %s", e)
+            return []
+
     async def adapt_competitor_ad(self, project, competitor_ad: dict, analysis: dict) -> dict:
         """Generate a campaign concept adapted from a competitor ad for the given project."""
         config = project.content_config or {}

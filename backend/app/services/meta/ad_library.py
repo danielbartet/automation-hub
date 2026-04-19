@@ -124,6 +124,28 @@ class MetaAdLibraryService:
             fetched_at = fetched_at.replace(tzinfo=timezone.utc)
         if cache and fetched_at > cutoff:
             ads = cache.research_json.get("ads", [])
+            # Cache hit but empty ads and not already synthetic — try Claude fallback
+            if not ads and not cache.research_json.get("_synthetic"):
+                config = project.content_config or {}
+                competitors_raw = config.get("competitors", "")
+                competitors_list = [
+                    c.strip().lstrip("@")
+                    for c in competitors_raw.replace("\n", ",").split(",")
+                    if c.strip()
+                ]
+                if competitors_list:
+                    try:
+                        from app.services.claude.client import ClaudeClient
+                        ads = await ClaudeClient().research_competitors_by_name(
+                            competitors=competitors_list,
+                            brand_config=config,
+                        )
+                        if ads:
+                            cache.research_json = {"ads": ads, "_synthetic": True}
+                            cache.analysis_json = [ad.get("analysis") for ad in ads if ad.get("analysis")]
+                            await db.commit()
+                    except Exception as e:
+                        logger.warning("Claude competitor fallback failed (cache hit): %s", e)
             if cache.analysis_json is not None:
                 return self._merge_analysis(ads, cache.analysis_json)
             # Cache hit but no analysis — run analysis now
@@ -151,23 +173,48 @@ class MetaAdLibraryService:
         ]
         ads = await self.get_competitor_ads(access_token=access_token, competitors=competitors_list)
 
+        # If Meta Ad Library returned no ads but competitors are configured,
+        # fall back to Claude synthetic research
+        is_synthetic = False
+        if not ads and competitors_list:
+            try:
+                from app.services.claude.client import ClaudeClient
+                ads = await ClaudeClient().research_competitors_by_name(
+                    competitors=competitors_list,
+                    brand_config=config,
+                )
+                if ads:
+                    is_synthetic = True
+            except Exception as e:
+                logger.warning("Claude competitor fallback failed: %s", e)
+
         # Upsert cache (without analysis yet)
         now = datetime.now(timezone.utc)
+        research_json = {"ads": ads}
+        if is_synthetic:
+            research_json["_synthetic"] = True
         if cache:
-            cache.research_json = {"ads": ads}
+            cache.research_json = research_json
             cache.analysis_json = None
             cache.fetched_at = now
         else:
             cache = CompetitorResearchCache(
                 project_id=project.id,
-                research_json={"ads": ads},
+                research_json=research_json,
                 analysis_json=None,
                 fetched_at=now,
             )
             db.add(cache)
         await db.commit()
 
-        # Run analysis
+        # If synthetic, analysis is already embedded — extract and store
+        if is_synthetic:
+            analyses = [ad.get("analysis") for ad in ads if ad.get("analysis")]
+            cache.analysis_json = analyses
+            await db.commit()
+            return self._merge_analysis(ads, analyses)
+
+        # Run analysis on real ads
         try:
             from app.services.claude.client import ClaudeClient
             analyses = await ClaudeClient().analyze_competitor_ads(

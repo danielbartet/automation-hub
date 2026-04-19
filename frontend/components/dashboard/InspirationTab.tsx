@@ -154,6 +154,7 @@ export default function InspirationTab({ projectSlug, token, onAdapted }: Inspir
   const t = useT();
   const [ads, setAds] = useState<CompetitorAd[]>([]);
   const [competitorsConfigured, setCompetitorsConfigured] = useState<boolean | null>(null);
+  const [isSynthetic, setIsSynthetic] = useState(false);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const [adapting, setAdapting] = useState<number | null>(null);
@@ -165,6 +166,7 @@ export default function InspirationTab({ projectSlug, token, onAdapted }: Inspir
       .then((data) => {
         setAds(data.ads);
         setCompetitorsConfigured(data.competitors_configured ?? true);
+        setIsSynthetic(data.is_synthetic ?? false);
       })
       .catch((err) => setError(err instanceof Error ? err.message : t.ads_inspiration_error))
       .finally(() => setLoading(false));
@@ -250,17 +252,24 @@ export default function InspirationTab({ projectSlug, token, onAdapted }: Inspir
   }
 
   return (
-    <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-      {ads.map((ad, i) => (
-        <AdInspirationCard
-          key={`${ad.competitor}-${ad.snapshot_url || ad.body.slice(0, 20)}`}
-          ad={ad}
-          index={i}
-          adapting={adapting === i}
-          onReplicate={() => handleReplicate(ad, i)}
-          t={t}
-        />
-      ))}
+    <div className="space-y-4">
+      {isSynthetic && (
+        <p className="text-xs" style={{ color: "#6b7280" }}>
+          Análisis basado en conocimiento de marca. Los datos reales se cargarán cuando esté disponible la API.
+        </p>
+      )}
+      <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+        {ads.map((ad, i) => (
+          <AdInspirationCard
+            key={`${ad.competitor}-${ad.snapshot_url || ad.body.slice(0, 20)}`}
+            ad={ad}
+            index={i}
+            adapting={adapting === i}
+            onReplicate={() => handleReplicate(ad, i)}
+            t={t}
+          />
+        ))}
+      </div>
     </div>
   );
 }

@@ -162,11 +162,13 @@ async def get_competitor_ads(
     competitors_configured = bool(config.get("competitors", "").strip())
 
     ads = await MetaAdLibraryService().get_competitor_ads_cached(db, project, token)
+    is_synthetic = any(ad.get("_synthetic") for ad in ads)
     return {
         "project_slug": project_slug,
         "ads": ads,
         "count": len(ads),
         "competitors_configured": competitors_configured,
+        "is_synthetic": is_synthetic,
     }
 
 
