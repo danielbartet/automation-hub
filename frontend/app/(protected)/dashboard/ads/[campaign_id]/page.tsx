@@ -244,6 +244,7 @@ export default function CampaignDetailPage() {
   const [newBudget, setNewBudget] = useState(0)
   const [toast, setToast] = useState<string | null>(null)
   const [statusChanging, setStatusChanging] = useState(false)
+  const [statusConfirmModal, setStatusConfirmModal] = useState<"paused" | "active" | null>(null)
   const [chartMetric, setChartMetric] = useState<"ctr" | "cpc" | "frequency">("ctr")
   const [dateRange, setDateRange] = useState("last_30d")
   const [expandedRationale, setExpandedRationale] = useState<Record<number, boolean>>({})
@@ -884,7 +885,7 @@ export default function CampaignDetailPage() {
             </button>
             {detail.campaign.status === "ACTIVE" ? (
               <button
-                onClick={() => handleStatusChange("paused")}
+                onClick={() => setStatusConfirmModal("paused")}
                 disabled={statusChanging}
                 className="px-3 py-1.5 text-yellow-400 text-sm rounded border border-yellow-800 disabled:opacity-50 flex items-center gap-1.5"
                 style={{ backgroundColor: "rgba(113,63,18,0.3)" }}
@@ -896,7 +897,7 @@ export default function CampaignDetailPage() {
               </button>
             ) : (
               <button
-                onClick={() => handleStatusChange("active")}
+                onClick={() => setStatusConfirmModal("active")}
                 disabled={statusChanging}
                 className="px-3 py-1.5 text-green-400 text-sm rounded border border-green-800 disabled:opacity-50 flex items-center gap-1.5"
                 style={{ backgroundColor: "rgba(5,46,22,0.5)" }}
@@ -1531,6 +1532,48 @@ export default function CampaignDetailPage() {
                 className="flex-1 px-3 py-2 bg-blue-600 text-white rounded hover:bg-blue-500"
               >
                 {t.campaign_detail_budget_modal_update}
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* ── STATUS CONFIRM MODAL ────────────────────────────────────────────── */}
+      {statusConfirmModal && (
+        <div className="fixed inset-0 bg-black/60 flex items-center justify-center z-50">
+          <div className="rounded-xl p-6 w-96" style={{ backgroundColor: "#0a0a0a", border: "1px solid #222222" }}>
+            <h3 className="text-white font-semibold mb-3">
+              {statusConfirmModal === "paused" ? "¿Pausar campaña?" : "¿Activar campaña?"}
+            </h3>
+            <p className="text-gray-400 text-sm mb-1">
+              <span className="text-white font-medium">{detail.campaign.name}</span>
+            </p>
+            <p className="text-gray-400 text-sm mb-6">
+              {statusConfirmModal === "paused"
+                ? "La campaña dejará de correr en Meta Ads. ¿Confirmar?"
+                : "La campaña volverá a correr en Meta Ads. ¿Confirmar?"}
+            </p>
+            <div className="flex gap-2">
+              <button
+                onClick={() => setStatusConfirmModal(null)}
+                className="flex-1 px-3 py-2 text-white rounded"
+                style={{ backgroundColor: "#1a1a1a" }}
+              >
+                Cancelar
+              </button>
+              <button
+                onClick={() => {
+                  const target = statusConfirmModal
+                  setStatusConfirmModal(null)
+                  handleStatusChange(target)
+                }}
+                className={`flex-1 px-3 py-2 text-white rounded ${
+                  statusConfirmModal === "paused"
+                    ? "bg-yellow-700 hover:bg-yellow-600"
+                    : "bg-green-700 hover:bg-green-600"
+                }`}
+              >
+                Confirmar
               </button>
             </div>
           </div>
