@@ -783,6 +783,16 @@ export const translations = {
     settings_meta_success: "Meta account connected successfully.",
     settings_meta_error: "Failed to load Meta token status.",
     nav_settings_meta: "Meta Account",
+
+    // ── Sidebar nav — new platforms ───────────────────────────────────────────
+    nav_meta_group: "Meta",
+    nav_google_group: "Google",
+    nav_google_ga4: "GA4",
+    nav_google_gsc: "GSC",
+    nav_google_gtm: "GTM",
+    nav_google_ads: "Ads",
+    nav_linkedin: "LinkedIn",
+    nav_tiktok: "TikTok",
   },
 
   es: {
@@ -1558,6 +1568,16 @@ export const translations = {
     settings_meta_success: "Cuenta de Meta conectada exitosamente.",
     settings_meta_error: "Error al cargar el estado del token de Meta.",
     nav_settings_meta: "Cuenta Meta",
+
+    // ── Sidebar nav — new platforms ───────────────────────────────────────────
+    nav_meta_group: "Meta",
+    nav_google_group: "Google",
+    nav_google_ga4: "GA4",
+    nav_google_gsc: "GSC",
+    nav_google_gtm: "GTM",
+    nav_google_ads: "Ads",
+    nav_linkedin: "LinkedIn",
+    nav_tiktok: "TikTok",
   },
 } as const;
 

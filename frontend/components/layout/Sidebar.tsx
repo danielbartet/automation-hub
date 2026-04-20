@@ -3,7 +3,28 @@ import Link from "next/link";
 import { usePathname } from "next/navigation";
 import { useSession } from "next-auth/react";
 import { useEffect, useState } from "react";
-import { LayoutDashboard, FileText, Megaphone, FolderKanban, CalendarDays, UsersRound, Activity, Users2, Settings, ChevronDown, ChevronRight, Link2, Layers, Pin, LayoutGrid, Sparkles } from "lucide-react";
+import {
+  LayoutDashboard,
+  FileText,
+  Megaphone,
+  FolderKanban,
+  CalendarDays,
+  UsersRound,
+  Activity,
+  Users2,
+  Settings,
+  ChevronDown,
+  ChevronRight,
+  Link2,
+  Layers,
+  Pin,
+  LayoutGrid,
+  Sparkles,
+  Globe,
+  Linkedin,
+  Music,
+  Facebook,
+} from "lucide-react";
 import { getHealthSummary } from "@/lib/api";
 import { useT } from "@/lib/i18n";
 import { useProject } from "@/lib/project-context";
@@ -16,76 +37,43 @@ export function Sidebar() {
   const [criticalTokenCount, setCriticalTokenCount] = useState(0);
   const t = useT();
 
-  // Auto-expand Orgánico group when on content or calendar paths
+  // ── Path helpers ────────────────────────────────────────────────────────────
+  const isOnMetaPath =
+    pathname.startsWith("/dashboard/content") ||
+    pathname.startsWith("/dashboard/calendar") ||
+    pathname.startsWith("/dashboard/ads");
+
   const isOnOrganicoPath =
     pathname.startsWith("/dashboard/content") ||
     pathname.startsWith("/dashboard/calendar");
-  const [organicoOpen, setOrganicoOpen] = useState(isOnOrganicoPath);
 
-  // Auto-expand Ads group when on any /ads/* path
   const isOnAdsPath = pathname.startsWith("/dashboard/ads");
-  const [adsOpen, setAdsOpen] = useState(isOnAdsPath);
 
-  // Auto-expand Settings group when on settings or projects paths
+  const isOnGooglePath = pathname.startsWith("/dashboard/google");
+
+  const isOnPinterestPath = pathname.startsWith("/dashboard/pinterest");
+
   const isOnSettingsPath =
     pathname.startsWith("/dashboard/settings") ||
     pathname.startsWith("/dashboard/projects");
-  const [settingsOpen, setSettingsOpen] = useState(isOnSettingsPath);
 
-  // Auto-expand Health group when on health or token-usage paths
   const isOnHealthPath =
     pathname.startsWith("/dashboard/health") ||
     pathname.startsWith("/dashboard/token-usage");
+
+  // ── Collapsible open states ─────────────────────────────────────────────────
+  const [metaOpen, setMetaOpen] = useState(isOnMetaPath);
+  const [googleOpen, setGoogleOpen] = useState(isOnGooglePath);
+  const [pinterestOpen, setPinterestOpen] = useState(isOnPinterestPath);
+  const [settingsOpen, setSettingsOpen] = useState(isOnSettingsPath);
   const [healthOpen, setHealthOpen] = useState(isOnHealthPath);
 
-  // Auto-expand Pinterest group when on any /pinterest/* path
-  const isOnPinterestPath = pathname.startsWith("/dashboard/pinterest");
-  const [pinterestOpen, setPinterestOpen] = useState(isOnPinterestPath);
-
-  // Keep organicoOpen in sync when navigating to/from organic paths
-  useEffect(() => {
-    if (isOnOrganicoPath) setOrganicoOpen(true);
-  }, [isOnOrganicoPath]);
-
-  // Keep adsOpen in sync when navigating to/from ads paths
-  useEffect(() => {
-    if (isOnAdsPath) setAdsOpen(true);
-  }, [isOnAdsPath]);
-
-  // Keep settingsOpen in sync when navigating to/from settings/projects paths
-  useEffect(() => {
-    if (isOnSettingsPath) setSettingsOpen(true);
-  }, [isOnSettingsPath]);
-
-  // Keep healthOpen in sync when navigating to/from health paths
-  useEffect(() => {
-    if (isOnHealthPath) setHealthOpen(true);
-  }, [isOnHealthPath]);
-
-  // Keep pinterestOpen in sync when navigating to/from pinterest paths
-  useEffect(() => {
-    if (isOnPinterestPath) setPinterestOpen(true);
-  }, [isOnPinterestPath]);
-
-  const topNavItems = [
-    { href: "/dashboard", label: t.nav_overview, icon: LayoutDashboard },
-  ];
-
-  const organicoChildren = [
-    { href: "/dashboard/content", label: t.nav_content, icon: FileText },
-    { href: "/dashboard/calendar", label: t.nav_calendar, icon: CalendarDays },
-  ];
-
-  const adsChildren = [
-    { href: "/dashboard/ads", label: t.nav_campanias, icon: Megaphone, exact: true },
-    { href: "/dashboard/ads/audiences", label: t.nav_audiences, icon: Users2, exact: false },
-  ];
-
-  const settingsChildren = [
-    { href: "/dashboard/settings/users", label: t.nav_settings_users, icon: UsersRound },
-    { href: "/dashboard/projects", label: t.nav_projects, icon: FolderKanban },
-    { href: "/dashboard/settings", label: t.nav_settings_meta, icon: Link2, exact: true },
-  ];
+  // Keep open states in sync when navigating
+  useEffect(() => { if (isOnMetaPath) setMetaOpen(true); }, [isOnMetaPath]);
+  useEffect(() => { if (isOnGooglePath) setGoogleOpen(true); }, [isOnGooglePath]);
+  useEffect(() => { if (isOnPinterestPath) setPinterestOpen(true); }, [isOnPinterestPath]);
+  useEffect(() => { if (isOnSettingsPath) setSettingsOpen(true); }, [isOnSettingsPath]);
+  useEffect(() => { if (isOnHealthPath) setHealthOpen(true); }, [isOnHealthPath]);
 
   const { projects: ctxProjects, selectedSlug: ctxSelectedSlug, setSelectedSlug: ctxSetSelectedSlug, loading: ctxLoading } = useProject();
 
@@ -119,6 +107,7 @@ export function Sidebar() {
     return () => clearInterval(id);
   }, [token, isClient]);
 
+  // ── Styles ──────────────────────────────────────────────────────────────────
   const activeLinkStyle = {
     backgroundColor: "rgba(124, 58, 237, 0.1)",
     borderLeft: "2px solid #7c3aed",
@@ -141,6 +130,8 @@ export function Sidebar() {
       (e.currentTarget as HTMLElement).style.backgroundColor = "transparent";
     }
   };
+
+  // ── Render helpers ───────────────────────────────────────────────────────────
 
   const renderNavLink = (href: string, label: string, Icon: React.ElementType, exact?: boolean) => {
     if (isClient && clientHiddenPaths.includes(href)) return null;
@@ -171,6 +162,72 @@ export function Sidebar() {
       </Link>
     );
   };
+
+  /** Renders a sub-item inside an indented collapsible group */
+  const renderSubLink = (href: string, label: string, Icon: React.ElementType, exact?: boolean) => {
+    if (isClient && clientHiddenPaths.includes(href)) return null;
+    const isActive = exact
+      ? pathname === href
+      : pathname === href || pathname.startsWith(href + "/");
+    return (
+      <Link
+        key={href}
+        href={href}
+        className="flex items-center gap-3 px-3 py-2 rounded-md text-sm font-medium transition-colors"
+        style={isActive ? activeLinkStyle : inactiveLinkStyle}
+        onMouseEnter={(e) => handleHover(e, isActive)}
+        onMouseLeave={(e) => handleHoverLeave(e, isActive)}
+      >
+        <Icon className="h-4 w-4 flex-shrink-0" />
+        <span className="flex-1">{label}</span>
+      </Link>
+    );
+  };
+
+  /** Renders a grayed-out "coming soon" nav item — still navigable */
+  const renderGrayedLink = (href: string, label: string, Icon: React.ElementType) => {
+    const isActive = pathname === href || pathname.startsWith(href + "/");
+    return (
+      <Link
+        key={href}
+        href={href}
+        className="flex items-center gap-3 px-3 py-2 rounded-md text-sm font-medium transition-colors opacity-50"
+        style={isActive ? activeLinkStyle : inactiveLinkStyle}
+        onMouseEnter={(e) => handleHover(e, isActive)}
+        onMouseLeave={(e) => handleHoverLeave(e, isActive)}
+      >
+        <Icon className="h-4 w-4 flex-shrink-0" />
+        <span className="flex-1">{label}</span>
+      </Link>
+    );
+  };
+
+  /** Renders a collapsible group header button */
+  const renderGroupHeader = (
+    label: string,
+    Icon: React.ElementType,
+    isOnPath: boolean,
+    isOpen: boolean,
+    onToggle: () => void,
+    badge?: React.ReactNode
+  ) => (
+    <button
+      onClick={onToggle}
+      className="w-full flex items-center gap-3 px-3 py-2 rounded-md text-sm font-medium transition-colors"
+      style={isOnPath ? { color: "#a78bfa" } : { color: "#9ca3af" }}
+      onMouseEnter={(e) => handleHover(e, isOnPath)}
+      onMouseLeave={(e) => handleHoverLeave(e, isOnPath)}
+    >
+      <Icon className="h-4 w-4 flex-shrink-0" />
+      <span className="flex-1 text-left">{label}</span>
+      {badge}
+      {isOpen ? (
+        <ChevronDown className="h-3.5 w-3.5 flex-shrink-0" />
+      ) : (
+        <ChevronRight className="h-3.5 w-3.5 flex-shrink-0" />
+      )}
+    </button>
+  );
 
   return (
     <aside className="w-64 flex flex-col h-full" style={{ backgroundColor: "#050505" }}>
@@ -210,161 +267,100 @@ export function Sidebar() {
 
       {/* Main nav — scrollable */}
       <nav className="flex-1 overflow-y-auto p-4 space-y-1">
-        {/* Top nav items */}
-        {topNavItems.map(({ href, label, icon: Icon }) =>
-          renderNavLink(href, label, Icon)
-        )}
+        {/* Overview */}
+        {renderNavLink("/dashboard", t.nav_overview, LayoutDashboard)}
 
-        {/* Orgánico collapsible group */}
+        {/* ── Meta collapsible group ────────────────────────────────────────── */}
         <div>
-          <button
-            onClick={() => setOrganicoOpen((prev) => !prev)}
-            className="w-full flex items-center gap-3 px-3 py-2 rounded-md text-sm font-medium transition-colors"
-            style={isOnOrganicoPath ? { color: "#a78bfa" } : { color: "#9ca3af" }}
-            onMouseEnter={(e) => handleHover(e, isOnOrganicoPath)}
-            onMouseLeave={(e) => handleHoverLeave(e, isOnOrganicoPath)}
-          >
-            <Layers className="h-4 w-4 flex-shrink-0" />
-            <span className="flex-1 text-left">{t.nav_organico}</span>
-            {organicoOpen ? (
-              <ChevronDown className="h-3.5 w-3.5 flex-shrink-0" />
-            ) : (
-              <ChevronRight className="h-3.5 w-3.5 flex-shrink-0" />
-            )}
-          </button>
+          {renderGroupHeader(
+            t.nav_meta_group,
+            Facebook,
+            isOnMetaPath,
+            metaOpen,
+            () => setMetaOpen((prev) => !prev)
+          )}
 
-          {organicoOpen && (
+          {metaOpen && (
             <div className="mt-1 ml-3 pl-3 space-y-1" style={{ borderLeft: "1px solid #1e1e1e" }}>
-              {organicoChildren.map(({ href, label, icon: Icon }) => {
-                if (isClient && clientHiddenPaths.includes(href)) return null;
-                const isActive = pathname === href || pathname.startsWith(href + "/");
-                return (
-                  <Link
-                    key={href}
-                    href={href}
-                    className="flex items-center gap-3 px-3 py-2 rounded-md text-sm font-medium transition-colors"
-                    style={isActive ? activeLinkStyle : inactiveLinkStyle}
-                    onMouseEnter={(e) => handleHover(e, isActive)}
-                    onMouseLeave={(e) => handleHoverLeave(e, isActive)}
-                  >
-                    <Icon className="h-4 w-4 flex-shrink-0" />
-                    <span className="flex-1">{label}</span>
-                  </Link>
-                );
-              })}
+              {/* Orgánico sub-group label */}
+              <p className="px-3 pt-1 pb-0.5 text-xs font-semibold uppercase tracking-wider" style={{ color: "#4b5563" }}>
+                {t.nav_organico}
+              </p>
+              {renderSubLink("/dashboard/content", t.nav_content, FileText)}
+              {!isClient && renderSubLink("/dashboard/calendar", t.nav_calendar, CalendarDays)}
+
+              {/* Ads sub-group label */}
+              <p className="px-3 pt-2 pb-0.5 text-xs font-semibold uppercase tracking-wider" style={{ color: "#4b5563" }}>
+                {t.nav_ads}
+              </p>
+              {renderSubLink("/dashboard/ads", t.nav_campanias, Megaphone, true)}
+              {renderSubLink("/dashboard/ads/audiences", t.nav_audiences, Users2, false)}
             </div>
           )}
         </div>
 
-        {/* Pinterest collapsible group */}
+        {/* ── Google collapsible group ──────────────────────────────────────── */}
         <div>
-          <button
-            onClick={() => setPinterestOpen((prev) => !prev)}
-            className="w-full flex items-center gap-3 px-3 py-2 rounded-md text-sm font-medium transition-colors"
-            style={isOnPinterestPath ? { color: "#a78bfa" } : { color: "#9ca3af" }}
-            onMouseEnter={(e) => handleHover(e, isOnPinterestPath)}
-            onMouseLeave={(e) => handleHoverLeave(e, isOnPinterestPath)}
-          >
-            <Pin className="h-4 w-4 flex-shrink-0" />
-            <span className="flex-1 text-left">{t.nav_pinterest}</span>
-            {pinterestOpen ? (
-              <ChevronDown className="h-3.5 w-3.5 flex-shrink-0" />
-            ) : (
-              <ChevronRight className="h-3.5 w-3.5 flex-shrink-0" />
-            )}
-          </button>
+          {renderGroupHeader(
+            t.nav_google_group,
+            Globe,
+            isOnGooglePath,
+            googleOpen,
+            () => setGoogleOpen((prev) => !prev)
+          )}
+
+          {googleOpen && (
+            <div className="mt-1 ml-3 pl-3 space-y-1" style={{ borderLeft: "1px solid #1e1e1e" }}>
+              {renderSubLink("/dashboard/google/ga4", t.nav_google_ga4, Activity, true)}
+              {renderSubLink("/dashboard/google/gsc", t.nav_google_gsc, Globe, true)}
+              {renderSubLink("/dashboard/google/gtm", t.nav_google_gtm, Layers, true)}
+              {renderSubLink("/dashboard/google/ads", t.nav_google_ads, Megaphone, true)}
+            </div>
+          )}
+        </div>
+
+        {/* ── LinkedIn (grayed out) ─────────────────────────────────────────── */}
+        {renderGrayedLink("/dashboard/linkedin", t.nav_linkedin, Linkedin)}
+
+        {/* ── TikTok (grayed out) ──────────────────────────────────────────── */}
+        {renderGrayedLink("/dashboard/tiktok", t.nav_tiktok, Music)}
+
+        {/* ── Pinterest collapsible group ───────────────────────────────────── */}
+        <div>
+          {renderGroupHeader(
+            t.nav_pinterest,
+            Pin,
+            isOnPinterestPath,
+            pinterestOpen,
+            () => setPinterestOpen((prev) => !prev)
+          )}
 
           {pinterestOpen && (
             <div className="mt-1 ml-3 pl-3 space-y-1" style={{ borderLeft: "1px solid #1e1e1e" }}>
-              {[
-                { href: "/dashboard/pinterest", label: t.nav_pinterest_pins, icon: LayoutGrid, exact: true },
-                { href: "/dashboard/pinterest/generate", label: t.nav_pinterest_generate, icon: Sparkles, exact: false },
-              ].map(({ href, label, icon: Icon, exact }) => {
-                const isActive = exact ? pathname === href : pathname.startsWith(href);
-                return (
-                  <Link
-                    key={href}
-                    href={href}
-                    className="flex items-center gap-3 px-3 py-2 rounded-md text-sm font-medium transition-colors"
-                    style={isActive ? activeLinkStyle : inactiveLinkStyle}
-                    onMouseEnter={(e) => handleHover(e, isActive)}
-                    onMouseLeave={(e) => handleHoverLeave(e, isActive)}
-                  >
-                    <Icon className="h-4 w-4 flex-shrink-0" />
-                    <span className="flex-1">{label}</span>
-                  </Link>
-                );
-              })}
+              {renderSubLink("/dashboard/pinterest", t.nav_pinterest_pins, LayoutGrid, true)}
+              {renderSubLink("/dashboard/pinterest/generate", t.nav_pinterest_generate, Sparkles, false)}
             </div>
           )}
         </div>
 
-        {/* Ads collapsible group */}
-        <div>
-          <button
-            onClick={() => setAdsOpen((prev) => !prev)}
-            className="w-full flex items-center gap-3 px-3 py-2 rounded-md text-sm font-medium transition-colors"
-            style={isOnAdsPath ? { color: "#a78bfa" } : { color: "#9ca3af" }}
-            onMouseEnter={(e) => handleHover(e, isOnAdsPath)}
-            onMouseLeave={(e) => handleHoverLeave(e, isOnAdsPath)}
-          >
-            <Megaphone className="h-4 w-4 flex-shrink-0" />
-            <span className="flex-1 text-left">{t.nav_ads}</span>
-            {adsOpen ? (
-              <ChevronDown className="h-3.5 w-3.5 flex-shrink-0" />
-            ) : (
-              <ChevronRight className="h-3.5 w-3.5 flex-shrink-0" />
-            )}
-          </button>
-
-          {adsOpen && (
-            <div className="mt-1 ml-3 pl-3 space-y-1" style={{ borderLeft: "1px solid #1e1e1e" }}>
-              {adsChildren.map(({ href, label, icon: Icon, exact }) => {
-                const isActive = exact ? pathname === href : pathname.startsWith(href);
-                return (
-                  <Link
-                    key={href}
-                    href={href}
-                    className="flex items-center gap-3 px-3 py-2 rounded-md text-sm font-medium transition-colors"
-                    style={isActive ? activeLinkStyle : inactiveLinkStyle}
-                    onMouseEnter={(e) => handleHover(e, isActive)}
-                    onMouseLeave={(e) => handleHoverLeave(e, isActive)}
-                  >
-                    <Icon className="h-4 w-4 flex-shrink-0" />
-                    <span className="flex-1">{label}</span>
-                  </Link>
-                );
-              })}
-            </div>
-          )}
-        </div>
-
-        {/* Health Monitor collapsible group */}
+        {/* ── Health Monitor collapsible group ──────────────────────────────── */}
         {!isClient && (
           <div>
-            <button
-              onClick={() => setHealthOpen((prev) => !prev)}
-              className="w-full flex items-center gap-3 px-3 py-2 rounded-md text-sm font-medium transition-colors"
-              style={isOnHealthPath ? { color: "#a78bfa" } : { color: "#9ca3af" }}
-              onMouseEnter={(e) => handleHover(e, isOnHealthPath)}
-              onMouseLeave={(e) => handleHoverLeave(e, isOnHealthPath)}
-            >
-              <Activity className="h-4 w-4 flex-shrink-0" />
-              <span className="flex-1 text-left">{t.nav_health}</span>
-              {criticalTokenCount > 0 && (
+            {renderGroupHeader(
+              t.nav_health,
+              Activity,
+              isOnHealthPath,
+              healthOpen,
+              () => setHealthOpen((prev) => !prev),
+              criticalTokenCount > 0 ? (
                 <span
                   className="inline-flex items-center justify-center min-w-[18px] h-[18px] rounded-full text-xs font-bold px-1"
                   style={{ backgroundColor: "#ef4444", color: "#ffffff" }}
                 >
                   {criticalTokenCount}
                 </span>
-              )}
-              {healthOpen ? (
-                <ChevronDown className="h-3.5 w-3.5 flex-shrink-0" />
-              ) : (
-                <ChevronRight className="h-3.5 w-3.5 flex-shrink-0" />
-              )}
-            </button>
+              ) : undefined
+            )}
 
             {healthOpen && (
               <div className="mt-1 ml-3 pl-3 space-y-1" style={{ borderLeft: "1px solid #1e1e1e" }}>
@@ -410,25 +406,21 @@ export function Sidebar() {
         {/* Settings collapsible — admin and super_admin only */}
         {(role === "admin" || role === "super_admin") ? (
           <div>
-            <button
-              onClick={() => setSettingsOpen((prev) => !prev)}
-              className="w-full flex items-center gap-3 px-3 py-2 rounded-md text-sm font-medium transition-colors"
-              style={isOnSettingsPath ? { color: "#a78bfa" } : { color: "#9ca3af" }}
-              onMouseEnter={(e) => handleHover(e, isOnSettingsPath)}
-              onMouseLeave={(e) => handleHoverLeave(e, isOnSettingsPath)}
-            >
-              <Settings className="h-4 w-4 flex-shrink-0" />
-              <span className="flex-1 text-left">{t.nav_settings_label}</span>
-              {settingsOpen ? (
-                <ChevronDown className="h-3.5 w-3.5 flex-shrink-0" />
-              ) : (
-                <ChevronRight className="h-3.5 w-3.5 flex-shrink-0" />
-              )}
-            </button>
+            {renderGroupHeader(
+              t.nav_settings_label,
+              Settings,
+              isOnSettingsPath,
+              settingsOpen,
+              () => setSettingsOpen((prev) => !prev)
+            )}
 
             {settingsOpen && (
               <div className="mt-1 ml-3 pl-3 space-y-1" style={{ borderLeft: "1px solid #1e1e1e" }}>
-                {settingsChildren.map(({ href, label, icon: Icon, exact }) => {
+                {[
+                  { href: "/dashboard/settings/users", label: t.nav_settings_users, icon: UsersRound, exact: undefined },
+                  { href: "/dashboard/projects", label: t.nav_projects, icon: FolderKanban, exact: undefined },
+                  { href: "/dashboard/settings", label: t.nav_settings_meta, icon: Link2, exact: true },
+                ].map(({ href, label, icon: Icon, exact }) => {
                   const isActive = exact
                     ? pathname === href
                     : pathname === href || pathname.startsWith(href + "/");
@@ -450,7 +442,7 @@ export function Sidebar() {
             )}
           </div>
         ) : (
-          /* Non-admin: show plain settings link if needed, or nothing */
+          /* Non-admin: show plain settings link */
           renderNavLink("/dashboard/settings", t.nav_settings_meta, Settings)
         )}
       </div>
