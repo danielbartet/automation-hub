@@ -133,6 +133,37 @@ export function ProjectFormDialog({ project, onClose, onSuccess }: ProjectFormDi
       .catch(() => setUserHasMetaToken(false));
   }, [session]);
 
+  // Pinterest connection state (null = loading, true = connected, false = not connected)
+  const [pinterestConnected, setPinterestConnected] = useState<boolean | null>(null);
+  const [pinterestDisconnecting, setPinterestDisconnecting] = useState(false);
+
+  useEffect(() => {
+    const token = (session as any)?.accessToken as string | undefined;
+    if (!token) return;
+    fetch(`${process.env.NEXT_PUBLIC_API_URL ?? "http://localhost:8000"}/api/v1/pinterest/boards/${project.slug}`, {
+      headers: { Authorization: `Bearer ${token}` },
+    })
+      .then((r) => setPinterestConnected(r.ok))
+      .catch(() => setPinterestConnected(false));
+  }, [session, project.slug]);
+
+  const handlePinterestDisconnect = async () => {
+    const token = (session as any)?.accessToken as string | undefined;
+    if (!token) return;
+    setPinterestDisconnecting(true);
+    try {
+      await fetch(`${process.env.NEXT_PUBLIC_API_URL ?? "http://localhost:8000"}/api/v1/auth/pinterest/disconnect/${project.slug}`, {
+        method: "DELETE",
+        headers: { Authorization: `Bearer ${token}` },
+      });
+      setPinterestConnected(false);
+    } catch {
+      // silently ignore
+    } finally {
+      setPinterestDisconnecting(false);
+    }
+  };
+
   // Meta asset discovery state
   const [discoveringAssets, setDiscoveringAssets] = useState(false);
   const [discoverError, setDiscoverError] = useState<string | null>(null);
@@ -520,6 +551,46 @@ export function ProjectFormDialog({ project, onClose, onSuccess }: ProjectFormDi
                         <p className="text-xs" style={{ color: "#6b7280" }}>{t.form_meta_or_settings_hint}</p>
                       </>
                     )}
+                  </div>
+                )}
+              </div>
+
+              {/* Pinterest connection */}
+              <div style={{ borderTop: "1px solid #222222", paddingTop: "1.25rem" }}>
+                <label className="block text-sm font-medium text-white mb-3">Pinterest</label>
+                {pinterestConnected === null ? (
+                  <div className="flex items-center gap-2" style={{ color: "#6b7280" }}>
+                    <Loader2 className="h-4 w-4 animate-spin" />
+                    <span className="text-xs">{t.form_meta_discovering}</span>
+                  </div>
+                ) : pinterestConnected ? (
+                  <div className="flex items-center justify-between gap-3 flex-wrap">
+                    <span className="inline-flex items-center px-2.5 py-1 rounded-full text-xs font-medium" style={{ backgroundColor: "#3b0764", color: "#e9d5ff", border: "1px solid #6d28d9" }}>
+                      {t.pinterest_connected}
+                    </span>
+                    <button
+                      type="button"
+                      onClick={handlePinterestDisconnect}
+                      disabled={pinterestDisconnecting}
+                      className="px-4 py-2 text-white text-xs font-medium rounded-lg transition-opacity hover:opacity-90 disabled:opacity-50"
+                      style={{ backgroundColor: "#dc2626" }}
+                    >
+                      {t.pinterest_disconnect}
+                    </button>
+                  </div>
+                ) : (
+                  <div className="space-y-3">
+                    <a
+                      href={`${process.env.NEXT_PUBLIC_API_URL ?? "http://localhost:8000"}/api/v1/auth/pinterest/start?project_slug=${project.slug}`}
+                      className="inline-flex items-center gap-2 px-4 py-2 text-white text-sm font-medium rounded-lg transition-opacity hover:opacity-90"
+                      style={{ backgroundColor: "#e60023" }}
+                    >
+                      <svg className="h-4 w-4" viewBox="0 0 24 24" fill="currentColor">
+                        <path d="M12 0C5.373 0 0 5.373 0 12c0 5.084 3.163 9.426 7.627 11.174-.105-.949-.2-2.405.042-3.441.218-.937 1.407-5.965 1.407-5.965s-.359-.719-.359-1.782c0-1.668.967-2.914 2.171-2.914 1.023 0 1.518.769 1.518 1.69 0 1.029-.655 2.568-.994 3.995-.283 1.194.599 2.169 1.777 2.169 2.133 0 3.772-2.249 3.772-5.495 0-2.873-2.064-4.882-5.012-4.882-3.414 0-5.418 2.561-5.418 5.207 0 1.031.397 2.138.893 2.738a.36.36 0 0 1 .083.345l-.333 1.36c-.053.22-.174.267-.402.161-1.499-.698-2.436-2.889-2.436-4.649 0-3.785 2.75-7.262 7.929-7.262 4.163 0 7.398 2.967 7.398 6.931 0 4.136-2.607 7.464-6.227 7.464-1.216 0-2.359-.632-2.75-1.378l-.748 2.853c-.271 1.043-1.002 2.35-1.492 3.146C9.57 23.812 10.763 24 12 24c6.627 0 12-5.373 12-12S18.627 0 12 0z"/>
+                      </svg>
+                      {t.pinterest_connect_btn}
+                    </a>
+                    <p className="text-xs" style={{ color: "#6b7280" }}>{t.pinterest_app_review_note}</p>
                   </div>
                 )}
               </div>

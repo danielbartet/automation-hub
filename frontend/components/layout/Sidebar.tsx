@@ -3,7 +3,7 @@ import Link from "next/link";
 import { usePathname } from "next/navigation";
 import { useSession } from "next-auth/react";
 import { useEffect, useState } from "react";
-import { LayoutDashboard, FileText, Megaphone, FolderKanban, CalendarDays, UsersRound, Activity, Users2, Settings, ChevronDown, ChevronRight, Link2, Layers } from "lucide-react";
+import { LayoutDashboard, FileText, Megaphone, FolderKanban, CalendarDays, UsersRound, Activity, Users2, Settings, ChevronDown, ChevronRight, Link2, Layers, Pin, LayoutGrid, Sparkles } from "lucide-react";
 import { getHealthSummary } from "@/lib/api";
 import { useT } from "@/lib/i18n";
 import { useProject } from "@/lib/project-context";
@@ -38,6 +38,10 @@ export function Sidebar() {
     pathname.startsWith("/dashboard/token-usage");
   const [healthOpen, setHealthOpen] = useState(isOnHealthPath);
 
+  // Auto-expand Pinterest group when on any /pinterest/* path
+  const isOnPinterestPath = pathname.startsWith("/dashboard/pinterest");
+  const [pinterestOpen, setPinterestOpen] = useState(isOnPinterestPath);
+
   // Keep organicoOpen in sync when navigating to/from organic paths
   useEffect(() => {
     if (isOnOrganicoPath) setOrganicoOpen(true);
@@ -57,6 +61,11 @@ export function Sidebar() {
   useEffect(() => {
     if (isOnHealthPath) setHealthOpen(true);
   }, [isOnHealthPath]);
+
+  // Keep pinterestOpen in sync when navigating to/from pinterest paths
+  useEffect(() => {
+    if (isOnPinterestPath) setPinterestOpen(true);
+  }, [isOnPinterestPath]);
 
   const topNavItems = [
     { href: "/dashboard", label: t.nav_overview, icon: LayoutDashboard },
@@ -229,6 +238,49 @@ export function Sidebar() {
               {organicoChildren.map(({ href, label, icon: Icon }) => {
                 if (isClient && clientHiddenPaths.includes(href)) return null;
                 const isActive = pathname === href || pathname.startsWith(href + "/");
+                return (
+                  <Link
+                    key={href}
+                    href={href}
+                    className="flex items-center gap-3 px-3 py-2 rounded-md text-sm font-medium transition-colors"
+                    style={isActive ? activeLinkStyle : inactiveLinkStyle}
+                    onMouseEnter={(e) => handleHover(e, isActive)}
+                    onMouseLeave={(e) => handleHoverLeave(e, isActive)}
+                  >
+                    <Icon className="h-4 w-4 flex-shrink-0" />
+                    <span className="flex-1">{label}</span>
+                  </Link>
+                );
+              })}
+            </div>
+          )}
+        </div>
+
+        {/* Pinterest collapsible group */}
+        <div>
+          <button
+            onClick={() => setPinterestOpen((prev) => !prev)}
+            className="w-full flex items-center gap-3 px-3 py-2 rounded-md text-sm font-medium transition-colors"
+            style={isOnPinterestPath ? { color: "#a78bfa" } : { color: "#9ca3af" }}
+            onMouseEnter={(e) => handleHover(e, isOnPinterestPath)}
+            onMouseLeave={(e) => handleHoverLeave(e, isOnPinterestPath)}
+          >
+            <Pin className="h-4 w-4 flex-shrink-0" />
+            <span className="flex-1 text-left">{t.nav_pinterest}</span>
+            {pinterestOpen ? (
+              <ChevronDown className="h-3.5 w-3.5 flex-shrink-0" />
+            ) : (
+              <ChevronRight className="h-3.5 w-3.5 flex-shrink-0" />
+            )}
+          </button>
+
+          {pinterestOpen && (
+            <div className="mt-1 ml-3 pl-3 space-y-1" style={{ borderLeft: "1px solid #1e1e1e" }}>
+              {[
+                { href: "/dashboard/pinterest", label: t.nav_pinterest_pins, icon: LayoutGrid, exact: true },
+                { href: "/dashboard/pinterest/generate", label: t.nav_pinterest_generate, icon: Sparkles, exact: false },
+              ].map(({ href, label, icon: Icon, exact }) => {
+                const isActive = exact ? pathname === href : pathname.startsWith(href);
                 return (
                   <Link
                     key={href}

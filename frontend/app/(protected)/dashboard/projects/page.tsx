@@ -93,8 +93,16 @@ function ProjectsPageInner() {
     const connected = searchParams.get("meta_connected");
     const metaError = searchParams.get("meta_error");
     const metaSelect = searchParams.get("meta_select");
+    const pinterestConnected = searchParams.get("pinterest_connected");
+    const pinterestError = searchParams.get("pinterest_error");
 
-    if (connected === "true") {
+    if (pinterestConnected === "true") {
+      setToast({ type: "success", message: "Pinterest account connected successfully" });
+      router.replace("/dashboard/projects");
+    } else if (pinterestError) {
+      setToast({ type: "error", message: pinterestError });
+      router.replace("/dashboard/projects");
+    } else if (connected === "true") {
       setToast({ type: "success", message: "Meta account connected successfully" });
       router.replace("/dashboard/projects");
     } else if (metaError) {

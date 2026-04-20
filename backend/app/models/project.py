@@ -20,6 +20,9 @@ class Project(Base):
     description: Mapped[str | None] = mapped_column(Text, nullable=True)
     meta_access_token: Mapped[str | None] = mapped_column(Text, nullable=True)  # Fernet encrypted
     meta_token_expires_at: Mapped[datetime | None] = mapped_column(DateTime, nullable=True)
+    pinterest_access_token: Mapped[str | None] = mapped_column(Text, nullable=True)   # Fernet encrypted
+    pinterest_refresh_token: Mapped[str | None] = mapped_column(Text, nullable=True)  # Fernet encrypted
+    pinterest_oauth_verifier: Mapped[str | None] = mapped_column(Text, nullable=True) # PKCE verifier, cleared after OAuth
     facebook_page_id: Mapped[str | None] = mapped_column(String(50), nullable=True)
     instagram_account_id: Mapped[str | None] = mapped_column(String(50), nullable=True)
     ad_account_id: Mapped[str | None] = mapped_column(String(50), nullable=True)

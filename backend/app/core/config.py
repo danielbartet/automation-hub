@@ -33,6 +33,9 @@ class Settings(BaseSettings):
     FRONTEND_URL: str = "https://hub.quantorialabs.com"
     USER_META_TOKEN_ENABLED: bool = False
     APIFY_API_KEY: str = ""
+    GEMINI_API_KEY: str = ""
+    PINTEREST_OAUTH_REDIRECT_URI: str = ""
+    PINTEREST_OAUTH_STATE_SECRET: str = "change-this-in-production"
 
 
 settings = Settings()
