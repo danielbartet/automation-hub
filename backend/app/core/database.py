@@ -1,4 +1,5 @@
 """Async SQLAlchemy database engine and session factory."""
+from sqlalchemy import event
 from sqlalchemy.ext.asyncio import AsyncSession, async_sessionmaker, create_async_engine
 from sqlalchemy.orm import DeclarativeBase
 from app.core.config import settings
@@ -6,7 +7,18 @@ from app.core.config import settings
 engine = create_async_engine(
     settings.DATABASE_URL,
     echo=settings.APP_ENV == "development",
+    connect_args={"timeout": 30},
 )
+
+
+@event.listens_for(engine.sync_engine, "connect")
+def _set_sqlite_pragmas(dbapi_conn, _):
+    cur = dbapi_conn.cursor()
+    cur.execute("PRAGMA journal_mode=WAL")
+    cur.execute("PRAGMA synchronous=NORMAL")
+    cur.execute("PRAGMA busy_timeout=30000")
+    cur.execute("PRAGMA foreign_keys=ON")
+    cur.close()
 
 AsyncSessionLocal = async_sessionmaker(
     bind=engine,

@@ -60,6 +60,21 @@ def require_role(*roles: str):
     return dependency
 
 
+async def assert_project_access(user, project_id: int, db: AsyncSession) -> None:
+    """Raise 403 if user does not have access to the given project."""
+    if user.role in ("admin", "super_admin"):
+        return
+    from app.models.user_project import UserProject
+    result = await db.execute(
+        select(UserProject).where(
+            UserProject.user_id == user.id,
+            UserProject.project_id == project_id,
+        )
+    )
+    if not result.scalar_one_or_none():
+        raise HTTPException(status_code=403, detail="Access denied to this project")
+
+
 def require_admin():
     """Allow both admin and super_admin."""
     return require_role("admin", "super_admin")

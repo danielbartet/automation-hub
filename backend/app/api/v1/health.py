@@ -7,6 +7,7 @@ from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy import select
 
 from app.api.deps import get_session, get_current_user
+from app.core.database import AsyncSessionLocal
 from app.models.project import Project
 from app.models.meta_api_cache import MetaApiCache
 from app.models.user_project import UserProject
@@ -85,16 +86,17 @@ async def get_health_summary(
         return []
 
     async def _safe_health(p: Project) -> dict:
-        try:
-            return await get_project_health(db, p.id)
-        except Exception as exc:
-            return {
-                "project_id": p.id,
-                "project_name": p.name,
-                "health_color": "red",
-                "error": str(exc),
-                "is_stale": True,
-            }
+        async with AsyncSessionLocal() as task_db:
+            try:
+                return await get_project_health(task_db, p.id)
+            except Exception as exc:
+                return {
+                    "project_id": p.id,
+                    "project_name": p.name,
+                    "health_color": "red",
+                    "error": str(exc),
+                    "is_stale": True,
+                }
 
     results = await asyncio.gather(*[_safe_health(p) for p in projects])
     return list(results)

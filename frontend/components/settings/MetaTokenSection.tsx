@@ -58,7 +58,22 @@ export function MetaTokenSection() {
   }, [session]);
 
   const rawToken = (session as any)?.accessToken as string | undefined;
-  const connectUrl = `${API_BASE}/api/v1/auth/meta/start?mode=user${rawToken ? `&jwt=${encodeURIComponent(rawToken)}` : ""}`;
+
+  const handleMetaConnect = async () => {
+    if (!rawToken) return;
+    try {
+      const res = await fetch(`${API_BASE}/api/v1/auth/meta/start?mode=user`, {
+        headers: { Authorization: `Bearer ${rawToken}` },
+      });
+      if (!res.ok) throw new Error("Failed to get OAuth URL");
+      const data = await res.json();
+      if (data.oauth_url) {
+        window.location.assign(data.oauth_url);
+      }
+    } catch (err) {
+      console.error("Meta connect error:", err);
+    }
+  };
 
   const expired = status?.connected && isExpired(status.expires_at ?? null);
   const connected = status?.connected && !expired;
@@ -147,21 +162,21 @@ export function MetaTokenSection() {
       {/* Connect / Reconnect button */}
       {!loading && !error && (
         <div>
-          <a
-            href={connectUrl}
+          <button
+            onClick={handleMetaConnect}
             className="inline-flex items-center px-4 py-2 rounded-md text-sm font-medium text-white transition-colors"
             style={{ backgroundColor: "#7c3aed" }}
             onMouseEnter={(e) =>
-              ((e.currentTarget as HTMLAnchorElement).style.backgroundColor = "#6d28d9")
+              ((e.currentTarget as HTMLButtonElement).style.backgroundColor = "#6d28d9")
             }
             onMouseLeave={(e) =>
-              ((e.currentTarget as HTMLAnchorElement).style.backgroundColor = "#7c3aed")
+              ((e.currentTarget as HTMLButtonElement).style.backgroundColor = "#7c3aed")
             }
           >
             {status?.connected
               ? t.settings_meta_reconnect_btn
               : t.settings_meta_connect_btn}
-          </a>
+          </button>
         </div>
       )}
     </div>

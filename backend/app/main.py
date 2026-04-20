@@ -82,6 +82,9 @@ async def lifespan(app: FastAPI):
         CronTrigger(hour=8, minute=0),
         id="campaign_optimizer",
         replace_existing=True,
+        max_instances=1,
+        coalesce=True,
+        misfire_grace_time=3600,
     )
 
     async def scheduled_posts_job():
@@ -89,7 +92,7 @@ async def lifespan(app: FastAPI):
         from app.models.content import ContentPost
         from app.models.project import Project
         from app.api.v1.content import _publish_post_to_meta
-        from sqlalchemy import select, and_
+        from sqlalchemy import select, and_, update
 
         async with AsyncSessionLocal() as db:
             try:
@@ -108,6 +111,19 @@ async def lifespan(app: FastAPI):
 
                 for post in posts:
                     try:
+                        # Atomically claim this post for publishing
+                        claim_result = await db.execute(
+                            update(ContentPost)
+                            .where(
+                                ContentPost.id == post.id,
+                                ContentPost.status == "approved",
+                            )
+                            .values(status="publishing")
+                        )
+                        await db.commit()
+                        if claim_result.rowcount != 1:
+                            continue  # Another worker already claimed it
+
                         proj_result = await db.execute(
                             select(Project).where(Project.id == post.project_id)
                         )
@@ -125,6 +141,9 @@ async def lifespan(app: FastAPI):
         IntervalTrigger(minutes=5),
         id="scheduled_posts",
         replace_existing=True,
+        max_instances=1,
+        coalesce=True,
+        misfire_grace_time=3600,
     )
 
     async def run_weekly_audit_for_all_projects():
@@ -190,6 +209,9 @@ async def lifespan(app: FastAPI):
         CronTrigger(day_of_week="mon", hour=7, minute=0),
         id="weekly_ads_audit",
         replace_existing=True,
+        max_instances=1,
+        coalesce=True,
+        misfire_grace_time=3600,
     )
 
     async def sync_campaign_statuses_job():
@@ -259,6 +281,9 @@ async def lifespan(app: FastAPI):
         IntervalTrigger(hours=6),
         id="campaign_status_sync",
         replace_existing=True,
+        max_instances=1,
+        coalesce=True,
+        misfire_grace_time=3600,
     )
 
     scheduler.start()

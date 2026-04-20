@@ -2,7 +2,7 @@
 from fastapi import APIRouter, Depends, HTTPException, UploadFile, File
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy import select
-from app.api.deps import get_session, get_current_user, require_super_admin, require_role
+from app.api.deps import get_session, get_current_user, require_super_admin, require_role, assert_project_access
 from app.models.ad_campaign import AdCampaign
 from app.models.notification import Notification
 from app.models.project import Project
@@ -150,6 +150,8 @@ async def get_competitor_ads(
     if not project:
         raise HTTPException(404, f"Project '{project_slug}' not found")
 
+    await assert_project_access(current_user, project.id, db)
+
     # Ad Library requires ads_library_read — use the caller's OAuth token first,
     # fall back to project token (System User) which may lack this permission.
     token = None
@@ -185,7 +187,7 @@ async def adapt_competitor_ad(
     project_slug: str,
     body: AdaptCompetitorRequest,
     db: AsyncSession = Depends(get_session),
-    _current_user=Depends(require_role("admin", "operator", "super_admin")),
+    current_user=Depends(require_role("admin", "operator", "super_admin")),
 ) -> dict:
     """Adapt a competitor ad into a campaign concept for the project using Claude."""
     from app.services.claude.client import ClaudeClient
@@ -194,6 +196,8 @@ async def adapt_competitor_ad(
     project = proj_result.scalar_one_or_none()
     if not project:
         raise HTTPException(404, f"Project '{project_slug}' not found")
+
+    await assert_project_access(current_user, project.id, db)
 
     try:
         result = await ClaudeClient().adapt_competitor_ad(
@@ -336,6 +340,7 @@ async def refresh_creatives(
     campaign_id: int,
     body: RefreshCreativesRequest,
     db: AsyncSession = Depends(get_session),
+    _current_user=Depends(get_current_user),
 ) -> dict:
     """Generate fresh Andromeda concepts that are conceptually opposite to fatigued hooks."""
     from app.services.claude.client import ClaudeClient
@@ -641,6 +646,7 @@ async def get_campaign_detail(
     project_slug: str | None = None,
     date_preset: str = "last_30d",
     db: AsyncSession = Depends(get_session),
+    _current_user=Depends(get_current_user),
 ) -> dict:
     """Return full campaign detail. campaign_id can be a DB integer id or a Meta campaign ID string."""
     # Try DB lookup by integer id first, then by meta_campaign_id
@@ -656,7 +662,7 @@ async def get_campaign_detail(
         result = await db.execute(select(AdCampaign).where(AdCampaign.meta_campaign_id == campaign_id))
         campaign = result.scalar_one_or_none()
 
-    # Get project for token — from campaign, from slug param, or first project
+    # Get project for token — from campaign or from slug param
     project: Project | None = None
     if campaign:
         proj_result = await db.execute(select(Project).where(Project.id == campaign.project_id))
@@ -665,8 +671,7 @@ async def get_campaign_detail(
         proj_result = await db.execute(select(Project).where(Project.slug == project_slug))
         project = proj_result.scalar_one_or_none()
     else:
-        proj_result = await db.execute(select(Project).limit(1))
-        project = proj_result.scalar_one_or_none()
+        raise HTTPException(status_code=404, detail="Campaign not found")
 
     token = await get_project_token(project, db) if project else ""
     ad_account_id = ((project.ad_account_id or "") if project else "").removeprefix("act_")
@@ -1667,6 +1672,7 @@ async def get_campaign_recommendations(
 async def get_optimization_logs(
     campaign_id: int,
     db: AsyncSession = Depends(get_session),
+    _current_user=Depends(get_current_user),
 ) -> list[dict]:
     """Get optimization history for a campaign."""
     from app.models.optimization_log import CampaignOptimizationLog
@@ -1813,6 +1819,7 @@ async def update_campaign_budget(
     campaign_id: str,
     body: UpdateBudgetRequest,
     db: AsyncSession = Depends(get_session),
+    _current_user=Depends(get_current_user),
 ) -> dict:
     """Update campaign daily budget. campaign_id can be local DB id or Meta campaign id."""
     # Try local DB id first, then meta_campaign_id (handles large Meta IDs with JS precision loss)

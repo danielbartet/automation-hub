@@ -13,7 +13,7 @@ from pydantic import BaseModel
 from sqlalchemy import select, func
 from sqlalchemy.ext.asyncio import AsyncSession
 
-from app.api.deps import get_session, get_current_user_optional, get_current_user
+from app.api.deps import get_session, get_current_user_optional, get_current_user, assert_project_access
 from app.core.config import settings
 from app.core.security import decrypt_token, get_project_token
 from app.models.content import ContentPost
@@ -107,6 +107,7 @@ async def list_content_by_slug(
     date_from: Optional[str] = None,
     date_to: Optional[str] = None,
     db: AsyncSession = Depends(get_session),
+    _current_user=Depends(get_current_user),
 ) -> dict:
     """List content posts for a project by slug with pagination and optional date filtering."""
     proj_result = await db.execute(select(Project).where(Project.slug == project_slug))
@@ -182,9 +183,10 @@ async def list_content_by_slug(
 async def list_content(
     project_id: int,
     db: AsyncSession = Depends(get_session),
-    _current_user=Depends(get_current_user),
+    current_user=Depends(get_current_user),
 ) -> list[ContentPost]:
     """List content posts for a project."""
+    await assert_project_access(current_user, project_id, db)
     result = await db.execute(
         select(ContentPost)
         .where(ContentPost.project_id == project_id)
@@ -199,7 +201,7 @@ async def generate_content(
     project_slug: str,
     body: AutoGenerateRequest = AutoGenerateRequest(),
     db: AsyncSession = Depends(get_session),
-    current_user=Depends(get_current_user_optional),
+    current_user=Depends(get_current_user),
 ) -> dict:
     """Generate content for a project using Claude.
 
@@ -947,7 +949,7 @@ async def delete_content_post(
 async def retry_instagram(
     content_id: int,
     db: AsyncSession = Depends(get_session),
-    _current_user=Depends(get_current_user),
+    current_user=Depends(get_current_user),
 ) -> dict:
     """Retry publishing a post to Instagram only.
 
@@ -958,6 +960,8 @@ async def retry_instagram(
     post = result.scalar_one_or_none()
     if not post:
         raise HTTPException(status_code=404, detail=f"ContentPost {content_id} not found")
+
+    await assert_project_access(current_user, post.project_id, db)
 
     if post.status not in ("published", "approved", "failed"):
         raise HTTPException(
@@ -1048,6 +1052,7 @@ async def retry_instagram(
 async def retry_facebook(
     content_id: int,
     db: AsyncSession = Depends(get_session),
+    _current_user=Depends(get_current_user),
 ) -> dict:
     """Retry publishing a post to Facebook only.
 
@@ -1143,6 +1148,7 @@ async def batch_generate_content(
     project_slug: str,
     body: BatchContentRequest,
     db: AsyncSession = Depends(get_session),
+    _current_user=Depends(get_current_user),
 ) -> dict:
     """Generate multiple content posts for a batch plan."""
     result = await db.execute(select(Project).where(Project.slug == project_slug))
@@ -1233,6 +1239,7 @@ async def generate_image_for_post(
     content_id: int,
     body: GenerateImageRequest,
     db: AsyncSession = Depends(get_session),
+    _current_user=Depends(get_current_user),
 ) -> dict:
     """Generate an AI image for a content post using the project's image provider.
 
@@ -1310,6 +1317,7 @@ async def rerender_slide(
     content_id: int,
     body: RerenderSlideRequest,
     db: AsyncSession = Depends(get_session),
+    _current_user=Depends(get_current_user),
 ) -> dict:
     """Re-render a single carousel slide using the HTML renderer.
 
@@ -1398,6 +1406,7 @@ async def rerender_slide(
 async def import_from_meta(
     project_slug: str,
     db: AsyncSession = Depends(get_session),
+    _current_user=Depends(get_current_user),
 ) -> dict:
     """Fetch previously published posts from Facebook Page and Instagram and insert them into the DB.
 
@@ -1543,6 +1552,7 @@ async def import_from_meta(
 async def import_instagram_posts(
     project_slug: str,
     db: AsyncSession = Depends(get_session),
+    _current_user=Depends(get_current_user),
 ) -> dict:
     """Import published Instagram posts into the DB.
 
@@ -1657,6 +1667,7 @@ async def create_instagram_story(
     project_slug: str,
     body: CreateStoryRequest,
     db: AsyncSession = Depends(get_session),
+    _current_user=Depends(get_current_user),
 ) -> dict:
     """Publish an Instagram Story for a project.
 
@@ -1737,6 +1748,7 @@ async def create_instagram_story(
 async def generate_video_for_post(
     content_id: int,
     db: AsyncSession = Depends(get_session),
+    _current_user=Depends(get_current_user),
 ) -> dict:
     """Generate a short-form video for a content post using the project's video provider.
 
@@ -1803,6 +1815,7 @@ async def recommend_today(
     project_slug: str,
     body: RecommendTodayRequest = RecommendTodayRequest(),
     db: AsyncSession = Depends(get_session),
+    _current_user=Depends(get_current_user),
 ) -> dict:
     """Generate a 'what to post today' recommendation using post history and competitor analysis."""
     from datetime import datetime, timezone

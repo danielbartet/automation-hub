@@ -1,7 +1,10 @@
 """Claude API client — generates carousel content for projects."""
 import json
-from anthropic import Anthropic
+import logging
+from anthropic import AsyncAnthropic
 from app.core.config import settings
+
+logger = logging.getLogger(__name__)
 
 VALID_FORMATS = ("carousel_6_slides", "single_image", "story_vertical")
 
@@ -51,7 +54,7 @@ class ClaudeClient:
     MODEL = "claude-sonnet-4-6"
 
     def __init__(self) -> None:
-        self.client = Anthropic(api_key=settings.ANTHROPIC_API_KEY)
+        self.client = AsyncAnthropic(api_key=settings.ANTHROPIC_API_KEY)
         self._last_usage: dict = {}
 
     def _build_system_prompt(self, project) -> str:
@@ -215,7 +218,7 @@ RULES:
 
         user_msg += comp_block
 
-        response = self.client.messages.create(
+        response = await self.client.messages.create(
             model=self.MODEL,
             max_tokens=1000,
             system=[
@@ -379,7 +382,7 @@ RULES:
 
     async def generate_content(self, prompt: str, system_prompt: str = "") -> str:
         """Generate text content — generic helper."""
-        response = self.client.messages.create(
+        response = await self.client.messages.create(
             model=self.MODEL,
             max_tokens=1000,
             system=system_prompt or "You are a helpful assistant.",
@@ -556,7 +559,7 @@ Return ONLY valid JSON (no markdown, no code blocks):
 }}"""
 
         # Use direct API call with enough tokens for the full JSON response
-        response = self.client.messages.create(
+        response = await self.client.messages.create(
             model=self.MODEL,
             max_tokens=2000,
             system=system_prompt,
@@ -741,7 +744,7 @@ Return ONLY valid JSON:
   }}
 }}"""
 
-        response = self.client.messages.create(
+        response = await self.client.messages.create(
             model=self.MODEL,
             max_tokens=4000,
             system=[
@@ -885,7 +888,7 @@ Return ONLY valid JSON — an array aligned 1:1 with the input:
 ]"""
 
         try:
-            response = self.client.messages.create(
+            response = await self.client.messages.create(
                 model=self.MODEL,
                 max_tokens=3000,
                 system=[
@@ -986,7 +989,7 @@ Devuelve SOLAMENTE JSON válido — un array con un objeto por competidor:
 IMPORTANTE: El campo "body" y "title" deben ser ejemplos REALES y representativos del estilo auténtico de comunicación de cada competidor, no genéricos. Si no conoces el competidor, crea un ejemplo plausible basado en su nicho."""
 
         try:
-            response = self.client.messages.create(
+            response = await self.client.messages.create(
                 model=self.MODEL,
                 max_tokens=2000,
                 system=[{"type": "text", "text": system_prompt}],
@@ -1070,7 +1073,7 @@ Return ONLY valid JSON:
             ensure_ascii=False,
         )
 
-        response = self.client.messages.create(
+        response = await self.client.messages.create(
             model=self.MODEL,
             max_tokens=500,
             messages=[
