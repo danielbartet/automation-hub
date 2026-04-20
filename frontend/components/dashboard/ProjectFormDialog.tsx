@@ -189,6 +189,17 @@ export function ProjectFormDialog({ project, onClose, onSuccess }: ProjectFormDi
     Array.isArray(cc.content_categories) ? (cc.content_categories as string[]).join("\n") : ""
   );
 
+  // Tab 2 — Mercado y Ventas
+  const [marketRegion, setMarketRegion] = useState((cc.market_region as string) ?? "LATAM");
+  const [priceRange, setPriceRange] = useState((cc.price_range as string) ?? "");
+  const [socialProof, setSocialProof] = useState((cc.social_proof_examples as string) ?? "");
+  const [offer, setOffer] = useState((cc.offer as string) ?? "");
+  const [adLibraryCountries, setAdLibraryCountries] = useState(
+    Array.isArray(cc.ad_library_countries)
+      ? (cc.ad_library_countries as string[]).join(", ")
+      : (cc.ad_library_countries as string) ?? ""
+  );
+
   // Tab 3 — Plataformas (basic info)
   const [facebookPageId, setFacebookPageId] = useState((project as unknown as Record<string, string>).facebook_page_id ?? "");
   const [instagramAccountId, setInstagramAccountId] = useState((project as unknown as Record<string, string>).instagram_account_id ?? "");
@@ -257,6 +268,14 @@ export function ProjectFormDialog({ project, onClose, onSuccess }: ProjectFormDi
         content_categories: contentCategories
           .split("\n")
           .map((r) => r.trim())
+          .filter(Boolean),
+        market_region: marketRegion,
+        price_range: priceRange,
+        social_proof_examples: socialProof,
+        offer,
+        ad_library_countries: adLibraryCountries
+          .split(",")
+          .map((c) => c.trim())
           .filter(Boolean),
         brand_primary_color: brandPrimaryColor,
         brand_secondary_color: brandSecondaryColor,
@@ -421,6 +440,69 @@ export function ProjectFormDialog({ project, onClose, onSuccess }: ProjectFormDi
                   style={inputStyle}
                   placeholder={t.form_content_categories_placeholder}
                 />
+              </div>
+
+              {/* ── Contexto de Mercado y Ventas ── */}
+              <div style={{ borderTop: "1px solid #222222", paddingTop: "1.25rem" }}>
+                <p className="text-sm font-semibold text-white mb-4">{t.form_market_context_section}</p>
+                <div className="space-y-5">
+                  <div>
+                    <label className="block text-sm font-medium text-white mb-1">{t.form_market_region_label}</label>
+                    <input
+                      value={marketRegion}
+                      onChange={(e) => setMarketRegion(e.target.value)}
+                      className="w-full rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-[#7c3aed]"
+                      style={inputStyle}
+                      placeholder={t.form_market_region_placeholder}
+                    />
+                    <p className="text-xs mt-1" style={{ color: "#6b7280" }}>{t.form_market_region_hint}</p>
+                  </div>
+                  <div>
+                    <label className="block text-sm font-medium text-white mb-1">{t.form_price_range_label}</label>
+                    <input
+                      value={priceRange}
+                      onChange={(e) => setPriceRange(e.target.value)}
+                      className="w-full rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-[#7c3aed]"
+                      style={inputStyle}
+                      placeholder={t.form_price_range_placeholder}
+                    />
+                    <p className="text-xs mt-1" style={{ color: "#6b7280" }}>{t.form_price_range_hint}</p>
+                  </div>
+                  <div>
+                    <label className="block text-sm font-medium text-white mb-1">{t.form_social_proof_label}</label>
+                    <textarea
+                      value={socialProof}
+                      onChange={(e) => setSocialProof(e.target.value)}
+                      rows={2}
+                      className="w-full rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-[#7c3aed]"
+                      style={inputStyle}
+                      placeholder={t.form_social_proof_placeholder}
+                    />
+                    <p className="text-xs mt-1" style={{ color: "#6b7280" }}>{t.form_social_proof_hint}</p>
+                  </div>
+                  <div>
+                    <label className="block text-sm font-medium text-white mb-1">{t.form_offer_label}</label>
+                    <input
+                      value={offer}
+                      onChange={(e) => setOffer(e.target.value)}
+                      className="w-full rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-[#7c3aed]"
+                      style={inputStyle}
+                      placeholder={t.form_offer_placeholder}
+                    />
+                    <p className="text-xs mt-1" style={{ color: "#6b7280" }}>{t.form_offer_hint}</p>
+                  </div>
+                  <div>
+                    <label className="block text-sm font-medium text-white mb-1">{t.form_ad_library_countries_label}</label>
+                    <input
+                      value={adLibraryCountries}
+                      onChange={(e) => setAdLibraryCountries(e.target.value)}
+                      className="w-full rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-[#7c3aed]"
+                      style={inputStyle}
+                      placeholder={t.form_ad_library_countries_placeholder}
+                    />
+                    <p className="text-xs mt-1" style={{ color: "#6b7280" }}>{t.form_ad_library_countries_hint}</p>
+                  </div>
+                </div>
               </div>
             </div>
           )}

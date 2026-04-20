@@ -169,6 +169,24 @@ export const translations = {
     pf_1_2x_week: "1-2 times per week",
     pf_on_demand: "Only when there's news",
 
+    // Tab 2 — Market & Sales context
+    form_market_context_section: "Market & Sales Context",
+    form_market_region_label: "Market Region",
+    form_market_region_placeholder: "LATAM",
+    form_market_region_hint: "E.g.: LATAM, US, Europe, MENA",
+    form_price_range_label: "Price Range",
+    form_price_range_placeholder: "E.g.: $29–$99/month",
+    form_price_range_hint: "Will be used in ad copy and content",
+    form_social_proof_label: "Social Proof",
+    form_social_proof_placeholder: "E.g.: 73 students got hired in 3 months",
+    form_social_proof_hint: "Concrete data Claude can use in copy",
+    form_offer_label: "Current Offer",
+    form_offer_placeholder: "E.g.: 7 days free, then $29/month",
+    form_offer_hint: "Active offer for use in conversion ads",
+    form_ad_library_countries_label: "Competitor Research Countries",
+    form_ad_library_countries_placeholder: "AR, MX, CO, CL",
+    form_ad_library_countries_hint: "ISO codes separated by comma",
+
     // Footer buttons
     form_cancel: "Cancel",
     form_save: "Save changes",
@@ -953,6 +971,24 @@ export const translations = {
     pf_3_4x_week: "3-4 veces por semana",
     pf_1_2x_week: "1-2 veces por semana",
     pf_on_demand: "Solo cuando hay novedad",
+
+    // Tab 2 — Market & Sales context
+    form_market_context_section: "Contexto de Mercado y Ventas",
+    form_market_region_label: "Región de Mercado",
+    form_market_region_placeholder: "LATAM",
+    form_market_region_hint: "Ej: LATAM, US, Europe, MENA",
+    form_price_range_label: "Rango de Precios",
+    form_price_range_placeholder: "Ej: $29–$99/mes",
+    form_price_range_hint: "Se usará en el copy de anuncios y contenido",
+    form_social_proof_label: "Prueba Social",
+    form_social_proof_placeholder: "Ej: 73 estudiantes consiguieron empleo en 3 meses",
+    form_social_proof_hint: "Datos concretos que Claude puede usar en el copy",
+    form_offer_label: "Oferta Actual",
+    form_offer_placeholder: "Ej: 7 días gratis, luego $29/mes",
+    form_offer_hint: "Oferta vigente para usar en anuncios de conversión",
+    form_ad_library_countries_label: "Países para Competitor Research",
+    form_ad_library_countries_placeholder: "AR, MX, CO, CL",
+    form_ad_library_countries_hint: "Códigos ISO separados por coma",
 
     // Footer buttons
     form_cancel: "Cancelar",

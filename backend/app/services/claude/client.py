@@ -66,9 +66,36 @@ class ClaudeClient:
         categories = config.get("content_categories", ["educational", "inspirational"])
         language = config.get("language", "en")
         additional_rules = config.get("additional_rules", [])
+        market_region = config.get("market_region", "LATAM")
+        price_range = config.get("price_range", "")
+        social_proof_examples = config.get("social_proof_examples", "")
+        offer = config.get("offer", "")
 
         categories_text = "\n".join([f"{i+1}. {cat}" for i, cat in enumerate(categories)])
         rules_text = "\n".join([f"- {rule}" for rule in additional_rules]) if additional_rules else ""
+
+        # Regional intelligence block
+        if market_region.upper() == "LATAM":
+            regional_block = f"""LATAM INTELLIGENCE:
+- Price sensitivity: always justify cost with specific comparative value
+- Trust hierarchy: community proof > authority > brand claims
+- Specificity converts: "73 personas" beats "mucha gente"
+- Loss aversion beats gain framing: "deja de ser reemplazable" beats "volve valioso"
+- Peak-end rule: Slide 1 = peak impact, Slide {num_slides} = memorable CTA"""
+        else:
+            regional_block = f"""{market_region.upper()} MARKET INTELLIGENCE:
+- Adapt tone and cultural references to {market_region} audience
+- Use price anchoring relevant to {market_region} market"""
+
+        # Brand assets block
+        brand_assets = []
+        if price_range:
+            brand_assets.append(f"- Precio: {price_range}")
+        if social_proof_examples:
+            brand_assets.append(f"- Prueba social: {social_proof_examples}")
+        if offer:
+            brand_assets.append(f"- Oferta actual: {offer}")
+        brand_assets_block = ("BRAND ASSETS (usa estos datos concretos en el copy cuando aplique):\n" + "\n".join(brand_assets)) if brand_assets else ""
 
         # Build the slides JSON example dynamically based on num_slides
         middle_slides = num_slides - 2  # exclude hook (slide 1) and close (last slide)
@@ -84,7 +111,7 @@ class ClaudeClient:
         )
         slides_example = ",\n".join(slides_example_lines)
 
-        return f"""You are a Senior Marketing Strategist and Expert Copywriter specialized in social media content for LATAM audiences.
+        return f"""You are a Senior Marketing Strategist and Expert Copywriter specialized in social media content for {market_region} audiences.
 
 COPYWRITING FRAMEWORKS — apply based on audience temperature:
 - Cold audience (no prior contact): Use PAS (Problem, Agitate, Solution)
@@ -111,12 +138,7 @@ NARRATIVE ANGLES — rotate, never repeat consecutively:
 5. Identity/Community: shared values, who we are as a group
 6. Comparative: old way vs new way, with vs without, before vs after
 
-LATAM INTELLIGENCE:
-- Price sensitivity: always justify cost with specific comparative value
-- Trust hierarchy: community proof > authority > brand claims
-- Specificity converts: "73 personas" beats "mucha gente"
-- Loss aversion beats gain framing: "deja de ser reemplazable" beats "volve valioso"
-- Peak-end rule: Slide 1 = peak impact, Slide {num_slides} = memorable CTA
+{regional_block}
 
 QUALITY GATES — before finalizing any content, verify:
 1. Hook scores 3U+ (Urgent, Unique, Ultra-specific, Useful)
@@ -149,6 +171,8 @@ TONE:
 
 CONTENT CATEGORIES (rotate between these):
 {categories_text}
+
+{brand_assets_block}
 
 {f"ADDITIONAL RULES:{chr(10)}{rules_text}" if rules_text else ""}
 
@@ -301,6 +325,18 @@ RULES:
         target_audience = config.get("target_audience", "")
         language = config.get("language", "es")
         content_categories = config.get("content_categories", [])
+        price_range = config.get("price_range", "")
+        social_proof_examples = config.get("social_proof_examples", "")
+        offer = config.get("offer", "")
+
+        brand_assets = []
+        if price_range:
+            brand_assets.append(f"- Precio: {price_range}")
+        if social_proof_examples:
+            brand_assets.append(f"- Prueba social: {social_proof_examples}")
+        if offer:
+            brand_assets.append(f"- Oferta actual: {offer}")
+        brand_assets_block = ("BRAND ASSETS (usa estos datos concretos en el copy cuando aplique):\n" + "\n".join(brand_assets)) if brand_assets else ""
 
         return f"""You are a Senior Social Media Copywriter specialized in high-impact single-image posts.
 
@@ -319,6 +355,8 @@ CONTEXTO DE MARCA:
 {f"- Categorías de contenido: {', '.join(content_categories)}" if content_categories else ""}
 - Tono: {tone}
 - Idioma: {language}
+
+{brand_assets_block}
 
 FRAMEWORKS DE COPYWRITING (elige el más adecuado):
 - PAS: Problema → Agitación → Solución
@@ -350,6 +388,18 @@ Return valid JSON only, nothing else."""
         target_audience = config.get("target_audience", "")
         language = config.get("language", "es")
         content_categories = config.get("content_categories", [])
+        price_range = config.get("price_range", "")
+        social_proof_examples = config.get("social_proof_examples", "")
+        offer = config.get("offer", "")
+
+        brand_assets = []
+        if price_range:
+            brand_assets.append(f"- Precio: {price_range}")
+        if social_proof_examples:
+            brand_assets.append(f"- Prueba social: {social_proof_examples}")
+        if offer:
+            brand_assets.append(f"- Oferta actual: {offer}")
+        brand_assets_block = ("BRAND ASSETS (usa estos datos concretos en el copy cuando aplique):\n" + "\n".join(brand_assets)) if brand_assets else ""
 
         return f"""You are a Senior Social Media Copywriter specialized in Instagram/Facebook Stories.
 
@@ -367,6 +417,8 @@ CONTEXTO DE MARCA:
 {f"- Categorías de contenido: {', '.join(content_categories)}" if content_categories else ""}
 - Tono: {tone}
 - Idioma: {language}
+
+{brand_assets_block}
 
 FRAMEWORKS DE COPYWRITING (elige el más adecuado):
 - PAS: Problema → Agitación → Solución
@@ -401,6 +453,18 @@ Return valid JSON only, nothing else."""
         content_categories = config.get("content_categories", [])
         additional_rules = config.get("additional_rules", [])
         rules_text = "\n".join([f"- {rule}" for rule in additional_rules]) if additional_rules else ""
+        price_range = config.get("price_range", "")
+        social_proof_examples = config.get("social_proof_examples", "")
+        offer = config.get("offer", "")
+
+        brand_assets = []
+        if price_range:
+            brand_assets.append(f"- Precio: {price_range}")
+        if social_proof_examples:
+            brand_assets.append(f"- Prueba social: {social_proof_examples}")
+        if offer:
+            brand_assets.append(f"- Oferta actual: {offer}")
+        brand_assets_block = ("BRAND ASSETS (usa estos datos concretos en el copy cuando aplique):\n" + "\n".join(brand_assets)) if brand_assets else ""
 
         return f"""You are the content generation system for {brand_name}.
 
@@ -411,6 +475,8 @@ CONTEXTO DE MARCA:
 {f"- Categorías de contenido: {', '.join(content_categories)}" if content_categories else ""}
 - Tono: {tone}
 - Idioma: {language}
+
+{brand_assets_block}
 
 FRAMEWORKS DE COPYWRITING (elige el más adecuado):
 - PAS: Problema → Agitación → Solución
@@ -692,6 +758,18 @@ Return ONLY valid JSON (no markdown, no code blocks):
         target_audience = cfg.get("target_audience", "")
         core_message = cfg.get("core_message", "")
         content_categories = cfg.get("content_categories", [])
+        price_range = cfg.get("price_range", "")
+        social_proof_examples = cfg.get("social_proof_examples", "")
+        offer = cfg.get("offer", "")
+
+        brand_assets = []
+        if price_range:
+            brand_assets.append(f"- Precio: {price_range}")
+        if social_proof_examples:
+            brand_assets.append(f"- Prueba social: {social_proof_examples}")
+        if offer:
+            brand_assets.append(f"- Oferta actual: {offer}")
+        brand_assets_block = ("BRAND ASSETS (usa estos datos concretos en el copy cuando aplique):\n" + "\n".join(brand_assets)) if brand_assets else ""
 
         system_prompt = f"""Eres un experto en copywriting para redes sociales.
 Tu objetivo: escribir captions que detengan el scroll, generen engagement y conecten emocionalmente.
@@ -709,6 +787,8 @@ CONTEXTO DE MARCA:
 {f"- Categorías de contenido: {', '.join(content_categories)}" if content_categories else ""}
 - Tono: {tone}
 - Idioma: {language}
+
+{brand_assets_block}
 
 PRINCIPIOS DE PERSUASIÓN (Cialdini):
 - Escasez/urgencia cuando sea auténtico
@@ -772,6 +852,18 @@ REGLAS:
         core_message = product_description or config.get("core_message", "")
         target_audience = config.get("target_audience", "general audience")
         language = config.get("language", "es")
+        price_range = config.get("price_range", "")
+        social_proof_examples = config.get("social_proof_examples", "")
+        offer = config.get("offer", "")
+
+        brand_assets_lines = []
+        if price_range:
+            brand_assets_lines.append(f"- Precio del producto: {price_range}")
+        if social_proof_examples:
+            brand_assets_lines.append(f"- Prueba social disponible: {social_proof_examples}")
+        if offer:
+            brand_assets_lines.append(f"- Oferta actual: {offer}")
+        brand_assets_ad_block = ("\nBRAND ASSETS — use these concrete data points in copy when relevant:\n" + "\n".join(brand_assets_lines)) if brand_assets_lines else ""
 
         fatigue_block = ""
         if existing_hooks:
@@ -846,7 +938,7 @@ Brand context:
 - Product/service: {core_message}
 - Target audience: {target_audience}
 - Campaign objective: {campaign_objective}
-- Language: {language}
+- Language: {language}{brand_assets_ad_block}
 {objective_block}{audience_block}{inspiration_block}
 ANDROMEDA RULES (mandatory):
 1. Each concept must have a unique Entity ID — less than 60% semantic similarity between any two

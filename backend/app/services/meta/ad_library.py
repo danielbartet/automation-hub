@@ -32,7 +32,7 @@ class MetaAdLibraryService:
         Returns structured ad data sorted by days_active (proxy for performance).
         """
         if countries is None:
-            countries = ["AR", "MX", "CO", "CL"]
+            countries = ["AR", "MX", "CO", "CL"]  # default fallback; prefer passing project-derived countries
 
         all_ads = []
 
@@ -425,6 +425,8 @@ class MetaAdLibraryService:
                 if c.strip()
             ]
 
+            countries = config.get("ad_library_countries", ["AR", "MX", "CO", "CL"])
+
             # Determine fetch strategy: Apify preferred over Meta Ad Library
             from app.core.config import settings
             apify_key = settings.APIFY_API_KEY
@@ -434,7 +436,7 @@ class MetaAdLibraryService:
                 ads = await self.get_competitor_ads_apify(competitors=competitors_list)
             else:
                 logger.info("Using Meta Ad Library API to fetch competitor ads (no APIFY_API_KEY)")
-                ads = await self.get_competitor_ads(access_token=access_token, competitors=competitors_list)
+                ads = await self.get_competitor_ads(access_token=access_token, competitors=competitors_list, countries=countries)
 
             # If still empty — fall back to Claude synthetic research
             is_synthetic = False
