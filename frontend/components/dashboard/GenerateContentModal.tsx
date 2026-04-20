@@ -62,6 +62,7 @@ export function GenerateContentModal({ projectSlug, project, initialHint, initia
   const [autoContentType, setAutoContentType] = useState<ContentType>((initialContentType as ContentType) ?? "carousel_6_slides");
   const [autoCategory, setAutoCategory] = useState<string | null>(initialCategory ?? null);
   const [autoHint, setAutoHint] = useState(initialHint ?? "");
+  const [numSlides, setNumSlides] = useState<number>(6);
 
   // Sync initial values from props (handles cases where props arrive after first render)
   useEffect(() => {
@@ -121,6 +122,7 @@ export function GenerateContentModal({ projectSlug, project, initialHint, initia
         // Only send image_mode when forcing placeholder; otherwise let the backend
         // use the project's media_config.image_provider (HTML renderer by default).
         image_mode: autoImageMode === "placeholder" ? "placeholder" : undefined,
+        ...(autoContentType === "carousel_6_slides" ? { num_slides: numSlides } : {}),
       }, token);
       setGeneratedData(data);
       setResult(data.content?.caption || data.content?.title || "Contenido generado con éxito");
@@ -258,7 +260,10 @@ export function GenerateContentModal({ projectSlug, project, initialHint, initia
                         <button
                           key={value}
                           type="button"
-                          onClick={() => setAutoContentType(value)}
+                          onClick={() => {
+                            setAutoContentType(value);
+                            if (value !== "carousel_6_slides") setNumSlides(6);
+                          }}
                           className={`inline-flex items-center gap-1.5 px-3 py-1.5 rounded-full text-sm font-medium border transition-colors ${
                             autoContentType === value
                               ? "bg-[#7c3aed] text-white border-[#7c3aed]"
@@ -272,6 +277,25 @@ export function GenerateContentModal({ projectSlug, project, initialHint, initia
                       ))}
                     </div>
                   </div>
+
+                  {/* Número de slides (solo carousel) */}
+                  {autoContentType === "carousel_6_slides" && (
+                    <div>
+                      <label className="block text-sm font-medium mb-1" style={{ color: "#d1d5db" }}>
+                        Número de slides
+                      </label>
+                      <select
+                        value={numSlides}
+                        onChange={(e) => setNumSlides(Number(e.target.value))}
+                        className="w-full rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-[#7c3aed] text-white"
+                        style={{ border: "1px solid #333333", backgroundColor: "#1a1a1a" }}
+                      >
+                        {[3, 4, 5, 6, 8, 10].map((n) => (
+                          <option key={n} value={n}>{n} slides</option>
+                        ))}
+                      </select>
+                    </div>
+                  )}
 
                   {/* Categoría */}
                   {categories.length > 0 && (

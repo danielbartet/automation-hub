@@ -56,9 +56,8 @@ class ClaudeClient:
 
     def __init__(self) -> None:
         self.client = AsyncAnthropic(api_key=settings.ANTHROPIC_API_KEY)
-        self._last_usage: dict = {}
 
-    def _build_system_prompt(self, project) -> str:
+    def _build_system_prompt(self, project, num_slides: int = 6) -> str:
         config = project.content_config or {}
         brand_name = config.get("brand_name", project.name)
         tone = config.get("tone", "professional, clear")
@@ -70,6 +69,20 @@ class ClaudeClient:
 
         categories_text = "\n".join([f"{i+1}. {cat}" for i, cat in enumerate(categories)])
         rules_text = "\n".join([f"- {rule}" for rule in additional_rules]) if additional_rules else ""
+
+        # Build the slides JSON example dynamically based on num_slides
+        middle_slides = num_slides - 2  # exclude hook (slide 1) and close (last slide)
+        slides_example_lines = [
+            f'    {{"slide_number": 1, "type": "hook", "headline": "max 8 words", "subtext": "max 20 words"}}',
+        ]
+        for i in range(2, 2 + middle_slides):
+            slides_example_lines.append(
+                f'    {{"slide_number": {i}, "type": "content", "headline": "max 6 words", "body": "max 40 words"}}'
+            )
+        slides_example_lines.append(
+            f'    {{"slide_number": {num_slides}, "type": "close", "headline": "max 8 words", "cta": "max 15 words"}}'
+        )
+        slides_example = ",\n".join(slides_example_lines)
 
         return f"""You are a Senior Marketing Strategist and Expert Copywriter specialized in social media content for LATAM audiences.
 
@@ -103,7 +116,7 @@ LATAM INTELLIGENCE:
 - Trust hierarchy: community proof > authority > brand claims
 - Specificity converts: "73 personas" beats "mucha gente"
 - Loss aversion beats gain framing: "deja de ser reemplazable" beats "volve valioso"
-- Peak-end rule: Slide 1 = peak impact, Slide 6 = memorable CTA
+- Peak-end rule: Slide 1 = peak impact, Slide {num_slides} = memorable CTA
 
 QUALITY GATES — before finalizing any content, verify:
 1. Hook scores 3U+ (Urgent, Unique, Ultra-specific, Useful)
@@ -115,8 +128,8 @@ QUALITY GATES — before finalizing any content, verify:
 
 SLIDE STRUCTURE RULES:
 - Slide 1: Hook ONLY. Maximum 7 words main line. No context, no explanation.
-- Slides 2-5: ONE idea per slide, fully resolved. Headline (10 words max) + body (25 words max)
-- Slide 6: CTA. Single action. Centered. Clear outcome + next step.
+- Slides 2-{num_slides - 1}: ONE idea per slide, fully resolved. Headline (10 words max) + body (25 words max)
+- Slide {num_slides}: CTA. Single action. Centered. Clear outcome + next step.
 
 CAPTION RULES:
 - Line 1: Hook that earns the "Ver mas" expand
@@ -146,12 +159,7 @@ Always respond with a valid JSON object and nothing else:
   "topic": "string (specific topic of this content)",
   "narrative_angle": "one of: Transformation | Educational | Social Proof | Urgency | Identity | Comparative",
   "slides": [
-    {{"slide_number": 1, "type": "hook", "headline": "max 8 words", "subtext": "max 20 words"}},
-    {{"slide_number": 2, "type": "content", "headline": "max 6 words", "body": "max 40 words"}},
-    {{"slide_number": 3, "type": "content", "headline": "max 6 words", "body": "max 40 words"}},
-    {{"slide_number": 4, "type": "content", "headline": "max 6 words", "body": "max 40 words"}},
-    {{"slide_number": 5, "type": "content", "headline": "max 6 words", "body": "max 40 words"}},
-    {{"slide_number": 6, "type": "close", "headline": "max 8 words", "cta": "max 15 words"}}
+{slides_example}
   ],
   "caption": "150-200 chars",
   "hashtags": ["tag1", "tag2", "tag3", "tag4", "tag5"]
@@ -159,15 +167,17 @@ Always respond with a valid JSON object and nothing else:
 
 RULES:
 - Always return valid JSON, nothing else before or after
+- The "slides" array must contain exactly {num_slides} objects/slides
 - Generate ALL content in: {language}
 - Never use generic or cliché phrases
 - Slide 1 must make someone stop scrolling
 - Each slide must have one single clear idea
 - Rotate categories — never generate the same category twice in a row"""
 
-    async def generate_carousel_content(self, project) -> dict:
+    async def generate_carousel_content(self, project, num_slides: int = 6) -> tuple[dict, dict]:
         """Generate carousel content for a project using Claude."""
-        return await self.generate_content_by_type(project, content_type="carousel_6_slides")
+        num_slides = max(3, min(10, num_slides))
+        return await self.generate_content_by_type(project, content_type="carousel_6_slides", num_slides=num_slides)
 
     async def generate_content_by_type(
         self,
@@ -176,25 +186,32 @@ RULES:
         category: str | None = None,
         hint: str | None = None,
         competitor_ads: list[dict] | None = None,
-    ) -> dict:
+        content_config: dict | None = None,
+        num_slides: int = 6,
+    ) -> tuple[dict, dict]:
         """Generate content for a project based on content_type.
 
         Supports: carousel_6_slides | single_image | story_vertical | story | text_post
         Optional category and hint are injected into the user message when provided.
         competitor_ads: optional list of competitor ad dicts — injected as context when present.
+        content_config: project content_config dict — injected into brand context blocks.
+        Returns (content_dict, usage_dict).
         """
+        cfg = content_config or project.content_config or {}
+
         if content_type in ("story", "story_vertical"):
-            system_prompt = self._build_story_system_prompt(project)
+            system_prompt = self._build_story_system_prompt(project, content_config=cfg)
             user_msg = f"Generate one story post for {project.name} following your instructions exactly."
         elif content_type in ("single_image", "image"):
-            system_prompt = self._build_single_image_system_prompt(project)
+            system_prompt = self._build_single_image_system_prompt(project, content_config=cfg)
             user_msg = f"Generate one single-image post for {project.name} following your instructions exactly."
         elif content_type == "text_post":
-            system_prompt = self._build_text_post_system_prompt(project)
+            system_prompt = self._build_text_post_system_prompt(project, content_config=cfg)
             user_msg = f"Generate one text post for {project.name} following your instructions exactly."
         else:
             # Default: carousel_6_slides
-            system_prompt = self._build_system_prompt(project)
+            num_slides = max(3, min(10, num_slides))
+            system_prompt = self._build_system_prompt(project, num_slides=num_slides)
             user_msg = f"Generate one carousel for {project.name} following your instructions exactly."
 
         # Append optional modifiers
@@ -247,7 +264,7 @@ RULES:
         except anthropic.APIError as e:
             logger.error("Claude API error: %s", e)
             raise
-        self._last_usage = {
+        usage = {
             "input_tokens": response.usage.input_tokens,
             "output_tokens": response.usage.output_tokens,
             "cache_read_tokens": getattr(response.usage, "cache_read_input_tokens", 0) or 0,
@@ -274,15 +291,16 @@ RULES:
         else:
             result["narrative_angle"] = _detect_angle_from_content(result)
 
-        return result
+        return result, usage
 
-    def _build_single_image_system_prompt(self, project) -> str:
-        config = project.content_config or {}
+    def _build_single_image_system_prompt(self, project, content_config: dict | None = None) -> str:
+        config = content_config or project.content_config or {}
         brand_name = config.get("brand_name", project.name)
         tone = config.get("tone", "professional")
         core_message = config.get("core_message", "")
         target_audience = config.get("target_audience", "")
         language = config.get("language", "es")
+        content_categories = config.get("content_categories", [])
 
         return f"""You are a Senior Social Media Copywriter specialized in high-impact single-image posts.
 
@@ -294,10 +312,18 @@ SINGLE IMAGE RULES:
 - Score 3U+ on 4U scale (Urgent, Unique, Ultra-specific, Useful)
 - The image concept must be specific and actionable for a designer
 
-BRAND: {brand_name}
-TONE: {tone}
-CORE MESSAGE: {core_message}
-AUDIENCE: {target_audience}
+CONTEXTO DE MARCA:
+{f"- Marca: {brand_name}" if brand_name else ""}
+{f"- Audiencia objetivo: {target_audience}" if target_audience else "- Audiencia: profesionales en redes sociales"}
+{f"- Mensaje central: {core_message}" if core_message else ""}
+{f"- Categorías de contenido: {', '.join(content_categories)}" if content_categories else ""}
+- Tono: {tone}
+- Idioma: {language}
+
+FRAMEWORKS DE COPYWRITING (elige el más adecuado):
+- PAS: Problema → Agitación → Solución
+- AIDA: Atención → Interés → Deseo → Acción
+- 4U: Útil, Urgente, Único, Ultra-específico
 
 OUTPUT FORMAT — valid JSON only:
 {{
@@ -316,13 +342,14 @@ OUTPUT FORMAT — valid JSON only:
 Generate ALL content in: {language}
 Return valid JSON only, nothing else."""
 
-    def _build_story_system_prompt(self, project) -> str:
-        config = project.content_config or {}
+    def _build_story_system_prompt(self, project, content_config: dict | None = None) -> str:
+        config = content_config or project.content_config or {}
         brand_name = config.get("brand_name", project.name)
         tone = config.get("tone", "professional")
         core_message = config.get("core_message", "")
         target_audience = config.get("target_audience", "")
         language = config.get("language", "es")
+        content_categories = config.get("content_categories", [])
 
         return f"""You are a Senior Social Media Copywriter specialized in Instagram/Facebook Stories.
 
@@ -333,10 +360,18 @@ STORY RULES:
 - One CTA that feels natural, not salesy (swipe up, DM, reply)
 - Visual must work without sound
 
-BRAND: {brand_name}
-TONE: {tone}
-CORE MESSAGE: {core_message}
-AUDIENCE: {target_audience}
+CONTEXTO DE MARCA:
+{f"- Marca: {brand_name}" if brand_name else ""}
+{f"- Audiencia objetivo: {target_audience}" if target_audience else "- Audiencia: profesionales en redes sociales"}
+{f"- Mensaje central: {core_message}" if core_message else ""}
+{f"- Categorías de contenido: {', '.join(content_categories)}" if content_categories else ""}
+- Tono: {tone}
+- Idioma: {language}
+
+FRAMEWORKS DE COPYWRITING (elige el más adecuado):
+- PAS: Problema → Agitación → Solución
+- AIDA: Atención → Interés → Deseo → Acción
+- 4U: Útil, Urgente, Único, Ultra-específico
 
 OUTPUT FORMAT — valid JSON only:
 {{
@@ -356,25 +391,31 @@ OUTPUT FORMAT — valid JSON only:
 Generate ALL content in: {language}
 Return valid JSON only, nothing else."""
 
-    def _build_text_post_system_prompt(self, project) -> str:
-        config = project.content_config or {}
+    def _build_text_post_system_prompt(self, project, content_config: dict | None = None) -> str:
+        config = content_config or project.content_config or {}
         brand_name = config.get("brand_name", project.name)
         tone = config.get("tone", "professional, clear")
         core_message = config.get("core_message", "")
         target_audience = config.get("target_audience", "general audience")
         language = config.get("language", "en")
+        content_categories = config.get("content_categories", [])
         additional_rules = config.get("additional_rules", [])
         rules_text = "\n".join([f"- {rule}" for rule in additional_rules]) if additional_rules else ""
 
         return f"""You are the content generation system for {brand_name}.
 
-BRAND POSITIONING:
-- Brand name: {brand_name}
-- Core message: {core_message}
-- Target audience: {target_audience}
+CONTEXTO DE MARCA:
+{f"- Marca: {brand_name}" if brand_name else ""}
+{f"- Audiencia objetivo: {target_audience}" if target_audience else "- Audiencia: profesionales en redes sociales"}
+{f"- Mensaje central: {core_message}" if core_message else ""}
+{f"- Categorías de contenido: {', '.join(content_categories)}" if content_categories else ""}
+- Tono: {tone}
+- Idioma: {language}
 
-TONE:
-{tone}
+FRAMEWORKS DE COPYWRITING (elige el más adecuado):
+- PAS: Problema → Agitación → Solución
+- AIDA: Atención → Interés → Deseo → Acción
+- 4U: Útil, Urgente, Único, Ultra-específico
 
 {f"ADDITIONAL RULES:{chr(10)}{rules_text}" if rules_text else ""}
 
@@ -395,8 +436,8 @@ RULES:
 - Body must have one clear takeaway per paragraph
 - Never use generic or cliché phrases"""
 
-    async def generate_content(self, prompt: str, system_prompt: str = "") -> str:
-        """Generate text content — generic helper."""
+    async def generate_content(self, prompt: str, system_prompt: str = "") -> tuple[str, dict]:
+        """Generate text content — generic helper. Returns (text, usage_dict)."""
         try:
             response = await self.client.messages.create(
                 model=self.MODEL,
@@ -415,13 +456,13 @@ RULES:
             raise
         if not response.content:
             raise ValueError("Empty response from Claude")
-        self._last_usage = {
+        usage = {
             "input_tokens": response.usage.input_tokens,
             "output_tokens": response.usage.output_tokens,
             "cache_read_tokens": getattr(response.usage, "cache_read_input_tokens", 0) or 0,
             "model": self.MODEL,
         }
-        return response.content[0].text
+        return response.content[0].text, usage
 
     async def generate_content_recommendation(
         self,
@@ -609,12 +650,6 @@ Return ONLY valid JSON (no markdown, no code blocks):
             system=system_prompt,
             messages=[{"role": "user", "content": user_prompt}],
         )
-        self._last_usage = {
-            "input_tokens": response.usage.input_tokens,
-            "output_tokens": response.usage.output_tokens,
-            "cache_read_tokens": getattr(response.usage, "cache_read_input_tokens", 0) or 0,
-            "model": self.MODEL,
-        }
         response_text = response.content[0].text
 
         # Strip markdown code blocks if present
@@ -880,13 +915,6 @@ Return ONLY valid JSON:
         except anthropic.APIError as e:
             logger.error("Claude API error: %s", e)
             raise
-        self._last_usage = {
-            "input_tokens": response.usage.input_tokens,
-            "output_tokens": response.usage.output_tokens,
-            "cache_read_tokens": getattr(response.usage, "cache_read_input_tokens", 0) or 0,
-            "model": self.MODEL,
-        }
-
         content = response.content[0].text.strip()
         # Strip markdown code blocks if present
         if content.startswith("```"):

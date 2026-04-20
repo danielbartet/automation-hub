@@ -227,7 +227,7 @@ async def run_campaign_chat(
 Please analyze this data and answer my question."""
 
     # 6. Call Claude
-    answer = await claude_client.generate_content(user_prompt, system_prompt)
+    answer, _chat_usage = await claude_client.generate_content(user_prompt, system_prompt)
 
     # 7. Log token usage
     from app.services.token_usage import log_token_usage
@@ -235,7 +235,7 @@ Please analyze this data and answer my question."""
         db=db,
         user_id=user.id,
         project_id=project.id,
-        usage=claude_client._last_usage,
+        usage=_chat_usage,
         operation_type="campaign_chat",
     )
 

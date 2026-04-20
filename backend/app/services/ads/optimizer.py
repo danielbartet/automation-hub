@@ -125,7 +125,7 @@ Return ONLY valid JSON:
   "urgency_reason": "why replace now vs later"
 }}"""
 
-    response = await claude_client.generate_content(prompt)
+    response, _usage = await claude_client.generate_content(prompt)
     text = re.sub(r'^```(?:json)?\n?', '', response.strip())
     text = re.sub(r'\n?```$', '', text)
     return json.loads(text)
@@ -388,7 +388,7 @@ Return your JSON decision."""
 
     # 3. Call Claude
     try:
-        response_text = await claude_client.generate_content(prompt, ANDROMEDA_SYSTEM_PROMPT)
+        response_text, _usage = await claude_client.generate_content(prompt, ANDROMEDA_SYSTEM_PROMPT)
         # Strip markdown if present
         text = response_text.strip()
         if text.startswith("```"):

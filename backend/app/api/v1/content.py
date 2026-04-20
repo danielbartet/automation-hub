@@ -9,7 +9,7 @@ from typing import List, Optional
 logger = logging.getLogger(__name__)
 
 from fastapi import APIRouter, Depends, HTTPException
-from pydantic import BaseModel
+from pydantic import BaseModel, Field
 from sqlalchemy import select, func
 from sqlalchemy.ext.asyncio import AsyncSession
 
@@ -91,6 +91,7 @@ class BatchContentRequest(BaseModel):
     days_of_week: list[int] = [1, 3, 5]  # 0=Mon, 6=Sun
     publish_time: str = "09:00"  # HH:MM
     content_type: str = "carousel_6_slides"
+    num_slides: int = Field(default=6, ge=3, le=10)
 
 
 class AutoGenerateRequest(BaseModel):
@@ -98,6 +99,7 @@ class AutoGenerateRequest(BaseModel):
     category: Optional[str] = None           # must be one of project.content_config.content_categories
     hint: Optional[str] = None               # short free-text topic hint
     image_mode: str = "ideogram"             # ideogram | placeholder
+    num_slides: int = Field(default=6, ge=3, le=10)
 
 
 class GenerateImageRequest(BaseModel):
@@ -264,12 +266,14 @@ async def generate_content(
 
     # 5. Generate content with Claude
     try:
-        content = await claude_client.generate_content_by_type(
+        content, _gen_usage = await claude_client.generate_content_by_type(
             project,
             content_type=body.content_type,
             category=body.category,
             hint=body.hint,
             competitor_ads=competitor_ads if competitor_ads else None,
+            content_config=project.content_config,
+            num_slides=body.num_slides,
         )
     except Exception as e:
         raise HTTPException(status_code=503, detail=f"Claude generation failed: {str(e)}")
@@ -279,7 +283,7 @@ async def generate_content(
             db=db,
             user_id=getattr(current_user, "id", None),
             project_id=project.id,
-            usage=claude_client._last_usage,
+            usage=_gen_usage,
             operation_type="content_generation",
         )
     except Exception:
@@ -1195,13 +1199,13 @@ async def batch_generate_content(
 
     for sched_dt in scheduled_dates:
         try:
-            content = await claude_client.generate_carousel_content(project)
+            content, _batch_usage = await claude_client.generate_carousel_content(project, num_slides=body.num_slides)
             try:
                 await log_token_usage(
                     db=db,
                     user_id=None,
                     project_id=project.id,
-                    usage=claude_client._last_usage,
+                    usage=_batch_usage,
                     operation_type="batch_generation",
                 )
             except Exception:

@@ -68,6 +68,24 @@ function MetaTokenBadge({ expiresAt, t }: { expiresAt: string; t: ReturnType<typ
   return null;
 }
 
+// ── OAuth error sanitization ──────────────────────────────────────────────────
+
+const OAUTH_ERROR_MESSAGES: Record<string, string> = {
+  access_denied: "Acceso denegado. Intenta de nuevo.",
+  invalid_grant: "Sesión expirada. Por favor reconecta.",
+  invalid_client: "Error de configuración. Contacta al soporte.",
+  server_error: "Error del servidor. Intenta más tarde.",
+  temporarily_unavailable: "Servicio no disponible. Intenta más tarde.",
+  missing_token: "No se recibió token. Intenta de nuevo.",
+  fetch_failed: "No se pudo obtener la URL de autorización.",
+  callback_error: "Error en el callback de autorización.",
+};
+
+function getOAuthErrorMessage(code: string | null): string {
+  if (!code) return "";
+  return OAUTH_ERROR_MESSAGES[code] ?? "Error de autenticación desconocido.";
+}
+
 // ── Inner page (needs useSearchParams) ───────────────────────────────────────
 
 function ProjectsPageInner() {
@@ -100,13 +118,13 @@ function ProjectsPageInner() {
       setToast({ type: "success", message: "Pinterest account connected successfully" });
       router.replace("/dashboard/projects");
     } else if (pinterestError) {
-      setToast({ type: "error", message: pinterestError });
+      setToast({ type: "error", message: getOAuthErrorMessage(pinterestError) });
       router.replace("/dashboard/projects");
     } else if (connected === "true") {
       setToast({ type: "success", message: "Meta account connected successfully" });
       router.replace("/dashboard/projects");
     } else if (metaError) {
-      setToast({ type: "error", message: metaError });
+      setToast({ type: "error", message: getOAuthErrorMessage(metaError) });
       router.replace("/dashboard/projects");
     } else if (metaSelect === "true") {
       const slug = searchParams.get("slug");
