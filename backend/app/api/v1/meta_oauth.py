@@ -28,13 +28,14 @@ router = APIRouter()
 
 _META_AUTHORIZE_URL = "https://www.facebook.com/dialog/oauth"
 _META_OAUTH_SCOPES = (
-    "ads_management,"
+    "ads_management,"  # required: create/pause/scale campaigns via meta_campaign.py
     "ads_read,"
     "pages_read_engagement,"
     "pages_manage_posts,"
     "instagram_basic,"
-    "instagram_content_publish,"
-    "business_management"
+    "instagram_content_publish"
+    # business_management removed: discover_assets uses /me/accounts and /me/adaccounts
+    # which are covered by pages_read_engagement + ads_read, not business_management
 )
 
 

@@ -19,6 +19,19 @@ interface AdInspirationCardProps {
   t: ReturnType<typeof useT>;
 }
 
+function safeHttpUrl(u?: string | null): string | undefined {
+  if (!u) return undefined;
+  try {
+    const parsed = new URL(u);
+    if (parsed.protocol === "http:" || parsed.protocol === "https:") {
+      return parsed.toString();
+    }
+  } catch {
+    // invalid URL
+  }
+  return undefined;
+}
+
 function formatLikes(n?: number): string {
   if (!n) return "";
   if (n >= 1_000_000) return `${(n / 1_000_000).toFixed(1)}M seg.`;
@@ -40,10 +53,10 @@ function AdInspirationCard({ ad, index, adapting, onReplicate, t }: AdInspiratio
     >
       {/* Header row: avatar + page name + active badge */}
       <div className="flex items-center gap-2 flex-wrap">
-        {ad.page_avatar ? (
+        {safeHttpUrl(ad.page_avatar) ? (
           // eslint-disable-next-line @next/next/no-img-element
           <img
-            src={ad.page_avatar}
+            src={safeHttpUrl(ad.page_avatar)}
             alt={ad.page_name}
             className="rounded-full w-8 h-8 object-cover flex-shrink-0"
           />
@@ -112,10 +125,10 @@ function AdInspirationCard({ ad, index, adapting, onReplicate, t }: AdInspiratio
       </div>
 
       {/* Ad creative image */}
-      {ad.image_url && (
+      {safeHttpUrl(ad.image_url) && (
         // eslint-disable-next-line @next/next/no-img-element
         <img
-          src={ad.image_url}
+          src={safeHttpUrl(ad.image_url)}
           alt="Ad creative"
           className="w-full rounded-lg object-cover max-h-40"
         />
@@ -188,7 +201,7 @@ function AdInspirationCard({ ad, index, adapting, onReplicate, t }: AdInspiratio
       <div className="flex items-center gap-3 pt-1 flex-wrap">
         {ad.snapshot_url && (
           <Link
-            href={ad.snapshot_url}
+            href={safeHttpUrl(ad.snapshot_url) ?? "#"}
             target="_blank"
             rel="noopener noreferrer"
             className="text-xs transition-colors"

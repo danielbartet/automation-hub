@@ -12,6 +12,13 @@ import {
 } from "@/lib/api";
 import { CreativeUploadModal } from "@/components/dashboard/CreativeUploadModal";
 
+function safeActionUrl(u?: string | null): string | undefined {
+  if (!u) return undefined;
+  // Only allow same-origin relative paths (not protocol-relative //)
+  if (u.startsWith("/") && !u.startsWith("//")) return u;
+  return undefined;
+}
+
 interface CreativeBrief {
   fatigue_diagnosis?: string;
   current_angle?: string;
@@ -324,7 +331,8 @@ export function NotificationPanel({ onClose }: NotificationPanelProps) {
       await markNotificationRead(token, notif.id);
       setItems(prev => prev.map(n => n.id === notif.id ? { ...n, is_read: true } : n));
     }
-    if (notif.action_url) window.location.href = notif.action_url;
+    const safe = safeActionUrl(notif.action_url);
+    if (safe) window.location.href = safe;
   };
 
   const isOptimizerAction = (notif: NotifItem) =>
@@ -495,7 +503,7 @@ export function NotificationPanel({ onClose }: NotificationPanelProps) {
                             href={
                               notif.action_data?.campaign_id
                                 ? `/dashboard/ads/${notif.action_data.campaign_id}`
-                                : notif.action_url
+                                : safeActionUrl(notif.action_url) ?? "#"
                             }
                             className="mt-2 block text-sm text-blue-400 hover:text-blue-300 hover:underline transition-colors"
                           >

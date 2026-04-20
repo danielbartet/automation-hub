@@ -1,6 +1,7 @@
 """Claude API client — generates carousel content for projects."""
 import json
 import logging
+import anthropic
 from anthropic import AsyncAnthropic
 from app.core.config import settings
 
@@ -218,24 +219,34 @@ RULES:
 
         user_msg += comp_block
 
-        response = await self.client.messages.create(
-            model=self.MODEL,
-            max_tokens=1000,
-            system=[
-                {
-                    "type": "text",
-                    "text": system_prompt,
-                    "cache_control": {"type": "ephemeral"},
-                }
-            ],
-            messages=[
-                {
-                    "role": "user",
-                    "content": user_msg,
-                }
-            ],
-            extra_headers={"anthropic-beta": "prompt-caching-2024-07-31"},
-        )
+        try:
+            response = await self.client.messages.create(
+                model=self.MODEL,
+                max_tokens=1000,
+                system=[
+                    {
+                        "type": "text",
+                        "text": system_prompt,
+                        "cache_control": {"type": "ephemeral"},
+                    }
+                ],
+                messages=[
+                    {
+                        "role": "user",
+                        "content": user_msg,
+                    }
+                ],
+                extra_headers={"anthropic-beta": "prompt-caching-2024-07-31"},
+            )
+        except anthropic.RateLimitError as e:
+            logger.warning("Claude rate limit: %s", e)
+            raise
+        except anthropic.APIConnectionError as e:
+            logger.warning("Claude connection error: %s", e)
+            raise
+        except anthropic.APIError as e:
+            logger.error("Claude API error: %s", e)
+            raise
         self._last_usage = {
             "input_tokens": response.usage.input_tokens,
             "output_tokens": response.usage.output_tokens,
@@ -250,7 +261,11 @@ RULES:
             if content.startswith("json"):
                 content = content[4:]
             content = content.rsplit("```", 1)[0].strip()
-        result = json.loads(content)
+        try:
+            result = json.loads(content)
+        except json.JSONDecodeError as e:
+            logger.error("generate_content_by_type: failed to parse Claude JSON response: %s", e)
+            raise
 
         # Extract or infer the narrative angle and attach it to the response dict
         raw_angle = result.get("narrative_angle", "")
@@ -382,12 +397,24 @@ RULES:
 
     async def generate_content(self, prompt: str, system_prompt: str = "") -> str:
         """Generate text content — generic helper."""
-        response = await self.client.messages.create(
-            model=self.MODEL,
-            max_tokens=1000,
-            system=system_prompt or "You are a helpful assistant.",
-            messages=[{"role": "user", "content": prompt}],
-        )
+        try:
+            response = await self.client.messages.create(
+                model=self.MODEL,
+                max_tokens=1000,
+                system=system_prompt or "You are a helpful assistant.",
+                messages=[{"role": "user", "content": prompt}],
+            )
+        except anthropic.RateLimitError as e:
+            logger.warning("Claude rate limit: %s", e)
+            raise
+        except anthropic.APIConnectionError as e:
+            logger.warning("Claude connection error: %s", e)
+            raise
+        except anthropic.APIError as e:
+            logger.error("Claude API error: %s", e)
+            raise
+        if not response.content:
+            raise ValueError("Empty response from Claude")
         self._last_usage = {
             "input_tokens": response.usage.input_tokens,
             "output_tokens": response.usage.output_tokens,
@@ -744,24 +771,34 @@ Return ONLY valid JSON:
   }}
 }}"""
 
-        response = await self.client.messages.create(
-            model=self.MODEL,
-            max_tokens=4000,
-            system=[
-                {
-                    "type": "text",
-                    "text": system_prompt,
-                    "cache_control": {"type": "ephemeral"},
-                }
-            ],
-            messages=[
-                {
-                    "role": "user",
-                    "content": f"Generate {count} ad concepts for {brand_name} following the Andromeda rules exactly.",
-                }
-            ],
-            extra_headers={"anthropic-beta": "prompt-caching-2024-07-31"},
-        )
+        try:
+            response = await self.client.messages.create(
+                model=self.MODEL,
+                max_tokens=4000,
+                system=[
+                    {
+                        "type": "text",
+                        "text": system_prompt,
+                        "cache_control": {"type": "ephemeral"},
+                    }
+                ],
+                messages=[
+                    {
+                        "role": "user",
+                        "content": f"Generate {count} ad concepts for {brand_name} following the Andromeda rules exactly.",
+                    }
+                ],
+                extra_headers={"anthropic-beta": "prompt-caching-2024-07-31"},
+            )
+        except anthropic.RateLimitError as e:
+            logger.warning("Claude rate limit: %s", e)
+            raise
+        except anthropic.APIConnectionError as e:
+            logger.warning("Claude connection error: %s", e)
+            raise
+        except anthropic.APIError as e:
+            logger.error("Claude API error: %s", e)
+            raise
         self._last_usage = {
             "input_tokens": response.usage.input_tokens,
             "output_tokens": response.usage.output_tokens,
@@ -776,7 +813,13 @@ Return ONLY valid JSON:
             if content.startswith("json"):
                 content = content[4:]
             content = content.rsplit("```", 1)[0].strip()
-        result = json.loads(content)
+        try:
+            result = json.loads(content)
+        except json.JSONDecodeError as e:
+            logger.error("generate_ad_concepts: failed to parse Claude JSON response: %s", e)
+            raise
+        if "concepts" not in result:
+            raise ValueError(f"Claude response missing 'concepts' key. Got: {list(result.keys())}")
         concepts = result.get("concepts", [])
         concepts = self._validate_entity_diversity(concepts)
         result["concepts"] = concepts

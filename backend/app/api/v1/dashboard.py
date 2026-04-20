@@ -32,8 +32,8 @@ def get_andromeda_status(campaign_insights: dict) -> tuple[str, str]:
 
 
 def build_kpis(objective: str, insights: dict) -> dict:
-    actions = {a["action_type"]: float(a["value"]) for a in insights.get("actions", [])}
-    cpa_dict = {a["action_type"]: float(a["value"]) for a in insights.get("cost_per_action_type", [])}
+    actions = {a["action_type"]: float(a["value"]) for a in insights.get("actions", []) if "action_type" in a and "value" in a}
+    cpa_dict = {a["action_type"]: float(a["value"]) for a in insights.get("cost_per_action_type", []) if "action_type" in a and "value" in a}
 
     base = {
         "spend": float(insights.get("spend", 0)),

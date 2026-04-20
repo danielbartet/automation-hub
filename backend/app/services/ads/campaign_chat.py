@@ -95,12 +95,12 @@ def _format_campaign_data(campaigns_metrics: list[dict]) -> str:
         actions_list = metrics.get("actions", [])
         actions = {}
         if isinstance(actions_list, list):
-            actions = {a["action_type"]: float(a["value"]) for a in actions_list if "action_type" in a}
+            actions = {a["action_type"]: float(a["value"]) for a in actions_list if "action_type" in a and "value" in a}
 
         cost_per_action = metrics.get("cost_per_action_type", [])
         cpa_map = {}
         if isinstance(cost_per_action, list):
-            cpa_map = {a["action_type"]: float(a["value"]) for a in cost_per_action if "action_type" in a}
+            cpa_map = {a["action_type"]: float(a["value"]) for a in cost_per_action if "action_type" in a and "value" in a}
 
         leads = actions.get("lead", 0)
         cpl = cpa_map.get("lead", 0)

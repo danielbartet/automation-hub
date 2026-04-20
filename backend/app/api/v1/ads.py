@@ -22,6 +22,14 @@ META_BASE = "https://graph.facebook.com/v19.0"
 meta_service = MetaCampaignService()
 
 
+def _safe_float(v, default: float = 0.0) -> float:
+    """Convert v to float, returning default on None, empty string, or conversion errors."""
+    try:
+        return float(v) if v not in (None, "") else default
+    except (TypeError, ValueError):
+        return default
+
+
 class AdCampaignResponse(BaseModel):
     id: int
     project_id: int
@@ -872,12 +880,12 @@ async def get_campaign_detail(
         purchase_roas_data = insights_summary_raw.get("purchase_roas") or []
         if purchase_roas_data and isinstance(purchase_roas_data, list):
             roas_values = [
-                float(r.get("value", 0))
+                _safe_float(r.get("value"))
                 for r in purchase_roas_data
                 if r.get("action_type") in PURCHASE_ACTION_TYPES
             ]
             roas = roas_values[0] if roas_values else (
-                float(purchase_roas_data[0].get("value", 0)) if purchase_roas_data else None
+                _safe_float(purchase_roas_data[0].get("value")) if purchase_roas_data else None
             )
         elif revenue and total_spend > 0:
             roas = round(revenue / total_spend, 2)
@@ -1134,10 +1142,16 @@ async def list_campaign_ads(
                     creative.get("image_url")
                     or creative.get("thumbnail_url")
                     or link_data.get("picture")
-                    or (list((link_data.get("image_crops") or {}).values())[0][0].get("url")
-                        if link_data.get("image_crops") else None)
-                    or None
                 )
+                if not image_url:
+                    crops_dict = link_data.get("image_crops") or {}
+                    for crop_list in crops_dict.values():
+                        if isinstance(crop_list, list) and crop_list:
+                            first_crop = crop_list[0]
+                            if isinstance(first_crop, dict):
+                                image_url = first_crop.get("resized_image_url") or first_crop.get("url")
+                                if image_url:
+                                    break
 
                 output.append({
                     "id": ad_id,
@@ -1229,7 +1243,9 @@ async def update_ad_copy(
             if "error" in new_creative_data:
                 raise HTTPException(502, f"Meta API error creating creative: {new_creative_data['error'].get('message', 'unknown')}")
 
-            new_creative_id = new_creative_data["id"]
+            new_creative_id = new_creative_data.get("id")
+            if not new_creative_id:
+                raise HTTPException(status_code=502, detail="Meta API returned no creative id")
 
             # 4. Swap creative on the ad
             swap_resp = await client.post(
@@ -1309,8 +1325,11 @@ async def update_ad_image(
             first_key = next(iter(images_block), None)
             if not first_key:
                 raise HTTPException(502, "Meta API returned no image data")
-            new_hash = images_block[first_key]["hash"]
-            new_url = images_block[first_key]["url"]
+            image_data = images_block.get(first_key) or {}
+            new_hash = image_data.get("hash")
+            new_url = image_data.get("url")
+            if not new_hash:
+                raise HTTPException(status_code=502, detail="Meta API returned image upload result without hash")
 
             # 2. Fetch current creative
             creative_resp = await client.get(
@@ -1452,7 +1471,9 @@ async def import_campaigns(
     today = datetime.utcnow().date()
 
     for mc in meta_campaigns:
-        meta_id = mc["id"]
+        meta_id = mc.get("id")
+        if not meta_id:
+            continue
         meta_status_raw = mc.get("status", "PAUSED").upper()
         status = "active" if meta_status_raw == "ACTIVE" else "paused"
         name = mc.get("name", "")

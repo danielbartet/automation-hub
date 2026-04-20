@@ -113,9 +113,19 @@ function ProjectsPageInner() {
       const assetsParam = searchParams.get("assets");
       if (slug && assetsParam) {
         try {
-          const decoded = JSON.parse(atob(decodeURIComponent(assetsParam))) as MetaAssetsPayload;
+          const decoded = JSON.parse(atob(decodeURIComponent(assetsParam)));
+          // Runtime shape validation before trusting server-provided payload
+          if (
+            !decoded ||
+            typeof decoded !== "object" ||
+            !Array.isArray(decoded.pages) ||
+            !Array.isArray(decoded.ad_accounts) ||
+            !Array.isArray(decoded.instagram_accounts)
+          ) {
+            throw new Error("Invalid assets payload shape");
+          }
           setMetaSelectSlug(slug);
-          setMetaSelectAssets(decoded);
+          setMetaSelectAssets(decoded as MetaAssetsPayload);
         } catch {
           setToast({ type: "error", message: t.projects_toast_meta_error_parse });
         }

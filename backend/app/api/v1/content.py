@@ -3,7 +3,7 @@ import json
 import logging
 import re
 import uuid
-from datetime import datetime, timedelta
+from datetime import datetime, timedelta, timezone
 from typing import List, Optional
 
 logger = logging.getLogger(__name__)
@@ -27,6 +27,15 @@ from app.services.meta.instagram import InstagramService
 from app.services.storage.s3 import S3Service
 
 router = APIRouter()
+
+
+def _to_naive_utc(dt: datetime | None) -> datetime | None:
+    """Normalize a datetime to naive UTC, stripping tzinfo if present."""
+    if dt is None:
+        return None
+    if dt.tzinfo is not None:
+        return dt.astimezone(timezone.utc).replace(tzinfo=None)
+    return dt
 
 # In-memory recommendation cache: {project_slug: {"data": dict, "generated_at": datetime}}
 _recommendation_cache: dict = {}
@@ -876,7 +885,7 @@ async def update_content(
         project = proj_result.scalar_one_or_none()
         if project:
             # If scheduled_at is in the future, don't publish yet — scheduler will handle it
-            if post.scheduled_at and post.scheduled_at > datetime.utcnow():
+            if post.scheduled_at and _to_naive_utc(post.scheduled_at) > datetime.utcnow():
                 # Just save approved status, scheduler will publish at the right time
                 pass
             else:
@@ -1464,7 +1473,8 @@ async def import_from_meta(
 
             created_str = fb_post.get("created_time")
             try:
-                published_at = datetime.fromisoformat(created_str.replace("Z", "+00:00")) if created_str else None
+                _dt = datetime.fromisoformat(created_str.replace("Z", "+00:00")) if created_str else None
+                published_at = _to_naive_utc(_dt)
             except Exception:
                 published_at = None
 
@@ -1513,7 +1523,8 @@ async def import_from_meta(
 
             timestamp_str = media.get("timestamp")
             try:
-                published_at = datetime.fromisoformat(timestamp_str.replace("Z", "+00:00")) if timestamp_str else None
+                _dt = datetime.fromisoformat(timestamp_str.replace("Z", "+00:00")) if timestamp_str else None
+                published_at = _to_naive_utc(_dt)
             except Exception:
                 published_at = None
 

@@ -136,7 +136,10 @@ async def exchange_code(code: str) -> str:
         raise RuntimeError(f"Meta token exchange failed ({resp.status_code}): {resp.text}")
 
     data = resp.json()
-    return data["access_token"]
+    token = data.get("access_token")
+    if not token:
+        raise RuntimeError(f"Meta token response missing access_token: {list(data.keys())}")
+    return token
 
 
 async def upgrade_to_long_lived(short_token: str) -> tuple[str, datetime]:
@@ -168,7 +171,9 @@ async def upgrade_to_long_lived(short_token: str) -> tuple[str, datetime]:
         raise RuntimeError(f"Meta token upgrade failed ({resp.status_code}): {resp.text}")
 
     data = resp.json()
-    long_lived_token = data["access_token"]
+    long_lived_token = data.get("access_token")
+    if not long_lived_token:
+        raise RuntimeError(f"Meta token response missing access_token: {list(data.keys())}")
     expires_at = datetime.utcnow() + timedelta(seconds=data.get("expires_in", 5184000))  # default 60 days
     return long_lived_token, expires_at
 

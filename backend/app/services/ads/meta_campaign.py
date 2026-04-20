@@ -42,7 +42,9 @@ class MetaCampaignService:
             if "error" in campaign_data:
                 logger.error("Meta campaign creation error: %s", json.dumps(campaign_data["error"]))
                 raise ValueError(f"Campaign creation failed: {campaign_data['error']['message']}")
-            campaign_id = campaign_data["id"]
+            campaign_id = campaign_data.get("id")
+            if not campaign_id:
+                raise RuntimeError(f"Meta API returned no id: {campaign_data}")
 
             # 2. Create Ad Set (Broad/Andromeda targeting)
             daily_budget_cents = int(daily_budget_dollars * 100)
@@ -67,7 +69,9 @@ class MetaCampaignService:
             if "error" in adset_data:
                 err = adset_data["error"]
                 raise ValueError(f"Ad set creation failed: {err.get('message')} | subcode={err.get('error_subcode')} | {err.get('error_user_msg')}")
-            adset_id = adset_data["id"]
+            adset_id = adset_data.get("id")
+            if not adset_id:
+                raise RuntimeError(f"Meta API returned no id: {adset_data}")
 
             # 3. Create Ad Creative (use picture URL directly — no adimages upload needed)
             creative_resp = await client.post(
@@ -95,7 +99,9 @@ class MetaCampaignService:
                     f"| code={err.get('code')} | subcode={err.get('error_subcode')} "
                     f"| user_msg={err.get('error_user_msg')}"
                 )
-            creative_id = creative_data["id"]
+            creative_id = creative_data.get("id")
+            if not creative_id:
+                raise RuntimeError(f"Meta API returned no id: {creative_data}")
 
             # 5. Create Ad
             ad_resp = await client.post(
@@ -112,7 +118,9 @@ class MetaCampaignService:
             if "error" in ad_data:
                 logger.error("Meta ad creation error: %s", json.dumps(ad_data["error"]))
                 raise ValueError(f"Ad creation failed: {ad_data['error']['message']}")
-            ad_id = ad_data["id"]
+            ad_id = ad_data.get("id")
+            if not ad_id:
+                raise RuntimeError(f"Meta API returned no id: {ad_data}")
 
         return {
             "campaign_id": campaign_id,
@@ -173,7 +181,9 @@ class MetaCampaignService:
                 f"| code={err.get('code')} | subcode={err.get('error_subcode')} "
                 f"| user_msg={err.get('error_user_msg')} | type={err.get('type')}"
             )
-        creative_id = creative_data["id"]
+        creative_id = creative_data.get("id")
+        if not creative_id:
+            raise RuntimeError(f"Meta API returned no id: {creative_data}")
 
         # Create Ad
         ad_resp = await client.post(
@@ -190,8 +200,11 @@ class MetaCampaignService:
         if "error" in ad_data:
             logger.error("Meta ad error concept %s: %s", concept_id, json.dumps(ad_data["error"]))
             raise ValueError(f"Ad creation failed for concept {concept_id}: {ad_data['error']['message']}")
+        ad_id = ad_data.get("id")
+        if not ad_id:
+            raise RuntimeError(f"Meta API returned no id: {ad_data}")
 
-        return {"creative_id": creative_id, "ad_id": ad_data["id"]}
+        return {"creative_id": creative_id, "ad_id": ad_id}
 
     def _build_placement_targeting(
         self,
@@ -268,7 +281,10 @@ class MetaCampaignService:
         if "error" in adset_data:
             err = adset_data["error"]
             raise ValueError(f"Ad set creation failed: {err.get('message')} | subcode={err.get('error_subcode')} | {err.get('error_user_msg')}")
-        return adset_data["id"]
+        new_id = adset_data.get("id")
+        if not new_id:
+            raise RuntimeError(f"Meta API returned no id: {adset_data}")
+        return new_id
 
     async def create_campaign_with_concepts(
         self,
@@ -313,7 +329,9 @@ class MetaCampaignService:
             if "error" in campaign_data:
                 logger.error("Meta campaign creation error: %s", json.dumps(campaign_data["error"]))
                 raise ValueError(f"Campaign creation failed: {campaign_data['error']['message']}")
-            campaign_id = campaign_data["id"]
+            campaign_id = campaign_data.get("id")
+            if not campaign_id:
+                raise RuntimeError(f"Meta API returned no id: {campaign_data}")
 
             # 2. Determine optimization goal
             daily_budget_cents = int(daily_budget_dollars * 100)

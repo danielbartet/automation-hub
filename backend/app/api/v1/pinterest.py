@@ -547,7 +547,7 @@ async def pinterest_oauth_callback(
     try:
         token_data = await exchange_code(
             code=code or "",
-            verifier=code_verifier,
+            code_verifier=code_verifier,
             client_id=client_id,
             client_secret=client_secret,
             redirect_uri=settings.PINTEREST_OAUTH_REDIRECT_URI,
