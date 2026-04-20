@@ -560,7 +560,7 @@ async def create_content_manual(
         language = config.get("language", "en")
         tone = body.tone or config.get("tone", "professional")
         try:
-            caption = await claude_client.generate_caption(body.topic, tone, language)
+            caption = await claude_client.generate_caption(body.topic, tone, language, config)
         except Exception as e:
             raise HTTPException(status_code=503, detail=f"Claude failed: {str(e)}")
 
@@ -718,7 +718,7 @@ async def _publish_post_to_meta(post: ContentPost, project: Project, db: AsyncSe
 
         if at_least_one_success:
             post.status = "published"
-            post.published_at = datetime.utcnow()
+            post.published_at = datetime.now(timezone.utc).replace(tzinfo=None)
             if instagram_media_id:
                 post.instagram_media_id = instagram_media_id
             if facebook_post_id:
@@ -787,7 +787,7 @@ async def _publish_post_to_meta(post: ContentPost, project: Project, db: AsyncSe
                 post.id,
             )
             post.status = "published"
-            post.published_at = datetime.utcnow()
+            post.published_at = datetime.now(timezone.utc).replace(tzinfo=None)
             await db.commit()
             await db.refresh(post)
 
@@ -885,7 +885,7 @@ async def update_content(
         project = proj_result.scalar_one_or_none()
         if project:
             # If scheduled_at is in the future, don't publish yet — scheduler will handle it
-            if post.scheduled_at and _to_naive_utc(post.scheduled_at) > datetime.utcnow():
+            if post.scheduled_at and _to_naive_utc(post.scheduled_at) > datetime.now(timezone.utc).replace(tzinfo=None):
                 # Just save approved status, scheduler will publish at the right time
                 pass
             else:
@@ -1030,7 +1030,7 @@ async def retry_instagram(
         post.instagram_media_id = instagram_media_id
         if post.status != "published":
             post.status = "published"
-            post.published_at = datetime.utcnow()
+            post.published_at = datetime.now(timezone.utc).replace(tzinfo=None)
         await db.commit()
         await db.refresh(post)
 
@@ -1125,7 +1125,7 @@ async def retry_facebook(
 
         if post.status != "published":
             post.status = "published"
-            post.published_at = datetime.utcnow()
+            post.published_at = datetime.now(timezone.utc).replace(tzinfo=None)
         await db.commit()
         await db.refresh(post)
 
@@ -1737,7 +1737,7 @@ async def create_instagram_story(
     story_id = publish_resp.get("id", media_id)
 
     # 4. Save ContentPost
-    published_at = body.scheduled_at or datetime.utcnow()
+    published_at = body.scheduled_at or datetime.now(timezone.utc).replace(tzinfo=None)
     post = ContentPost(
         project_id=project.id,
         format="story",

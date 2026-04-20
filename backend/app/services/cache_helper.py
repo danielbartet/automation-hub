@@ -1,5 +1,5 @@
 """Cache helper for Meta API responses — get_or_fetch_cache utility."""
-from datetime import datetime
+from datetime import datetime, timezone
 from typing import Any, Callable, Awaitable
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy import select, delete
@@ -48,14 +48,14 @@ async def get_or_fetch_cache(
 
         if cache_entry:
             cache_entry.data = fresh_data
-            cache_entry.fetched_at = datetime.utcnow()
+            cache_entry.fetched_at = datetime.now(timezone.utc).replace(tzinfo=None)
             cache_entry.ttl_seconds = ttl
         else:
             cache_entry = MetaApiCache(
                 project_id=project_id,
                 cache_key=cache_key,
                 data=fresh_data,
-                fetched_at=datetime.utcnow(),
+                fetched_at=datetime.now(timezone.utc).replace(tzinfo=None),
                 ttl_seconds=ttl,
             )
             db.add(cache_entry)
@@ -75,7 +75,7 @@ async def get_or_fetch_cache(
             endpoint=cache_key,
             response_status=None,
             error_message=str(exc),
-            timestamp=datetime.utcnow(),
+            timestamp=datetime.now(timezone.utc).replace(tzinfo=None),
         )
         db.add(audit)
         try:

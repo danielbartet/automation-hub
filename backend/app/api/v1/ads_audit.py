@@ -1,5 +1,5 @@
 """Ads Audit endpoints — trigger and retrieve Meta Ads health audit results."""
-from datetime import datetime
+from datetime import datetime, timezone
 from typing import Optional
 
 from fastapi import APIRouter, BackgroundTasks, Depends, HTTPException
@@ -150,7 +150,7 @@ async def _run_audit_background(
             if not token:
                 audit.status = "failed"
                 audit.error_message = "No valid Meta access token found."
-                audit.completed_at = datetime.utcnow()
+                audit.completed_at = datetime.now(timezone.utc).replace(tzinfo=None)
                 await db.commit()
                 return
 
@@ -168,7 +168,7 @@ async def _run_audit_background(
             if audit and audit.status == "running":
                 audit.status = "error"
                 audit.error_message = str(e)
-                audit.completed_at = datetime.utcnow()
+                audit.completed_at = datetime.now(timezone.utc).replace(tzinfo=None)
                 await db.commit()
 
 

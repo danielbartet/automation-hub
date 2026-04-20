@@ -1,6 +1,6 @@
 """Pinterest pin management and OAuth endpoints."""
 import logging
-from datetime import datetime
+from datetime import datetime, timezone
 from typing import Optional
 
 import httpx
@@ -382,7 +382,7 @@ async def publish_pin(
 
     pin.status = "published"
     pin.pinterest_pin_id = pinterest_pin_id
-    pin.published_at = datetime.utcnow()
+    pin.published_at = datetime.now(timezone.utc).replace(tzinfo=None)
     await db.commit()
     await db.refresh(pin)
 

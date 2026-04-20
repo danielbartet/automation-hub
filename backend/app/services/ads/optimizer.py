@@ -1,8 +1,11 @@
 """Campaign optimizer — uses Claude to analyze metrics and decide actions per Andromeda rules."""
 import json
+import logging
 import re
 import uuid as uuid_module
-from datetime import datetime
+from datetime import datetime, timezone
+
+logger = logging.getLogger(__name__)
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy import select
 from app.models.ad_campaign import AdCampaign
@@ -14,6 +17,7 @@ from app.services.meta.ad_library import MetaAdLibraryService
 from app.services.claude.client import ClaudeClient
 from app.core.config import settings
 from app.core.security import get_project_token
+from app.utils import _safe_float
 
 meta_service = MetaCampaignService()
 claude_client = ClaudeClient()
@@ -169,7 +173,7 @@ def _check_high_ctr_low_conversion(
     if not isinstance(actions_list, list):
         return None
 
-    actions = {a["action_type"]: float(a["value"]) for a in actions_list if "action_type" in a and "value" in a}
+    actions = {a["action_type"]: _safe_float(a.get("value")) for a in actions_list if a.get("action_type")}
 
     link_clicks = actions.get("link_click", 0.0)
     if link_clicks <= 0:
@@ -281,7 +285,7 @@ async def analyze_campaign(
         return {"skipped": True, "reason": "no metrics yet (campaign too new)"}
 
     # 2. Build prompt for Claude
-    days_since_created = (datetime.utcnow() - campaign.created_at).days
+    days_since_created = (datetime.now(timezone.utc).replace(tzinfo=None) - campaign.created_at).days
 
     # Hard guards — check before calling Claude
     guard_metrics = {
@@ -304,7 +308,7 @@ async def analyze_campaign(
             new_budget=None,
         )
         db.add(log)
-        campaign.last_optimized_at = datetime.utcnow()
+        campaign.last_optimized_at = datetime.now(timezone.utc).replace(tzinfo=None)
         await db.commit()
         return {
             "campaign_id": campaign.id,
@@ -520,7 +524,7 @@ Return your JSON decision."""
         new_budget=new_budget if new_budget != old_budget else None,
     )
     db.add(log)
-    campaign.last_optimized_at = datetime.utcnow()
+    campaign.last_optimized_at = datetime.now(timezone.utc).replace(tzinfo=None)
     await db.commit()
 
     return {
@@ -668,7 +672,7 @@ async def _create_high_ctr_low_conversion_notification(
     from datetime import timedelta
     from app.models.notification import Notification
 
-    cooldown_cutoff = datetime.utcnow() - timedelta(days=7)
+    cooldown_cutoff = datetime.now(timezone.utc).replace(tzinfo=None) - timedelta(days=7)
     existing_result = await db.execute(
         select(Notification).where(
             Notification.project_id == campaign.project_id,
@@ -715,9 +719,9 @@ async def _create_high_ctr_low_conversion_notification(
 
 async def run_optimization_cycle(db: AsyncSession) -> list[dict]:
     """Run optimization for all active campaigns that haven't been checked in 3 days."""
-    from datetime import timedelta
+    from datetime import timedelta, timezone
 
-    cutoff = datetime.utcnow() - timedelta(days=3)
+    cutoff = datetime.now(timezone.utc).replace(tzinfo=None) - timedelta(days=3)
 
     result = await db.execute(
         select(AdCampaign).where(
@@ -727,15 +731,20 @@ async def run_optimization_cycle(db: AsyncSession) -> list[dict]:
         )
     )
     campaigns = result.scalars().all()
-    print(f"[Optimizer] Found {len(campaigns)} eligible campaigns (cutoff: {cutoff})")
+    logger.info("[Optimizer] Found %d eligible campaigns (cutoff: %s)", len(campaigns), cutoff)
 
     results = []
     for campaign in campaigns:
-        print(f"[Optimizer] Processing campaign {campaign.id} — {campaign.name}")
-        proj_result = await db.execute(select(Project).where(Project.id == campaign.project_id))
-        project = proj_result.scalar_one_or_none()
-        if project:
-            r = await analyze_campaign(campaign, project, db)
-            results.append(r)
+        try:
+            logger.info("[Optimizer] Processing campaign %s — %s", campaign.id, campaign.name)
+            proj_result = await db.execute(select(Project).where(Project.id == campaign.project_id))
+            project = proj_result.scalar_one_or_none()
+            if project:
+                r = await analyze_campaign(campaign, project, db)
+                results.append(r)
+        except Exception as e:
+            logger.exception("Optimizer failed for campaign %s: %s", campaign.id, e)
+            await db.rollback()
+            continue
 
     return results

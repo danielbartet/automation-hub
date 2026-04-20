@@ -1,5 +1,5 @@
 """MetaApiCache and AuditLog models."""
-from datetime import datetime
+from datetime import datetime, timezone
 from sqlalchemy import DateTime, ForeignKey, Integer, String, Text, func
 from sqlalchemy.orm import Mapped, mapped_column
 from sqlalchemy.types import JSON
@@ -21,7 +21,7 @@ class MetaApiCache(Base):
     @property
     def is_valid(self) -> bool:
         """Returns True if cache entry is within TTL."""
-        age = (datetime.utcnow() - self.fetched_at).total_seconds()
+        age = (datetime.now(timezone.utc).replace(tzinfo=None) - self.fetched_at).total_seconds()
         return age < self.ttl_seconds
 
 

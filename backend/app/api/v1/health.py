@@ -1,6 +1,6 @@
 """Project health monitoring endpoints."""
 import asyncio
-from datetime import datetime
+from datetime import datetime, timezone
 
 from fastapi import APIRouter, Depends, HTTPException
 from sqlalchemy.ext.asyncio import AsyncSession
@@ -151,7 +151,7 @@ async def refresh_project_health(
     lock_entry = lock_result.scalar_one_or_none()
 
     if lock_entry and lock_entry.is_valid:
-        age_seconds = (datetime.utcnow() - lock_entry.fetched_at).total_seconds()
+        age_seconds = (datetime.now(timezone.utc).replace(tzinfo=None) - lock_entry.fetched_at).total_seconds()
         retry_after = int(CACHE_TTLS[REFRESH_LOCK_KEY] - age_seconds)
         raise HTTPException(
             status_code=429,
@@ -167,14 +167,14 @@ async def refresh_project_health(
 
     # Set the refresh lock
     if lock_entry:
-        lock_entry.fetched_at = datetime.utcnow()
+        lock_entry.fetched_at = datetime.now(timezone.utc).replace(tzinfo=None)
         lock_entry.ttl_seconds = CACHE_TTLS[REFRESH_LOCK_KEY]
     else:
         lock_entry = MetaApiCache(
             project_id=project_id,
             cache_key=REFRESH_LOCK_KEY,
-            data={"locked_at": datetime.utcnow().isoformat()},
-            fetched_at=datetime.utcnow(),
+            data={"locked_at": datetime.now(timezone.utc).replace(tzinfo=None).isoformat()},
+            fetched_at=datetime.now(timezone.utc).replace(tzinfo=None),
             ttl_seconds=CACHE_TTLS[REFRESH_LOCK_KEY],
         )
         db.add(lock_entry)

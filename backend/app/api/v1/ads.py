@@ -10,6 +10,7 @@ from app.models.user_project import UserProject
 from app.core.config import settings
 from app.core.security import get_project_token
 from app.services.ads.meta_campaign import MetaCampaignService
+from app.utils import _safe_float
 from pydantic import BaseModel, Field
 from datetime import datetime, timezone
 import httpx
@@ -20,14 +21,6 @@ router = APIRouter()
 META_BASE = "https://graph.facebook.com/v19.0"
 
 meta_service = MetaCampaignService()
-
-
-def _safe_float(v, default: float = 0.0) -> float:
-    """Convert v to float, returning default on None, empty string, or conversion errors."""
-    try:
-        return float(v) if v not in (None, "") else default
-    except (TypeError, ValueError):
-        return default
 
 
 class AdCampaignResponse(BaseModel):
@@ -806,9 +799,9 @@ async def get_campaign_detail(
         })
 
     # Build insights summary
-    actions = {a["action_type"]: float(a["value"]) for a in insights_summary_raw.get("actions", []) if "value" in a}
-    action_values = {a["action_type"]: float(a["value"]) for a in insights_summary_raw.get("action_values", []) if "value" in a}
-    cpa_dict = {a["action_type"]: float(a["value"]) for a in insights_summary_raw.get("cost_per_action_type", []) if "value" in a}
+    actions = {a["action_type"]: _safe_float(a.get("value")) for a in insights_summary_raw.get("actions", []) if a.get("action_type")}
+    action_values = {a["action_type"]: _safe_float(a.get("value")) for a in insights_summary_raw.get("action_values", []) if a.get("action_type")}
+    cpa_dict = {a["action_type"]: _safe_float(a.get("value")) for a in insights_summary_raw.get("cost_per_action_type", []) if a.get("action_type")}
     objective = (campaign_info.get("objective") or (campaign.objective if campaign else None) or "").upper()
 
     total_spend = float(insights_summary_raw.get("spend", 0))
@@ -939,8 +932,8 @@ async def get_campaign_detail(
     # Build daily insights
     daily_insights = []
     for day in daily_insights_raw:
-        day_actions = {a["action_type"]: float(a["value"]) for a in day.get("actions", []) if "value" in a}
-        day_cpa = {a["action_type"]: float(a["value"]) for a in day.get("cost_per_action_type", []) if "value" in a}
+        day_actions = {a["action_type"]: _safe_float(a.get("value")) for a in day.get("actions", []) if a.get("action_type")}
+        day_cpa = {a["action_type"]: _safe_float(a.get("value")) for a in day.get("cost_per_action_type", []) if a.get("action_type")}
         if "LEADS" in objective:
             day_results = day_actions.get("lead", 0)
             day_cpr = day_cpa.get("lead", 0)
@@ -1468,7 +1461,7 @@ async def import_campaigns(
     # Track start_date per meta_campaign_id for the optimizer step
     start_dates: dict[str, object] = {}
 
-    today = datetime.utcnow().date()
+    today = datetime.now(timezone.utc).date()
 
     for mc in meta_campaigns:
         meta_id = mc.get("id")
@@ -1945,7 +1938,7 @@ async def optimizer_approve(
     log = CampaignOptimizationLog(
         campaign_id=campaign.id,
         project_id=campaign.project_id,
-        checked_at=datetime.utcnow(),
+        checked_at=datetime.now(timezone.utc).replace(tzinfo=None),
         decision=log_decision,
         rationale=action_data.get("rationale", f"Approved by user: {result_msg}"),
         action_taken="BUDGET_UPDATED" if action == "scale" else "CAMPAIGN_PAUSED",
@@ -2131,7 +2124,7 @@ async def attribution_check(
             ins_default = ins_default_resp.json()
             ins_default_rows = ins_default.get("data", [{}])
             ins_default_row = ins_default_rows[0] if ins_default_rows else {}
-            actions_default = {a["action_type"]: float(a["value"]) for a in ins_default_row.get("actions", []) if "value" in a}
+            actions_default = {a["action_type"]: _safe_float(a.get("value")) for a in ins_default_row.get("actions", []) if a.get("action_type")}
 
             # 3b. Insights WITH explicit 7d_click + 1d_view window
             ins_7d_resp = await client.get(
@@ -2146,7 +2139,7 @@ async def attribution_check(
             ins_7d = ins_7d_resp.json()
             ins_7d_rows = ins_7d.get("data", [{}])
             ins_7d_row = ins_7d_rows[0] if ins_7d_rows else {}
-            actions_7d = {a["action_type"]: float(a["value"]) for a in ins_7d_row.get("actions", []) if "value" in a}
+            actions_7d = {a["action_type"]: _safe_float(a.get("value")) for a in ins_7d_row.get("actions", []) if a.get("action_type")}
 
             purchase_types = ["purchase", "omni_purchase", "offsite_conversion.fb_pixel_purchase"]
             purchases_default = sum(actions_default.get(k, 0) for k in purchase_types)

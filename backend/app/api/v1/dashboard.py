@@ -7,9 +7,10 @@ from app.models.project import Project
 from app.models.content import ContentPost
 from app.core.config import settings
 from app.core.security import get_project_token
+from app.utils import _safe_float
 import httpx
 import json
-from datetime import datetime, timedelta
+from datetime import datetime, timedelta, timezone
 
 router = APIRouter()
 
@@ -32,8 +33,8 @@ def get_andromeda_status(campaign_insights: dict) -> tuple[str, str]:
 
 
 def build_kpis(objective: str, insights: dict) -> dict:
-    actions = {a["action_type"]: float(a["value"]) for a in insights.get("actions", []) if "action_type" in a and "value" in a}
-    cpa_dict = {a["action_type"]: float(a["value"]) for a in insights.get("cost_per_action_type", []) if "action_type" in a and "value" in a}
+    actions = {a["action_type"]: _safe_float(a.get("value")) for a in insights.get("actions", []) if a.get("action_type")}
+    cpa_dict = {a["action_type"]: _safe_float(a.get("value")) for a in insights.get("cost_per_action_type", []) if a.get("action_type")}
 
     base = {
         "spend": float(insights.get("spend", 0)),
@@ -206,7 +207,7 @@ async def get_dashboard_kpis(
     total_spend_month = meta_ads["totals"]["spend_this_month"]
 
     # Content stats
-    now = datetime.utcnow()
+    now = datetime.now(timezone.utc).replace(tzinfo=None)
     week_ago = now - timedelta(days=7)
     month_ago = now - timedelta(days=30)
 

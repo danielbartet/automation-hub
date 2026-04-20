@@ -232,14 +232,14 @@ class MetaAuditService:
         entry = result.scalar_one_or_none()
         if entry:
             entry.data = data
-            entry.fetched_at = datetime.utcnow()
+            entry.fetched_at = datetime.now(timezone.utc).replace(tzinfo=None)
             entry.ttl_seconds = ttl
         else:
             entry = MetaApiCache(
                 project_id=self.project_id,
                 cache_key=key,
                 data=data,
-                fetched_at=datetime.utcnow(),
+                fetched_at=datetime.now(timezone.utc).replace(tzinfo=None),
                 ttl_seconds=ttl,
             )
             db.add(entry)
@@ -751,19 +751,19 @@ class MetaAuditService:
                     for r in results
                 },
             }
-            audit.completed_at = datetime.utcnow()
+            audit.completed_at = datetime.now(timezone.utc).replace(tzinfo=None)
             await db.commit()
             await self._notify_critical_fails(audit_id, self.project_id, results, db)
 
         except MetaRateLimitError as e:
             audit.status = "partial"
             audit.error_message = str(e)
-            audit.completed_at = datetime.utcnow()
+            audit.completed_at = datetime.now(timezone.utc).replace(tzinfo=None)
             await db.commit()
         except Exception as e:
             audit.status = "error"
             audit.error_message = str(e)
-            audit.completed_at = datetime.utcnow()
+            audit.completed_at = datetime.now(timezone.utc).replace(tzinfo=None)
             await db.commit()
             raise
 

@@ -5,7 +5,7 @@ import hmac
 import json
 import logging
 import time
-from datetime import datetime, timedelta
+from datetime import datetime, timedelta, timezone
 
 import httpx
 
@@ -174,7 +174,7 @@ async def upgrade_to_long_lived(short_token: str) -> tuple[str, datetime]:
     long_lived_token = data.get("access_token")
     if not long_lived_token:
         raise RuntimeError(f"Meta token response missing access_token: {list(data.keys())}")
-    expires_at = datetime.utcnow() + timedelta(seconds=data.get("expires_in", 5184000))  # default 60 days
+    expires_at = datetime.now(timezone.utc).replace(tzinfo=None) + timedelta(seconds=data.get("expires_in", 5184000))  # default 60 days
     return long_lived_token, expires_at
 
 

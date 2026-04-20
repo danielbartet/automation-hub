@@ -1,7 +1,10 @@
 """Automation Hub — FastAPI application entry point."""
+import logging
 from contextlib import asynccontextmanager
-from datetime import datetime
+from datetime import datetime, timezone
 from fastapi import FastAPI
+
+logger = logging.getLogger(__name__)
 from fastapi.middleware.cors import CORSMiddleware
 from app.core.config import settings
 from app.api.v1.router import api_router
@@ -48,7 +51,7 @@ async def lifespan(app: FastAPI):
         from sqlalchemy import select, update
         from app.models.ads_audit import AdsAudit
 
-        stale_cutoff = datetime.utcnow() - timedelta(minutes=10)
+        stale_cutoff = datetime.now(timezone.utc).replace(tzinfo=None) - timedelta(minutes=10)
         result = await db.execute(
             select(AdsAudit).where(
                 AdsAudit.status.in_(["running", "pending"]),
@@ -59,23 +62,23 @@ async def lifespan(app: FastAPI):
         for audit in stale_audits:
             audit.status = "error"
             audit.error_message = "Audit timed out — cleaned up on startup"
-            audit.completed_at = datetime.utcnow()
+            audit.completed_at = datetime.now(timezone.utc).replace(tzinfo=None)
         if stale_audits:
             await db.commit()
-            print(f"[Startup] Cleaned up {len(stale_audits)} stale audit(s)")
+            logger.info("[Startup] Cleaned up %d stale audit(s)", len(stale_audits))
 
     # Start optimization scheduler — runs daily at 08:00 UTC, per-campaign cooldown: 3 days
     scheduler = AsyncIOScheduler()
 
     async def optimization_job():
         from app.services.ads.optimizer import run_optimization_cycle
-        print("[Optimizer] Job triggered")
+        logger.info("[Optimizer] Job triggered")
         async with AsyncSessionLocal() as db:
             try:
                 results = await run_optimization_cycle(db)
-                print(f"[Optimizer] Done — {len(results)} campaigns processed: {[r.get('decision') for r in results]}")
+                logger.info("[Optimizer] Done — %d campaigns processed: %s", len(results), [r.get('decision') for r in results])
             except Exception as e:
-                print(f"[Optimizer] Error: {e}")
+                logger.exception("[Optimizer] Error: %s", e)
 
     scheduler.add_job(
         optimization_job,
@@ -94,12 +97,12 @@ async def lifespan(app: FastAPI):
         from app.api.v1.content import _publish_post_to_meta
         from sqlalchemy import select, and_, update
 
-        async with AsyncSessionLocal() as db:
-            try:
-                now = datetime.utcnow()
-                # Find approved posts with scheduled_at <= now
-                result = await db.execute(
-                    select(ContentPost).where(
+        try:
+            now = datetime.now(timezone.utc).replace(tzinfo=None)
+            # Find approved posts with scheduled_at <= now (read-only query in its own session)
+            async with AsyncSessionLocal() as list_db:
+                result = await list_db.execute(
+                    select(ContentPost.id).where(
                         and_(
                             ContentPost.status == "approved",
                             ContentPost.scheduled_at != None,  # noqa: E711
@@ -107,34 +110,43 @@ async def lifespan(app: FastAPI):
                         )
                     )
                 )
-                posts = result.scalars().all()
+                post_ids = result.scalars().all()
 
-                for post in posts:
+            # Process each post in its own isolated session
+            for post_id in post_ids:
+                async with AsyncSessionLocal() as post_db:
                     try:
                         # Atomically claim this post for publishing
-                        claim_result = await db.execute(
+                        claim_result = await post_db.execute(
                             update(ContentPost)
                             .where(
-                                ContentPost.id == post.id,
+                                ContentPost.id == post_id,
                                 ContentPost.status == "approved",
                             )
                             .values(status="publishing")
                         )
-                        await db.commit()
+                        await post_db.commit()
                         if claim_result.rowcount != 1:
                             continue  # Another worker already claimed it
 
-                        proj_result = await db.execute(
+                        post_result = await post_db.execute(
+                            select(ContentPost).where(ContentPost.id == post_id)
+                        )
+                        post = post_result.scalar_one_or_none()
+                        if not post:
+                            continue
+
+                        proj_result = await post_db.execute(
                             select(Project).where(Project.id == post.project_id)
                         )
                         project = proj_result.scalar_one_or_none()
                         if project:
-                            print(f"[Scheduler] Publishing scheduled post {post.id}")
-                            await _publish_post_to_meta(post, project, db)
+                            logger.info("[Scheduler] Publishing scheduled post %s", post_id)
+                            await _publish_post_to_meta(post, project, post_db)
                     except Exception as e:
-                        print(f"[Scheduler] Failed to publish post {post.id}: {e}")
-            except Exception as e:
-                print(f"[Scheduler] Scheduled posts job error: {e}")
+                        logger.exception("[Scheduler] Failed to publish post %s: %s", post_id, e)
+        except Exception as e:
+            logger.exception("[Scheduler] Scheduled posts job error: %s", e)
 
     scheduler.add_job(
         scheduled_posts_job,
@@ -168,7 +180,7 @@ async def lifespan(app: FastAPI):
 
                 for project in projects:
                     # Skip if a recent audit exists (within last 6 days)
-                    recent_cutoff = datetime.utcnow() - timedelta(days=6)
+                    recent_cutoff = datetime.now(timezone.utc).replace(tzinfo=None) - timedelta(days=6)
                     recent_result = await db.execute(
                         select(AdsAudit).where(
                             AdsAudit.project_id == project.id,
@@ -177,13 +189,13 @@ async def lifespan(app: FastAPI):
                         ).limit(1)
                     )
                     if recent_result.scalar_one_or_none():
-                        print(f"[AuditScheduler] Skipping {project.slug} — recent audit exists")
+                        logger.info("[AuditScheduler] Skipping %s — recent audit exists", project.slug)
                         continue
 
                     # Check token available
                     token = await get_project_token(project, db)
                     if not token:
-                        print(f"[AuditScheduler] Skipping {project.slug} — no token")
+                        logger.info("[AuditScheduler] Skipping %s — no token", project.slug)
                         continue
 
                     # Create audit row and run
@@ -197,12 +209,12 @@ async def lifespan(app: FastAPI):
                     await db.commit()
                     await db.refresh(audit)
 
-                    print(f"[AuditScheduler] Running audit for {project.slug}")
+                    logger.info("[AuditScheduler] Running audit for %s", project.slug)
                     async with MetaAuditService(token, project.ad_account_id, project.id) as svc:
                         await svc.run(audit.id, db)
 
             except Exception as e:
-                print(f"[AuditScheduler] Error in weekly audit job: {e}")
+                logger.exception("[AuditScheduler] Error in weekly audit job: %s", e)
 
     scheduler.add_job(
         run_weekly_audit_for_all_projects,
@@ -233,7 +245,7 @@ async def lifespan(app: FastAPI):
                 campaigns = result.scalars().all()
 
                 if not campaigns:
-                    print("[StatusSync] No campaigns with meta_campaign_id — skipping")
+                    logger.info("[StatusSync] No campaigns with meta_campaign_id — skipping")
                     return
 
                 # Group campaigns by project_id to minimise token lookups
@@ -260,21 +272,21 @@ async def lifespan(app: FastAPI):
                         # Meta returns uppercase; DB stores lowercase
                         new_status = effective_status.lower()
                         if campaign.status != new_status:
-                            print(
-                                f"[StatusSync] Campaign {campaign.meta_campaign_id} "
-                                f"status: {campaign.status!r} → {new_status!r}"
+                            logger.info(
+                                "[StatusSync] Campaign %s status: %r → %r",
+                                campaign.meta_campaign_id, campaign.status, new_status,
                             )
                             campaign.status = new_status
                             updated_count += 1
                     except Exception as e:
-                        print(f"[StatusSync] Error syncing campaign {campaign.meta_campaign_id}: {e}")
+                        logger.exception("[StatusSync] Error syncing campaign %s: %s", campaign.meta_campaign_id, e)
 
                 if updated_count:
                     await db.commit()
-                print(f"[StatusSync] Done — {updated_count}/{len(campaigns)} campaigns updated")
+                logger.info("[StatusSync] Done — %d/%d campaigns updated", updated_count, len(campaigns))
 
             except Exception as e:
-                print(f"[StatusSync] Job error: {e}")
+                logger.exception("[StatusSync] Job error: %s", e)
 
     scheduler.add_job(
         sync_campaign_statuses_job,
@@ -287,10 +299,10 @@ async def lifespan(app: FastAPI):
     )
 
     scheduler.start()
-    print("[Scheduler] Campaign optimizer started — runs daily at 08:00 UTC, per-campaign cooldown: 3 days")
-    print("[Scheduler] Scheduled posts publisher started — runs every 5 minutes")
-    print("[Scheduler] Weekly ads audit started — runs every Monday at 07:00 UTC")
-    print("[Scheduler] Campaign status sync started — runs every 6 hours")
+    logger.info("[Scheduler] Campaign optimizer started — runs daily at 08:00 UTC, per-campaign cooldown: 3 days")
+    logger.info("[Scheduler] Scheduled posts publisher started — runs every 5 minutes")
+    logger.info("[Scheduler] Weekly ads audit started — runs every Monday at 07:00 UTC")
+    logger.info("[Scheduler] Campaign status sync started — runs every 6 hours")
 
     yield
 

@@ -50,7 +50,7 @@ async def _log_audit(
             endpoint=endpoint,
             response_status=response_status,
             error_message=error_message,
-            timestamp=datetime.utcnow(),
+            timestamp=datetime.now(timezone.utc).replace(tzinfo=None),
         )
         db.add(audit)
         await db.commit()
@@ -367,7 +367,7 @@ async def get_project_health(db: AsyncSession, project_id: int) -> dict:
     return {
         "project_id": project_id,
         "project_name": project.name,
-        "last_updated": datetime.utcnow().strftime("%Y-%m-%dT%H:%M:%SZ"),
+        "last_updated": datetime.now(timezone.utc).strftime("%Y-%m-%dT%H:%M:%SZ"),
         "is_stale": is_stale,
         "health_color": health_color,
         "ad_account": ad_account_shape,

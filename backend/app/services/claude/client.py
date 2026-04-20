@@ -510,6 +510,23 @@ b) Matches the day of week:
 Rate the suggested hook with the 4U scale before including it.
 Only suggest hooks that score 3U or higher.
 
+FRAMEWORKS ADICIONALES:
+- PAS (Problema-Agitación-Solución): para contenido que aborda pain points
+- AIDA (Atención-Interés-Deseo-Acción): para contenido de conversión
+- FAB (Features-Advantages-Benefits): para contenido educativo/producto
+- BAB (Before-After-Bridge): para casos de éxito y transformación
+
+PRINCIPIOS CIALDINI para selección de formato:
+- Reciprocidad: contenido que da valor genuito primero
+- Autoridad: datos, cifras, experiencia demostrable
+- Prueba social: menciona resultados, comunidad, validación externa
+- Escasez/urgencia: solo cuando sea auténtico al contexto
+
+TEMPERATURA DE AUDIENCIA:
+- Fría (nuevo seguidor): PAS o 4U con educación
+- Tibia (engageó antes): AIDA o BAB con casos
+- Caliente (cliente potencial): FAB o directo a beneficio
+
 FORMAT SELECTION RULES — choose the best format for today:
 - carousel_6_slides: educational deep-dives, frameworks, step-by-step content, transformation stories. Best Tuesday/Wednesday/Thursday.
 - single_image: bold statements, quotes, uncomfortable truths, social proof with one strong stat. Best Monday/Friday.
@@ -633,10 +650,74 @@ Return ONLY valid JSON (no markdown, no code blocks):
             cleaned = fix_newlines_in_strings(response_text)
             return json.loads(cleaned)
 
-    async def generate_caption(self, topic: str, tone: str, language: str = "es") -> str:
+    async def generate_caption(self, topic: str, tone: str, language: str = "es", content_config: dict | None = None) -> str:
         """Generate a social media caption for a topic."""
-        prompt = f"Write a social media caption about '{topic}' in {language} with {tone} tone. Max 200 characters."
-        return await self.generate_content(prompt)
+        cfg = content_config or {}
+        brand_name = cfg.get("brand_name", "")
+        target_audience = cfg.get("target_audience", "")
+        core_message = cfg.get("core_message", "")
+        content_categories = cfg.get("content_categories", [])
+
+        system_prompt = f"""Eres un experto en copywriting para redes sociales.
+Tu objetivo: escribir captions que detengan el scroll, generen engagement y conecten emocionalmente.
+
+FRAMEWORKS A APLICAR (elige el más adecuado para el tema):
+- PAS: Problema → Agitación → Solución
+- AIDA: Atención → Interés → Deseo → Acción
+- 4U: Útil, Urgente, Único, Ultra-específico
+- BAB: Before → After → Bridge
+
+CONTEXTO DE MARCA:
+{f"- Marca: {brand_name}" if brand_name else ""}
+{f"- Audiencia objetivo: {target_audience}" if target_audience else "- Audiencia: profesionales en redes sociales"}
+{f"- Mensaje central: {core_message}" if core_message else ""}
+{f"- Categorías de contenido: {', '.join(content_categories)}" if content_categories else ""}
+- Tono: {tone}
+- Idioma: {language}
+
+PRINCIPIOS DE PERSUASIÓN (Cialdini):
+- Escasez/urgencia cuando sea auténtico
+- Prueba social con datos concretos
+- Autoridad con afirmaciones verificables
+
+LÍMITES TÉCNICOS META:
+- Caption máximo: 2200 caracteres
+- Los primeros 125 caracteres son críticos (se muestran antes del "ver más")
+- Incluye 3-5 hashtags relevantes al final
+
+REGLAS:
+- NO uses frases genéricas ("En el mundo de hoy...", "Es importante...")
+- SÍ usa hook potente en la primera línea
+- SÍ termina con CTA claro
+- NO incluyas comillas alrededor del caption
+- Devuelve SOLO el caption, sin explicaciones"""
+
+        prompt = f"Escribe un caption para: {topic}"
+
+        try:
+            response = await self.client.messages.create(
+                model=self.MODEL,
+                max_tokens=500,
+                system=system_prompt,
+                messages=[{"role": "user", "content": prompt}],
+            )
+        except anthropic.RateLimitError as e:
+            logger.warning("Claude rate limit in generate_caption: %s", e)
+            raise
+        except anthropic.APIConnectionError as e:
+            logger.warning("Claude connection error in generate_caption: %s", e)
+            raise
+        except anthropic.APIError as e:
+            logger.error("Claude API error in generate_caption: %s", e)
+            raise
+
+        if not response.content:
+            raise ValueError("Empty response from Claude in generate_caption")
+
+        caption = response.content[0].text.strip()
+        if not caption:
+            raise ValueError("Empty caption returned by Claude")
+        return caption
 
     async def generate_ad_concepts(
         self,
@@ -1136,4 +1217,18 @@ Return ONLY valid JSON:
         result = json.loads(content)
         if result.get("objective") not in valid_objectives:
             result["objective"] = "OUTCOME_LEADS"
+
+        # Enforce Meta ad copy length limits
+        if result.get("ad_copy") and len(result["ad_copy"]) > 125:
+            logger.warning(
+                "adapt_competitor_ad: ad_copy truncated from %d to 125 chars", len(result["ad_copy"])
+            )
+            result["ad_copy"] = result["ad_copy"][:125].rsplit(" ", 1)[0]
+
+        if result.get("headline") and len(result["headline"]) > 40:
+            logger.warning(
+                "adapt_competitor_ad: headline truncated from %d to 40 chars", len(result["headline"])
+            )
+            result["headline"] = result["headline"][:40].rsplit(" ", 1)[0]
+
         return result

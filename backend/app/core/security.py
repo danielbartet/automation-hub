@@ -54,7 +54,7 @@ async def get_project_token(project, db=None) -> str | None:
     if settings.USER_META_TOKEN_ENABLED and db is not None and project.owner_id:
         from app.models.user_meta_token import UserMetaToken
         from sqlalchemy import select
-        from datetime import datetime
+        from datetime import datetime, timezone
 
         result = await db.execute(
             select(UserMetaToken).where(UserMetaToken.user_id == project.owner_id)
@@ -62,7 +62,10 @@ async def get_project_token(project, db=None) -> str | None:
         user_token = result.scalar_one_or_none()
         if user_token:
             # Check expiry — None means non-expiring
-            if user_token.expires_at is not None and user_token.expires_at <= datetime.utcnow():
+            expires_at = user_token.expires_at
+            if expires_at is not None and expires_at.tzinfo is not None:
+                expires_at = expires_at.astimezone(timezone.utc).replace(tzinfo=None)
+            if expires_at is not None and expires_at <= datetime.now(timezone.utc).replace(tzinfo=None):
                 logger.warning(
                     "get_project_token: Tier 2 token for user %s is expired (expires_at=%s) — skipping",
                     project.owner_id,

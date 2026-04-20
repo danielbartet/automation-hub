@@ -1,5 +1,5 @@
 """Campaign Chat — conversational analysis of campaign performance via Claude."""
-from datetime import datetime, timedelta
+from datetime import datetime, timedelta, timezone
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy import select, func
 from app.models.ad_campaign import AdCampaign
@@ -8,6 +8,7 @@ from app.models.user import User
 from app.services.ads.meta_campaign import MetaCampaignService
 from app.services.claude.client import ClaudeClient
 from app.core.security import get_project_token
+from app.utils import _safe_float
 
 CHAT_COOLDOWN_MINUTES = 15
 
@@ -95,12 +96,12 @@ def _format_campaign_data(campaigns_metrics: list[dict]) -> str:
         actions_list = metrics.get("actions", [])
         actions = {}
         if isinstance(actions_list, list):
-            actions = {a["action_type"]: float(a["value"]) for a in actions_list if "action_type" in a and "value" in a}
+            actions = {a["action_type"]: _safe_float(a.get("value")) for a in actions_list if a.get("action_type")}
 
         cost_per_action = metrics.get("cost_per_action_type", [])
         cpa_map = {}
         if isinstance(cost_per_action, list):
-            cpa_map = {a["action_type"]: float(a["value"]) for a in cost_per_action if "action_type" in a and "value" in a}
+            cpa_map = {a["action_type"]: _safe_float(a.get("value")) for a in cost_per_action if a.get("action_type")}
 
         leads = actions.get("lead", 0)
         cpl = cpa_map.get("lead", 0)
@@ -114,7 +115,7 @@ def _format_campaign_data(campaigns_metrics: list[dict]) -> str:
         # a wildly different number than what the optimizer reports.
         purchase_roas_list = metrics.get("purchase_roas", [])
         if isinstance(purchase_roas_list, list) and purchase_roas_list:
-            roas = float(purchase_roas_list[0].get("value", 0) or 0)
+            roas = _safe_float(purchase_roas_list[0].get("value"))
         else:
             roas = 0.0
 
@@ -145,7 +146,7 @@ async def run_campaign_chat(
     """
     # 1. Check cooldown
     if user.last_chat_at is not None:
-        elapsed = datetime.utcnow() - user.last_chat_at
+        elapsed = datetime.now(timezone.utc).replace(tzinfo=None) - user.last_chat_at
         cooldown_total = timedelta(minutes=CHAT_COOLDOWN_MINUTES)
         if elapsed < cooldown_total:
             remaining = int((cooldown_total - elapsed).total_seconds())
@@ -183,7 +184,7 @@ async def run_campaign_chat(
                 metrics = await meta_service.fetch_campaign_insights(
                     token, campaign.meta_campaign_id, date_preset="last_7d"
                 )
-                days_running = (datetime.utcnow() - campaign.created_at).days
+                days_running = (datetime.now(timezone.utc).replace(tzinfo=None) - campaign.created_at).days
                 campaigns_metrics.append({
                     "name": campaign.name,
                     "objective": campaign.objective,
@@ -198,7 +199,7 @@ async def run_campaign_chat(
                     "objective": campaign.objective,
                     "status": campaign.status,
                     "daily_budget": campaign.daily_budget,
-                    "days_running": (datetime.utcnow() - campaign.created_at).days,
+                    "days_running": (datetime.now(timezone.utc).replace(tzinfo=None) - campaign.created_at).days,
                     "metrics": {},
                 })
     elif campaigns:
@@ -209,7 +210,7 @@ async def run_campaign_chat(
                 "objective": campaign.objective,
                 "status": campaign.status,
                 "daily_budget": campaign.daily_budget,
-                "days_running": (datetime.utcnow() - campaign.created_at).days,
+                "days_running": (datetime.now(timezone.utc).replace(tzinfo=None) - campaign.created_at).days,
                 "metrics": {},
             })
 
@@ -239,12 +240,12 @@ Please analyze this data and answer my question."""
     )
 
     # 8. Update cooldown timestamp
-    user.last_chat_at = datetime.utcnow()
+    user.last_chat_at = datetime.now(timezone.utc).replace(tzinfo=None)
     await db.commit()
 
     return {
         "answer": answer,
-        "generated_at": datetime.utcnow().isoformat(),
+        "generated_at": datetime.now(timezone.utc).replace(tzinfo=None).isoformat(),
         "cooldown_remaining_seconds": 0,
     }
 
