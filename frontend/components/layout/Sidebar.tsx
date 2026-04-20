@@ -39,6 +39,7 @@ export function Sidebar() {
 
   // ── Path helpers ────────────────────────────────────────────────────────────
   const isOnMetaPath =
+    pathname === "/dashboard" ||
     pathname.startsWith("/dashboard/content") ||
     pathname.startsWith("/dashboard/calendar") ||
     pathname.startsWith("/dashboard/ads");
@@ -267,9 +268,6 @@ export function Sidebar() {
 
       {/* Main nav — scrollable */}
       <nav className="flex-1 overflow-y-auto p-4 space-y-1">
-        {/* Overview */}
-        {renderNavLink("/dashboard", t.nav_overview, LayoutDashboard)}
-
         {/* ── Meta collapsible group ────────────────────────────────────────── */}
         <div>
           {renderGroupHeader(
@@ -282,6 +280,7 @@ export function Sidebar() {
 
           {metaOpen && (
             <div className="mt-1 ml-3 pl-3 space-y-1" style={{ borderLeft: "1px solid #1e1e1e" }}>
+              {renderSubLink("/dashboard", t.nav_overview, LayoutDashboard, true)}
               {/* Orgánico sub-group label */}
               <p className="px-3 pt-1 pb-0.5 text-xs font-semibold uppercase tracking-wider" style={{ color: "#4b5563" }}>
                 {t.nav_organico}
