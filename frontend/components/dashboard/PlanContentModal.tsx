@@ -95,6 +95,7 @@ export function PlanContentModal({
   const [daysOfWeek, setDaysOfWeek] = useState<number[]>([0, 2, 4]); // Mon, Wed, Fri
   const [publishTime, setPublishTime] = useState("09:00");
   const [contentType, setContentType] = useState("carousel_6_slides");
+  const [numSlides, setNumSlides] = useState<number>(6);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [batchResult, setBatchResult] = useState<BatchPost[] | null>(null);
@@ -119,6 +120,7 @@ export function PlanContentModal({
         days_of_week: daysOfWeek,
         publish_time: publishTime,
         content_type: contentType,
+        ...(contentType === "carousel_6_slides" ? { num_slides: numSlides } : {}),
       }, token);
       setBatchResult(data.posts || []);
     } catch (e) {
@@ -420,7 +422,10 @@ export function PlanContentModal({
             <label className="block text-sm font-medium text-white mb-1">Content type</label>
             <select
               value={contentType}
-              onChange={(e) => setContentType(e.target.value)}
+              onChange={(e) => {
+                setContentType(e.target.value);
+                if (e.target.value !== "carousel_6_slides") setNumSlides(6);
+              }}
               className="w-full rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-[#7c3aed]"
               style={inputStyle}
             >
@@ -429,6 +434,22 @@ export function PlanContentModal({
               <option value="text_post">Text Post</option>
             </select>
           </div>
+
+          {contentType === "carousel_6_slides" && (
+            <div>
+              <label className="block text-sm font-medium text-white mb-1">Número de slides</label>
+              <select
+                value={numSlides}
+                onChange={(e) => setNumSlides(Number(e.target.value))}
+                className="w-full rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-[#7c3aed]"
+                style={inputStyle}
+              >
+                {[3, 4, 5, 6, 8, 10].map((n) => (
+                  <option key={n} value={n}>{n} slides</option>
+                ))}
+              </select>
+            </div>
+          )}
 
           <button
             onClick={handleGenerate}
