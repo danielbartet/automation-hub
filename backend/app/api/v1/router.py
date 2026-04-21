@@ -7,6 +7,7 @@ from app.api.v1 import health
 from app.api.v1 import meta_oauth
 from app.api.v1 import token_usage as token_usage_module
 from app.api.v1 import pinterest as pinterest_module
+from app.api.v1 import competitor_intelligence as competitor_intelligence_module
 
 api_router = APIRouter()
 
@@ -25,3 +26,8 @@ api_router.include_router(meta_oauth.router, prefix="/auth/meta", tags=["meta-oa
 api_router.include_router(token_usage_module.router, prefix="/token-usage", tags=["token-usage"])
 api_router.include_router(pinterest_module.router)  # prefix="/pinterest" defined on the router itself
 api_router.include_router(pinterest_module.oauth_router, prefix="/auth/pinterest", tags=["pinterest-oauth"])
+api_router.include_router(
+    competitor_intelligence_module.router,
+    prefix="/competitor-intelligence",
+    tags=["competitor-intelligence"],
+)

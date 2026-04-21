@@ -7,6 +7,8 @@ from app.core.database import Base
 
 if TYPE_CHECKING:
     from app.models.competitor_cache import CompetitorResearchCache
+    from app.models.competitor_intelligence import CompetitorIntelligenceBrief
+    from app.models.meta_api_audit_log import MetaAPIAuditLog
 
 
 class Project(Base):
@@ -40,4 +42,10 @@ class Project(Base):
 
     competitor_cache: Mapped[Optional["CompetitorResearchCache"]] = relationship(
         "CompetitorResearchCache", back_populates="project", uselist=False
+    )
+    competitor_briefs: Mapped[list["CompetitorIntelligenceBrief"]] = relationship(
+        "CompetitorIntelligenceBrief", back_populates="project", uselist=True
+    )
+    meta_audit_logs: Mapped[list["MetaAPIAuditLog"]] = relationship(
+        "MetaAPIAuditLog", back_populates="project", uselist=True
     )

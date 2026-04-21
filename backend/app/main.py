@@ -11,6 +11,8 @@ from app.api.v1.router import api_router
 import app.models.competitor_cache  # noqa: F401 — registers CompetitorResearchCache with SQLAlchemy before Project resolves relationships
 import app.models.user_meta_token  # noqa: F401 — registers UserMetaToken with SQLAlchemy at startup
 import app.models.token_usage  # noqa: F401 — registers TokenUsageLog and UserTokenLimit with SQLAlchemy at startup
+import app.models.competitor_intelligence  # noqa: F401 — registers CompetitorIntelligenceBrief
+import app.models.meta_api_audit_log  # noqa: F401 — registers MetaAPIAuditLog
 
 scheduler = None
 
@@ -226,6 +228,103 @@ async def lifespan(app: FastAPI):
         misfire_grace_time=3600,
     )
 
+    async def competitor_intelligence_job():
+        """Runs weekly Sunday at 06:00 UTC for all active projects.
+
+        Requires at least 5 competitor ads in the cache to produce a meaningful brief.
+        """
+        from app.models.project import Project
+        from app.models.competitor_cache import CompetitorResearchCache
+        from app.models.competitor_intelligence import CompetitorIntelligenceBrief
+        from app.services.claude.client import ClaudeClient
+        from sqlalchemy import select
+        import json as _json
+
+        claude = ClaudeClient()
+
+        async with AsyncSessionLocal() as db:
+            try:
+                result = await db.execute(
+                    select(Project).where(Project.is_active == True)  # noqa: E712
+                )
+                projects = result.scalars().all()
+
+                for project in projects:
+                    try:
+                        # Fetch cached competitor ads for this project
+                        cache_result = await db.execute(
+                            select(CompetitorResearchCache).where(
+                                CompetitorResearchCache.project_id == project.id
+                            )
+                        )
+                        cache = cache_result.scalar_one_or_none()
+                        if not cache or not cache.research_json:
+                            logger.info(
+                                "[CompetitorIntel] Skipping project %s — no competitor cache",
+                                project.id,
+                            )
+                            continue
+
+                        # Extract ads list from research_json
+                        research = cache.research_json
+                        if isinstance(research, str):
+                            try:
+                                research = _json.loads(research)
+                            except Exception:
+                                research = {}
+
+                        ads_list: list[dict] = []
+                        if isinstance(research, list):
+                            ads_list = research
+                        elif isinstance(research, dict):
+                            ads_list = research.get("ads", [])
+
+                        if len(ads_list) < 5:
+                            logger.info(
+                                "[CompetitorIntel] Skipping project %s — only %d ads cached (need 5+)",
+                                project.id, len(ads_list),
+                            )
+                            continue
+
+                        logger.info(
+                            "[CompetitorIntel] Generating brief for project %s with %d ads",
+                            project.id, len(ads_list),
+                        )
+                        brief_data = await claude.analyze_competitor_brief(
+                            competitor_ads=ads_list,
+                            content_config=project.content_config or {},
+                        )
+
+                        brief_record = CompetitorIntelligenceBrief(
+                            project_id=project.id,
+                            analyzed_ads_count=len(ads_list),
+                            brief=brief_data,
+                        )
+                        db.add(brief_record)
+                        await db.commit()
+                        logger.info(
+                            "[CompetitorIntel] Competitor brief generated for project %s: %d ads analyzed",
+                            project.id, len(ads_list),
+                        )
+                    except Exception as e:
+                        logger.exception(
+                            "[CompetitorIntel] Error generating brief for project %s: %s",
+                            project.id, e,
+                        )
+
+            except Exception as e:
+                logger.exception("[CompetitorIntel] Job error: %s", e)
+
+    scheduler.add_job(
+        competitor_intelligence_job,
+        CronTrigger(day_of_week="sun", hour=6, minute=0),
+        id="competitor_intelligence",
+        replace_existing=True,
+        max_instances=1,
+        coalesce=True,
+        misfire_grace_time=3600,
+    )
+
     async def sync_campaign_statuses_job():
         """Sync AdCampaign.status with Meta effective_status every 6 hours."""
         from app.models.ad_campaign import AdCampaign
@@ -303,6 +402,7 @@ async def lifespan(app: FastAPI):
     logger.info("[Scheduler] Scheduled posts publisher started — runs every 5 minutes")
     logger.info("[Scheduler] Weekly ads audit started — runs every Monday at 07:00 UTC")
     logger.info("[Scheduler] Campaign status sync started — runs every 6 hours")
+    logger.info("[Scheduler] Competitor intelligence brief started — runs every Sunday at 06:00 UTC")
 
     yield
 

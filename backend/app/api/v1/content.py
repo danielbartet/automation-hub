@@ -317,6 +317,12 @@ async def generate_content(
             effective_media_config = dict(media_config)
             if not effective_media_config.get("brand_handle"):
                 effective_media_config["brand_handle"] = project.slug.replace("-", "")
+            # Inject brand colors from content_config as fallback when media_config has no override
+            _cc = project.content_config or {}
+            if not effective_media_config.get("image_bg_color") and _cc.get("brand_bg_color"):
+                effective_media_config["brand_bg_color"] = _cc["brand_bg_color"]
+            if not effective_media_config.get("image_primary_color") and _cc.get("brand_primary_color"):
+                effective_media_config["brand_primary_color"] = _cc["brand_primary_color"]
             logger.info(f"media_config for {project.slug}: {media_config}")
             logger.info(f"image_provider: {media_config.get('image_provider')}")
             logger.info(f"image_bg_color: {media_config.get('image_bg_color')}")
@@ -717,6 +723,36 @@ async def _publish_post_to_meta(post: ContentPost, project: Project, db: AsyncSe
                 )
         else:
             logger.info("Post %s: skipping Facebook (no facebook_page_id configured)", post.id)
+
+        # Audit log — Instagram result
+        if project.instagram_account_id and publish_image_urls:
+            from app.services.meta.audit import log_meta_operation
+            await log_meta_operation(
+                db=db,
+                project_id=project.id,
+                operation="publish_post",
+                entity_type="post",
+                success=instagram_media_id is not None,
+                entity_id=instagram_media_id,
+                payload={"platform": "instagram", "post_id": post.id, "image_count": len(publish_image_urls)},
+                response_status=200 if instagram_media_id else None,
+                error_message=str(ig_error) if ig_error else None,
+            )
+
+        # Audit log — Facebook result
+        if project.facebook_page_id:
+            from app.services.meta.audit import log_meta_operation
+            await log_meta_operation(
+                db=db,
+                project_id=project.id,
+                operation="publish_post",
+                entity_type="post",
+                success=facebook_post_id is not None,
+                entity_id=facebook_post_id,
+                payload={"platform": "facebook", "post_id": post.id, "image_count": len(publish_image_urls)},
+                response_status=200 if facebook_post_id else None,
+                error_message=str(fb_error) if fb_error else None,
+            )
 
         # Determine outcome: published if at least one platform succeeded
         at_least_one_success = instagram_media_id is not None or facebook_post_id is not None

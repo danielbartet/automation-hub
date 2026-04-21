@@ -27,9 +27,24 @@ class HTMLSlideRenderer(BaseImageProvider):
         return html.escape(str(text or ""))
 
     def _base_css(self, mc: dict) -> str:
-        """Return global CSS variables and resets derived from media_config."""
-        bg = mc.get("image_bg_color", mc.get("bg_color", "#0a0a0a"))
-        primary = mc.get("image_primary_color", mc.get("primary_color", "#00FF41"))
+        """Return global CSS variables and resets derived from media_config.
+
+        Color resolution order (first non-empty wins):
+          image_bg_color → bg_color → brand_bg_color → "#0a0a0a"
+          image_primary_color → primary_color → brand_primary_color → "#00FF41"
+        brand_* keys come from content_config and are injected by callers when media_config
+        does not yet have explicit overrides.
+        """
+        bg = (
+            mc.get("image_bg_color")
+            or mc.get("bg_color")
+            or mc.get("brand_bg_color", "#0a0a0a")
+        )
+        primary = (
+            mc.get("image_primary_color")
+            or mc.get("primary_color")
+            or mc.get("brand_primary_color", "#00FF41")
+        )
         secondary = mc.get("image_secondary_color", mc.get("secondary_color", "#ffffff"))
         accent = mc.get("accent_color", primary)
         font_family = mc.get("image_fonts", mc.get("fonts", "'Space Grotesk', sans-serif"))

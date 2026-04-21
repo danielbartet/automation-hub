@@ -55,6 +55,73 @@ class ProjectUpdate(BaseModel):
     media_config: Optional[dict] = None
 
 
+PROJECT_TEMPLATES = [
+    {
+        "id": "tech_saas",
+        "name": "Tech SaaS",
+        "description": "B2B software product targeting professionals",
+        "content_config": {
+            "market_region": "North America",
+            "brand_voice": "educational",
+            "posting_timezone": "America/New_York",
+            "optimizer_config": {"cpl_threshold": 15.0, "roas_threshold": 3.0, "cpc_threshold": 1.50},
+            "content_categories": ["product_features", "tutorials", "case_studies", "industry_news"],
+        },
+    },
+    {
+        "id": "ecommerce",
+        "name": "E-commerce",
+        "description": "Product-based business selling online",
+        "content_config": {
+            "market_region": "Global",
+            "brand_voice": "conversational",
+            "optimizer_config": {"cpl_threshold": 3.0, "roas_threshold": 4.0, "cpc_threshold": 0.50},
+            "content_categories": ["product_showcase", "promotions", "testimonials", "lifestyle"],
+        },
+    },
+    {
+        "id": "coaching",
+        "name": "Coaching / Education",
+        "description": "Personal brand, courses, consulting",
+        "content_config": {
+            "market_region": "LATAM",
+            "brand_voice": "bold",
+            "posting_timezone": "America/Argentina/Buenos_Aires",
+            "optimizer_config": {"cpl_threshold": 5.0, "roas_threshold": 2.0, "cpc_threshold": 0.30},
+            "content_categories": ["transformation", "educational", "social_proof", "urgency"],
+        },
+    },
+    {
+        "id": "b2b_agency",
+        "name": "B2B Agency / Services",
+        "description": "Agency or professional services firm",
+        "content_config": {
+            "market_region": "North America",
+            "brand_voice": "formal",
+            "optimizer_config": {"cpl_threshold": 25.0, "roas_threshold": 2.5, "cpc_threshold": 2.00},
+            "content_categories": ["case_studies", "thought_leadership", "process", "results"],
+        },
+    },
+    {
+        "id": "local_business",
+        "name": "Local Business",
+        "description": "Brick-and-mortar or local service business",
+        "content_config": {
+            "market_region": "LATAM",
+            "brand_voice": "conversational",
+            "optimizer_config": {"cpl_threshold": 4.0, "roas_threshold": 3.0, "cpc_threshold": 0.40},
+            "content_categories": ["promotions", "community", "behind_scenes", "testimonials"],
+        },
+    },
+]
+
+
+@router.get("/templates")
+async def list_project_templates() -> list[dict]:
+    """Return available project setup templates. No auth required."""
+    return PROJECT_TEMPLATES
+
+
 @router.get("/", response_model=list[ProjectResponse])
 async def list_projects(
     db: AsyncSession = Depends(get_session),

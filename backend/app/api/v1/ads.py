@@ -579,6 +579,21 @@ async def create_campaign(
         await db.commit()
         await db.refresh(campaign)
 
+        # Audit log — campaign created (Andromeda path)
+        from app.services.meta.audit import log_meta_operation
+        await log_meta_operation(
+            db=db,
+            project_id=project.id,
+            operation="create_campaign",
+            entity_type="campaign",
+            success=True,
+            entity_id=meta_ids["campaign_id"],
+            payload={"name": body.name, "objective": body.objective, "daily_budget": body.daily_budget, "concepts_count": approved_count},
+            response_status=200,
+            user_id=getattr(_current_user, "id", None),
+        )
+        await db.commit()
+
         return {
             "id": campaign.id,
             "meta_campaign_id": meta_ids["campaign_id"],
@@ -631,6 +646,21 @@ async def create_campaign(
     await db.commit()
     await db.refresh(campaign)
 
+    # Audit log — campaign created (legacy single-creative path)
+    from app.services.meta.audit import log_meta_operation
+    await log_meta_operation(
+        db=db,
+        project_id=project.id,
+        operation="create_campaign",
+        entity_type="campaign",
+        success=True,
+        entity_id=meta_ids["campaign_id"],
+        payload={"name": body.name, "objective": body.objective, "daily_budget": body.daily_budget},
+        response_status=200,
+        user_id=getattr(_current_user, "id", None),
+    )
+    await db.commit()
+
     return {
         "id": campaign.id,
         "meta_campaign_id": meta_ids["campaign_id"],
@@ -660,11 +690,34 @@ async def update_campaign_status(
     token = await get_project_token(project, db) if project else ""
 
     meta_status = "ACTIVE" if body.status == "active" else "PAUSED"
+    operation = "activate_campaign" if body.status == "active" else "pause_campaign"
+    meta_error: str | None = None
+    meta_success = False
 
     if token and campaign.meta_campaign_id:
-        await meta_service.set_campaign_status(token, campaign.meta_campaign_id, meta_status)
+        try:
+            await meta_service.set_campaign_status(token, campaign.meta_campaign_id, meta_status)
+            meta_success = True
+        except Exception as e:
+            meta_error = str(e)
+            raise HTTPException(500, f"Meta API error: {e}") from e
 
     campaign.status = body.status
+
+    # Audit log — campaign status change
+    from app.services.meta.audit import log_meta_operation
+    await log_meta_operation(
+        db=db,
+        project_id=campaign.project_id,
+        operation=operation,
+        entity_type="campaign",
+        success=meta_success,
+        entity_id=campaign.meta_campaign_id,
+        payload={"new_status": body.status},
+        response_status=200 if meta_success else None,
+        error_message=meta_error,
+        user_id=getattr(current_user, "id", None),
+    )
     await db.commit()
     return {"id": campaign.id, "status": campaign.status}
 
@@ -1917,12 +1970,41 @@ async def update_campaign_budget(
     project = proj_result.scalar_one_or_none()
     token = await get_project_token(project, db) if project else ""
 
+    old_budget = campaign.daily_budget
+    budget_error: str | None = None
+    budget_success = False
+
     if token and campaign.meta_adset_id:
-        await meta_service.update_adset_budget(token, campaign.meta_adset_id, body.daily_budget)
+        try:
+            await meta_service.update_adset_budget(token, campaign.meta_adset_id, body.daily_budget)
+            budget_success = True
+        except Exception as e:
+            budget_error = str(e)
+            raise HTTPException(500, f"Meta API error: {e}") from e
     elif token and campaign.meta_campaign_id:
-        await meta_service.update_campaign_budget(token, campaign.meta_campaign_id, body.daily_budget)
+        try:
+            await meta_service.update_campaign_budget(token, campaign.meta_campaign_id, body.daily_budget)
+            budget_success = True
+        except Exception as e:
+            budget_error = str(e)
+            raise HTTPException(500, f"Meta API error: {e}") from e
 
     campaign.daily_budget = body.daily_budget
+
+    # Audit log — budget update
+    from app.services.meta.audit import log_meta_operation
+    await log_meta_operation(
+        db=db,
+        project_id=campaign.project_id,
+        operation="update_budget",
+        entity_type="budget",
+        success=budget_success,
+        entity_id=campaign.meta_campaign_id,
+        payload={"old_budget": old_budget, "new_budget": body.daily_budget},
+        response_status=200 if budget_success else None,
+        error_message=budget_error,
+        user_id=getattr(_current_user, "id", None),
+    )
     await db.commit()
     return {"id": campaign.id, "daily_budget": campaign.daily_budget}
 
@@ -2242,4 +2324,91 @@ async def attribution_check(
 
     return result
 
+
+# ── Audit Log ─────────────────────────────────────────────────────────────────
+
+@router.get("/audit-log/{project_slug}")
+async def get_audit_log(
+    project_slug: str,
+    start_date: str | None = None,
+    end_date: str | None = None,
+    operation: str | None = None,
+    success: bool | None = None,
+    limit: int = 100,
+    db: AsyncSession = Depends(get_session),
+    current_user=Depends(get_current_user),
+) -> dict:
+    """Return paginated Meta API audit log entries for a project.
+
+    Admin-only. Query params: start_date, end_date (ISO date), operation, success, limit (max 500).
+    """
+    from datetime import date
+    from sqlalchemy import and_
+    from app.models.meta_api_audit_log import MetaAPIAuditLog
+    from app.api.deps import assert_project_access
+
+    if current_user.role not in ("admin", "super_admin"):
+        raise HTTPException(status_code=403, detail="Audit log is admin-only")
+
+    proj_result = await db.execute(select(Project).where(Project.slug == project_slug))
+    project = proj_result.scalar_one_or_none()
+    if not project:
+        raise HTTPException(status_code=404, detail=f"Project '{project_slug}' not found")
+
+    await assert_project_access(current_user, project.id, db)
+
+    # Clamp limit
+    limit = min(max(1, limit), 500)
+
+    filters = [MetaAPIAuditLog.project_id == project.id]
+
+    if start_date:
+        try:
+            filters.append(
+                MetaAPIAuditLog.timestamp >= datetime.fromisoformat(start_date)
+            )
+        except ValueError:
+            raise HTTPException(422, f"Invalid start_date: {start_date}")
+
+    if end_date:
+        try:
+            filters.append(
+                MetaAPIAuditLog.timestamp <= datetime.fromisoformat(end_date)
+            )
+        except ValueError:
+            raise HTTPException(422, f"Invalid end_date: {end_date}")
+
+    if operation:
+        filters.append(MetaAPIAuditLog.operation == operation)
+
+    if success is not None:
+        filters.append(MetaAPIAuditLog.success == success)
+
+    result = await db.execute(
+        select(MetaAPIAuditLog)
+        .where(and_(*filters))
+        .order_by(MetaAPIAuditLog.timestamp.desc())
+        .limit(limit)
+    )
+    logs = result.scalars().all()
+
+    return {
+        "project_slug": project_slug,
+        "count": len(logs),
+        "limit": limit,
+        "entries": [
+            {
+                "id": log.id,
+                "timestamp": log.timestamp.isoformat(),
+                "operation": log.operation,
+                "entity_type": log.entity_type,
+                "entity_id": log.entity_id,
+                "success": log.success,
+                "response_status": log.response_status,
+                "error_message": log.error_message,
+                "user_id": log.user_id,
+            }
+            for log in logs
+        ],
+    }
 

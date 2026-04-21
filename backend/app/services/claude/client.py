@@ -110,6 +110,17 @@ class ClaudeClient:
         categories_text = "\n".join([f"{i+1}. {cat}" for i, cat in enumerate(categories)])
         rules_text = "\n".join([f"- {rule}" for rule in additional_rules]) if additional_rules else ""
 
+        # Brand voice instruction
+        brand_voice = config.get("brand_voice", "conversational")
+        VOICE_STYLES = {
+            "formal": "Use precise, authoritative language. Avoid contractions. Write in third person when addressing the brand.",
+            "conversational": "Write as if talking to a friend. Use 'you' directly. Keep it warm and approachable.",
+            "bold": "Be direct and provocative. Short sentences. Strong statements. Never hedge.",
+            "educational": "Explain concepts clearly. Use analogies and examples. Break down complexity.",
+            "playful": "Light tone, humor welcome. Avoid corporate language. Emojis are acceptable when natural.",
+        }
+        voice_instruction = VOICE_STYLES.get(brand_voice, VOICE_STYLES["conversational"])
+
         # Regional intelligence block
         intel = MARKET_INTELLIGENCE.get(market_region, MARKET_INTELLIGENCE["Global"])
         regional_block = f"""MARKET INTELLIGENCE ({market_region}):
@@ -200,6 +211,9 @@ BRAND POSITIONING:
 
 TONE:
 {tone}
+
+BRAND VOICE ({brand_voice}):
+{voice_instruction}
 
 CONTENT CATEGORIES (rotate between these):
 {categories_text}
@@ -1214,6 +1228,102 @@ Return ONLY valid JSON:
                     break
 
         return validated
+
+    async def analyze_competitor_brief(
+        self,
+        competitor_ads: list[dict],
+        content_config: dict | None = None,
+    ) -> dict:
+        """Analyze competitor ads and return a structured weekly intelligence brief.
+
+        Returns a dict with keys: hook_patterns, angle_distribution, cta_distribution,
+        copy_length, dominant_style, opportunity_gap, weekly_recommendation.
+        """
+        cfg = content_config or {}
+        market_region = cfg.get("market_region", "Global")
+        target_audience = cfg.get("target_audience", "")
+        language = cfg.get("language", "en")
+
+        ads_payload = json.dumps(
+            [
+                {
+                    "page_name": ad.get("page_name", ad.get("competitor", "")),
+                    "body": (ad.get("body") or (ad.get("ad_creative_bodies") or [""])[0])[:200],
+                    "headline": ad.get("title", ad.get("headline", "")),
+                    "cta": ad.get("cta", ""),
+                    "days_active": ad.get("days_active", 0),
+                }
+                for ad in competitor_ads[:30]
+            ],
+            ensure_ascii=False,
+        )
+
+        system_prompt = f"""You are a competitive intelligence analyst specializing in digital advertising for {market_region} markets.
+
+Target audience context: {target_audience}
+Language: {language}
+
+Analyze the provided competitor ads and identify:
+1. Hook patterns — common opening structures (e.g. "How to X in Y", question hooks, shock stats)
+2. Angle distribution — what percentage use each narrative angle
+3. CTA distribution — most common call-to-action phrases
+4. Copy length patterns — median, min, max character counts for ad body
+5. Dominant style — one sentence describing the dominant creative approach
+6. Opportunity gap — what NO competitor is currently doing (the whitespace)
+7. Weekly recommendation — one concrete, actionable recommendation for this week
+
+Return ONLY valid JSON matching this exact schema, no other text:
+{{
+  "hook_patterns": [{{"pattern": "string", "frequency": 0.00}}],
+  "angle_distribution": {{"Transformation": 0.00, "Educational": 0.00, "Social Proof": 0.00, "Urgency": 0.00, "Identity": 0.00, "Comparative": 0.00}},
+  "cta_distribution": {{"Learn More": 0.00}},
+  "copy_length": {{"median": 0, "min": 0, "max": 0}},
+  "dominant_style": "string",
+  "opportunity_gap": "string",
+  "weekly_recommendation": "string"
+}}"""
+
+        try:
+            response = await self.client.messages.create(
+                model=self.MODEL,
+                max_tokens=1500,
+                system=[
+                    {
+                        "type": "text",
+                        "text": system_prompt,
+                        "cache_control": {"type": "ephemeral"},
+                    }
+                ],
+                messages=[
+                    {
+                        "role": "user",
+                        "content": f"Analyze these {len(competitor_ads)} competitor ads:\n{ads_payload}",
+                    }
+                ],
+                extra_headers={"anthropic-beta": "prompt-caching-2024-07-31"},
+            )
+        except anthropic.RateLimitError as e:
+            logger.warning("Claude rate limit in analyze_competitor_brief: %s", e)
+            raise
+        except anthropic.APIConnectionError as e:
+            logger.warning("Claude connection error in analyze_competitor_brief: %s", e)
+            raise
+        except anthropic.APIError as e:
+            logger.error("Claude API error in analyze_competitor_brief: %s", e)
+            raise
+
+        content = response.content[0].text.strip()
+        if content.startswith("```"):
+            content = content.split("```", 2)[1]
+            if content.startswith("json"):
+                content = content[4:]
+            content = content.rsplit("```", 1)[0].strip()
+
+        try:
+            return json.loads(content)
+        except json.JSONDecodeError as e:
+            logger.error("analyze_competitor_brief: failed to parse Claude JSON: %s", e)
+            raise
 
     async def generate_ab_test_variants(
         self,

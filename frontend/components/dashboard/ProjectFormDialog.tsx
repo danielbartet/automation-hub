@@ -211,6 +211,10 @@ export function ProjectFormDialog({ project, onClose, onSuccess }: ProjectFormDi
   const [instagramAccountId, setInstagramAccountId] = useState((project as unknown as Record<string, string>).instagram_account_id ?? "");
   const [adAccountId, setAdAccountId] = useState(project.ad_account_id ?? "");
 
+  // Tab 3 (Brand) — brand_voice
+  const [brandVoice, setBrandVoice] = useState((cc.brand_voice as string) ?? "conversational");
+  const [brandName, setBrandName] = useState((cc.brand_name as string) ?? "");
+
   // Tab 4 — Marca y Visual
   const [brandPrimaryColor, setBrandPrimaryColor] = useState((cc.brand_primary_color as string) ?? "#7c3aed");
   const [brandSecondaryColor, setBrandSecondaryColor] = useState((cc.brand_secondary_color as string) ?? "#00FF41");
@@ -320,6 +324,8 @@ export function ProjectFormDialog({ project, onClose, onSuccess }: ProjectFormDi
           .split(",")
           .map((c) => c.trim())
           .filter(Boolean),
+        brand_name: brandName || (cc.brand_name as string) || undefined,
+        brand_voice: brandVoice,
         brand_primary_color: brandPrimaryColor,
         brand_secondary_color: brandSecondaryColor,
         brand_bg_color: brandBgColor,
@@ -770,6 +776,36 @@ export function ProjectFormDialog({ project, onClose, onSuccess }: ProjectFormDi
           {/* ── TAB 3: Marca y Visual ── */}
           {tab === 3 && (
             <div className="space-y-6">
+              {/* Brand Name */}
+              <div>
+                <label className="block text-sm font-medium text-white mb-1">Brand Name</label>
+                <input
+                  type="text"
+                  value={brandName}
+                  onChange={(e) => setBrandName(e.target.value)}
+                  className="w-full rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-[#7c3aed]"
+                  style={inputStyle}
+                  placeholder="e.g. Quantoria Labs"
+                />
+              </div>
+
+              {/* Brand Voice */}
+              <div>
+                <label className="block text-sm font-medium text-white mb-1">Brand Voice</label>
+                <select
+                  value={brandVoice}
+                  onChange={(e) => setBrandVoice(e.target.value)}
+                  className="w-full rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-[#7c3aed]"
+                  style={inputStyle}
+                >
+                  <option value="formal">Formal — Precise, authoritative language</option>
+                  <option value="conversational">Conversational — Friendly, direct, use &apos;you&apos;</option>
+                  <option value="bold">Bold — Direct, provocative, short sentences</option>
+                  <option value="educational">Educational — Clear explanations with analogies</option>
+                  <option value="playful">Playful — Light tone, humor welcome</option>
+                </select>
+              </div>
+
               {/* Color pickers */}
               <div>
                 <label className="block text-sm font-medium text-white mb-3">{t.form_brand_colors_label}</label>

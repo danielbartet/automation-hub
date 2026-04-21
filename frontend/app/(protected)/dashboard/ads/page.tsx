@@ -32,6 +32,18 @@ import {
   ResponsiveContainer,
 } from "recharts";
 
+interface AuditLogEntry {
+  id: number;
+  timestamp: string;
+  operation: string;
+  entity_type: string;
+  entity_id: string | null;
+  success: boolean;
+  response_status: number | null;
+  error_message: string | null;
+  user_id: number | null;
+}
+
 interface CampaignKPIs {
   leads?: number;
   cpl?: number;
@@ -96,6 +108,7 @@ export default function AdsPage() {
   const t = useT();
   const { data: session } = useSession();
   const isClient = session?.user?.role === "client";
+  const isAdmin = session?.user?.role === "admin" || session?.user?.role === "super_admin";
   const token = (session as { accessToken?: string } | null)?.accessToken ?? "";
   const { selectedSlug, selectedProject: ctxSelectedProject, loading: loadingProjects } = useProject();
   const [data, setData] = useState<DashboardData | null>(null);
@@ -108,7 +121,9 @@ export default function AdsPage() {
   const [importError, setImportError] = useState<string | null>(null);
   const [allRecommendations, setAllRecommendations] = useState<CampaignRecommendations[]>([]);
   const [recsToast, setRecsToast] = useState<string | null>(null);
-  const [activeTab, setActiveTab] = useState<"campaigns" | "inspiration">("campaigns");
+  const [activeTab, setActiveTab] = useState<"campaigns" | "inspiration" | "audit_log">("campaigns");
+  const [auditLog, setAuditLog] = useState<AuditLogEntry[]>([]);
+  const [auditLoading, setAuditLoading] = useState(false);
   const [inspirationPrefill, setInspirationPrefill] = useState<InspirationPrefill | undefined>(undefined);
   const [projectContentConfig, setProjectContentConfig] = useState<Record<string, unknown> | undefined>(undefined);
   const loadData = useCallback(() => {
@@ -220,6 +235,20 @@ export default function AdsPage() {
       .catch(() => setProjectContentConfig(undefined));
   }, [selectedSlug, token]);
 
+  // Fetch audit log when tab is active (admin only)
+  useEffect(() => {
+    if (activeTab !== "audit_log" || !selectedSlug || !token || !isAdmin) return;
+    setAuditLoading(true);
+    const api = process.env.NEXT_PUBLIC_API_URL ?? "http://localhost:8000";
+    fetch(`${api}/api/v1/ads/audit-log/${selectedSlug}?limit=50`, {
+      headers: { Authorization: `Bearer ${token}` },
+    })
+      .then((r) => (r.ok ? r.json() : { entries: [] }))
+      .then((data) => setAuditLog(data.entries ?? []))
+      .catch(() => setAuditLog([]))
+      .finally(() => setAuditLoading(false));
+  }, [activeTab, selectedSlug, token, isAdmin]);
+
   const handleAdapted = (prefill: InspirationPrefill) => {
     setInspirationPrefill(prefill);
     setShowCreateModal(true);
@@ -291,12 +320,91 @@ export default function AdsPage() {
                 {tab === "campaigns" ? t.ads_campaigns_tab : t.ads_inspiration_tab}
               </button>
             ))}
+            {/* Audit Log tab — admin only */}
+            {isAdmin && (
+              <button
+                onClick={() => { setActiveTab("audit_log"); setInspirationPrefill(undefined); }}
+                className="px-4 py-2 text-sm font-medium transition-colors"
+                style={
+                  activeTab === "audit_log"
+                    ? { color: "#ffffff", borderBottom: "2px solid #7c3aed" }
+                    : { color: "#9ca3af", borderBottom: "2px solid transparent" }
+                }
+              >
+                Audit Log
+              </button>
+            )}
           </div>
         )}
 
         {error && (
           <div className="rounded-md p-4 text-sm text-red-400" style={{ backgroundColor: "#450a0a", border: "1px solid #7f1d1d" }}>
             Error: {error}
+          </div>
+        )}
+
+        {/* ── Audit Log tab ── */}
+        {activeTab === "audit_log" && isAdmin && (
+          <div className="rounded-lg overflow-hidden" style={{ backgroundColor: "#111111", border: "1px solid #222222" }}>
+            <div className="px-6 py-4" style={{ borderBottom: "1px solid #222222" }}>
+              <h3 className="text-base font-semibold text-white">Meta API Audit Log</h3>
+              <p className="text-xs mt-0.5" style={{ color: "#9ca3af" }}>Last 50 Meta Graph API write operations</p>
+            </div>
+            {auditLoading ? (
+              <div className="flex items-center justify-center h-40 text-sm" style={{ color: "#9ca3af" }}>
+                <Loader2 className="h-5 w-5 animate-spin mr-2" />
+                Loading…
+              </div>
+            ) : auditLog.length === 0 ? (
+              <div className="flex items-center justify-center h-40 text-sm" style={{ color: "#9ca3af" }}>
+                No audit log entries yet.
+              </div>
+            ) : (
+              <div className="overflow-x-auto">
+                <table className="w-full text-sm">
+                  <thead style={{ backgroundColor: "#111111", borderBottom: "1px solid #222222" }}>
+                    <tr>
+                      <th className="text-left px-4 py-3 font-medium text-xs" style={{ color: "#9ca3af" }}>Timestamp</th>
+                      <th className="text-left px-4 py-3 font-medium text-xs" style={{ color: "#9ca3af" }}>Operation</th>
+                      <th className="text-left px-4 py-3 font-medium text-xs" style={{ color: "#9ca3af" }}>Entity</th>
+                      <th className="text-left px-4 py-3 font-medium text-xs" style={{ color: "#9ca3af" }}>Status</th>
+                      <th className="text-left px-4 py-3 font-medium text-xs" style={{ color: "#9ca3af" }}>Error</th>
+                    </tr>
+                  </thead>
+                  <tbody>
+                    {auditLog.map((entry, i) => (
+                      <tr
+                        key={entry.id}
+                        style={{ borderTop: i > 0 ? "1px solid #1a1a1a" : undefined }}
+                      >
+                        <td className="px-4 py-3 text-xs" style={{ color: "#9ca3af", whiteSpace: "nowrap" }}>
+                          {new Date(entry.timestamp).toLocaleString()}
+                        </td>
+                        <td className="px-4 py-3 text-xs font-mono text-white">{entry.operation}</td>
+                        <td className="px-4 py-3 text-xs" style={{ color: "#9ca3af" }}>
+                          {entry.entity_type}{entry.entity_id ? ` · ${entry.entity_id}` : ""}
+                        </td>
+                        <td className="px-4 py-3">
+                          <span
+                            className="inline-flex items-center px-2 py-0.5 rounded-full text-xs font-medium"
+                            style={
+                              entry.success
+                                ? { backgroundColor: "#052e16", color: "#4ade80", border: "1px solid #166534" }
+                                : { backgroundColor: "#450a0a", color: "#f87171", border: "1px solid #7f1d1d" }
+                            }
+                          >
+                            {entry.success ? "OK" : "FAIL"}
+                          </span>
+                        </td>
+                        <td className="px-4 py-3 text-xs max-w-[200px] truncate" style={{ color: "#f87171" }} title={entry.error_message ?? ""}>
+                          {entry.error_message ?? "—"}
+                        </td>
+                      </tr>
+                    ))}
+                  </tbody>
+                </table>
+              </div>
+            )}
           </div>
         )}
 
