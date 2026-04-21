@@ -834,6 +834,41 @@ REGLAS:
             raise ValueError("Empty caption returned by Claude")
         return caption
 
+    def _enforce_meta_limits(self, concept: dict) -> dict:
+        """Truncate ad copy fields to Meta platform limits at word boundaries."""
+        limits = {
+            "body": 125,
+            "hook_3s": 80,
+            "headline": 40,
+            "description": 30,
+        }
+        for field, max_len in limits.items():
+            value = concept.get(field, "")
+            if value and len(value) > max_len:
+                truncated = value[:max_len].rsplit(" ", 1)[0]
+                logger.warning(
+                    f"Meta copy limit: field '{field}' truncated from {len(value)} to {len(truncated)} chars (limit: {max_len})"
+                )
+                concept[field] = truncated
+        return concept
+
+    def _validate_pda_diversity(self, concepts: list[dict]) -> None:
+        """Log warnings if PDA (Persona-Desire-Awareness) diversity is insufficient."""
+        personas = [c.get("persona") for c in concepts if c.get("persona")]
+        awarenesses = [c.get("awareness") for c in concepts if c.get("awareness")]
+
+        unique_personas = len(set(personas))
+        unique_awarenesses = len(set(awarenesses))
+
+        if unique_personas < 3:
+            logger.warning(
+                f"PDA diversity warning: only {unique_personas} distinct personas found in concept batch (recommend ≥3)"
+            )
+        if unique_awarenesses < 2:
+            logger.warning(
+                f"PDA diversity warning: only {unique_awarenesses} distinct awareness levels found (recommend ≥2)"
+            )
+
     async def generate_ad_concepts(
         self,
         project,
@@ -1023,6 +1058,8 @@ Return ONLY valid JSON:
             raise ValueError(f"Claude response missing 'concepts' key. Got: {list(result.keys())}")
         concepts = result.get("concepts", [])
         concepts = self._validate_entity_diversity(concepts)
+        concepts = [self._enforce_meta_limits(c) for c in concepts]
+        self._validate_pda_diversity(concepts)
         result["concepts"] = concepts
         return result
 

@@ -443,7 +443,14 @@ Return your JSON decision."""
             if campaign.id in pending_campaign_ids:
                 action_taken = "NO_ACTION"  # already has a pending SCALE/PAUSE notification
             else:
-                new_budget = round(old_budget * analysis.get("new_budget_multiplier", 1.2), 2)
+                MAX_BUDGET_MULTIPLIER = 1.3
+                proposed_multiplier = analysis.get("new_budget_multiplier", 1.2)
+                safe_multiplier = min(proposed_multiplier, MAX_BUDGET_MULTIPLIER)
+                if safe_multiplier < proposed_multiplier:
+                    logger.warning(
+                        f"Budget multiplier capped from {proposed_multiplier} to {MAX_BUDGET_MULTIPLIER} for campaign {campaign.id}"
+                    )
+                new_budget = round(old_budget * safe_multiplier, 2)
                 new_budget = max(new_budget, 10.0)
                 approval_token = str(uuid_module.uuid4())[:16]
                 await notification_svc.create(

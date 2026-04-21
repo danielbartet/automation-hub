@@ -48,7 +48,7 @@ class CreateCampaignRequest(BaseModel):
     name: str
     objective: str  # OUTCOME_LEADS | OUTCOME_SALES | OUTCOME_TRAFFIC | OUTCOME_AWARENESS
     daily_budget: float  # dollars
-    countries: list[str] = ["AR", "MX", "CO", "CL"]
+    countries: list[str] = Field(default_factory=list)
     # Legacy single-creative fields (optional when concepts provided)
     image_url: str | None = None
     ad_copy: str | None = None
@@ -429,6 +429,16 @@ async def create_campaign(
         raise HTTPException(400, "Project missing meta_access_token or ad_account_id")
     if not facebook_page_id:
         raise HTTPException(400, "Project missing facebook_page_id")
+
+    if not body.countries:
+        raise HTTPException(status_code=422, detail="Select at least one target country for this campaign.")
+
+    MIN_DAILY_BUDGET = 10.00
+    if body.daily_budget < MIN_DAILY_BUDGET:
+        raise HTTPException(
+            status_code=422,
+            detail=f"Daily budget must be at least $10.00 to exit the learning phase. Current value: ${body.daily_budget:.2f}"
+        )
 
     # Andromeda multi-concept path
     if body.concepts is not None:
@@ -1848,6 +1858,13 @@ async def update_campaign_budget(
         campaign = result.scalar_one_or_none()
     if not campaign:
         raise HTTPException(404, "Campaign not found")
+
+    MIN_DAILY_BUDGET = 10.00
+    if body.daily_budget < MIN_DAILY_BUDGET:
+        raise HTTPException(
+            status_code=422,
+            detail=f"Daily budget must be at least $10.00 to exit the learning phase. Current value: ${body.daily_budget:.2f}"
+        )
 
     proj_result = await db.execute(select(Project).where(Project.id == campaign.project_id))
     project = proj_result.scalar_one_or_none()

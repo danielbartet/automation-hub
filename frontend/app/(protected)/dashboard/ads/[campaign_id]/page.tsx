@@ -492,6 +492,12 @@ export default function CampaignDetailPage() {
   const ins = detail.insights_summary
   const objective = detail.campaign.objective
 
+  // ── Learning phase detection ───────────────────────────────────────────────
+  const createdAt = new Date(detail.campaign.created_at)
+  const now = new Date()
+  const daysRunning = Math.floor((now.getTime() - createdAt.getTime()) / (1000 * 60 * 60 * 24))
+  const isInLearningPhase = daysRunning < 7
+
   // ── KPI grid based on objective ────────────────────────────────────────────
   const hasEngagement = (ins.post_reactions ?? 0) > 0 || (ins.comments ?? 0) > 0 || (ins.post_saves ?? 0) > 0 || (ins.video_views ?? 0) > 0 || (ins.page_engagement ?? 0) > 0
 
@@ -1156,6 +1162,17 @@ export default function CampaignDetailPage() {
           <p className="text-xs mb-4" style={{ color: "#6b7280" }}>
             Los datos provienen de Meta Ads API · Ventana de atribución: 7 días clic + 1 día vista · Pequeñas diferencias con el Ads Manager son normales (zona horaria de reporte, ventana configurada a nivel cuenta, actualización ~1h).
           </p>
+        )}
+
+        {/* ── LEARNING PHASE BANNER ───────────────────────────────────────── */}
+        {activeTab === "overview" && isInLearningPhase && (
+          <div className="flex items-start gap-3 rounded-lg border border-amber-200 bg-amber-50 px-4 py-3 text-amber-800 dark:border-amber-800 dark:bg-amber-950 dark:text-amber-200">
+            <span className="mt-0.5 text-lg leading-none">⚠️</span>
+            <div className="text-sm">
+              <span className="font-semibold">Fase de aprendizaje ({daysRunning}/7 días). </span>
+              <span>Evitá modificar el presupuesto, audiencia o creativos hasta completar los 7 días — cualquier cambio reinicia el proceso.</span>
+            </div>
+          </div>
         )}
 
         {/* ── KPI CARDS ───────────────────────────────────────────────────── */}

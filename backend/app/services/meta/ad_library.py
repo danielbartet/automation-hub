@@ -31,8 +31,9 @@ class MetaAdLibraryService:
         get_competitor_ads_apify() instead.
         Returns structured ad data sorted by days_active (proxy for performance).
         """
-        if countries is None:
-            countries = ["AR", "MX", "CO", "CL"]  # default fallback; prefer passing project-derived countries
+        if not countries:
+            raise ValueError("No target countries provided for ad library search. Configure project geography first.")
+
 
         all_ads = []
 
