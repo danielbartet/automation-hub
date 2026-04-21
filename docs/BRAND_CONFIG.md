@@ -33,6 +33,9 @@ Adding a new project = one API call to `POST /api/v1/projects` with the appropri
 | `business_objective` | string | `""` | Top-level business goal. Used in `generate_content_recommendation` | `"Generar leads para el curso de arquitectura cloud"` |
 | `posting_frequency` | string | `""` | Posting cadence hint for the recommendation engine | `"3-4 veces por semana"` |
 | `ad_library_countries` | array[string] | `["AR", "MX", "CO", "CL"]` | Country scope for Meta Ad Library competitor searches | `["ES", "MX", "AR"]` |
+| `font_urls` | array[string] | `[]` | External font URLs injected as `@font-face` blocks in the HTML slide renderer. When provided, the custom font is used as primary with Space Grotesk as fallback | `["https://fonts.gstatic.com/s/myfont/v1/myfont.woff2"]` |
+| `font_family` | string | `"CustomFont"` | Font family name used in `@font-face` declarations when `font_urls` is set | `"Playfair Display"` |
+| `rtl` | boolean | `false` | Set to `true` for Arabic, Hebrew, or other RTL languages. Adds `dir="rtl"` to the HTML root and `direction: rtl; text-align: right;` to the body CSS in all slide renderer layouts | `true` |
 
 ---
 
@@ -75,7 +78,7 @@ Adding a new project = one API call to `POST /api/v1/projects` with the appropri
 | `generate_content_recommendation` | `brand_name`, `brand_voice`, `language`, `core_message`, `target_audience`, `business_objective`, `content_categories`, `posting_frequency`, `posting_timezone` |
 | `analyze_competitor_brief` | `market_region`, `target_audience`, `language` |
 | `adapt_competitor_ad` | `brand_name`, `core_message`, `target_audience`, `tone`, `language` |
-| HTML renderer (slide images) | `brand_primary_color`, `brand_bg_color` |
+| HTML renderer (slide images) | `brand_primary_color`, `brand_bg_color`, `font_urls`, `font_family`, `rtl` |
 | Ads optimizer (Andromeda) | `optimizer_config` (all sub-keys), `language`, `core_message`, `target_audience` |
 | Meta Ad Library scraping | `competitors`, `ad_library_countries` |
 | Campaign targeting defaults | `target_countries` |

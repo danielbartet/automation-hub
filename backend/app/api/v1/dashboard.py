@@ -18,9 +18,9 @@ META_BASE = "https://graph.facebook.com/v19.0"
 
 
 def get_andromeda_status(campaign_insights: dict) -> tuple[str, str]:
-    ctr = float(campaign_insights.get("ctr", 0))
-    frequency = float(campaign_insights.get("frequency", 0))
-    cpa = float(campaign_insights.get("cost_per_action", 0))
+    ctr = _safe_float(campaign_insights.get("ctr", 0))
+    frequency = _safe_float(campaign_insights.get("frequency", 0))
+    cpa = _safe_float(campaign_insights.get("cost_per_action", 0))
 
     if frequency > 3.0:
         return "fatigued", f"Frequency {frequency:.1f} exceeds 3.0 threshold"
@@ -37,12 +37,12 @@ def build_kpis(objective: str, insights: dict) -> dict:
     cpa_dict = {a["action_type"]: _safe_float(a.get("value")) for a in insights.get("cost_per_action_type", []) if a.get("action_type")}
 
     base = {
-        "spend": float(insights.get("spend", 0)),
+        "spend": _safe_float(insights.get("spend", 0)),
         "impressions": int(insights.get("impressions", 0)),
         "reach": int(insights.get("reach", 0)),
-        "ctr": float(insights.get("ctr", 0)),
-        "cpm": float(insights.get("cpm", 0)),
-        "frequency": float(insights.get("frequency", 0)),
+        "ctr": _safe_float(insights.get("ctr", 0)),
+        "cpm": _safe_float(insights.get("cpm", 0)),
+        "frequency": _safe_float(insights.get("frequency", 0)),
     }
 
     if "LEADS" in objective:
@@ -54,12 +54,12 @@ def build_kpis(objective: str, insights: dict) -> dict:
         omni = actions.get("omni_purchase", 0)
         revenue = omni if isinstance(omni, (int, float)) else 0
         cpa = cpa_dict.get("purchase", 0)
-        spend = float(insights.get("spend", 0))
+        spend = _safe_float(insights.get("spend", 0))
         roas = (revenue / spend) if spend > 0 else 0
         return {**base, "purchases": purchases, "cpa": cpa, "roas": round(roas, 2), "revenue": revenue}
     elif "TRAFFIC" in objective:
         clicks = int(insights.get("clicks", 0))
-        cpc = float(insights.get("cpc", 0))
+        cpc = _safe_float(insights.get("cpc", 0))
         lpv = actions.get("landing_page_view", 0)
         return {**base, "clicks": clicks, "cpc": cpc, "landing_page_views": lpv}
     else:
@@ -123,8 +123,8 @@ async def fetch_meta_ads_data(project: Project, db: AsyncSession) -> dict:
             # Fetch account-level spend totals (2 calls instead of 2N per-campaign calls)
             account_today = await fetch_account_insights(client, ad_account_id, token, "today")
             account_month = await fetch_account_insights(client, ad_account_id, token, "this_month")
-            total_spend_today = float(account_today.get("spend", 0))
-            total_spend_month = float(account_month.get("spend", 0))
+            total_spend_today = _safe_float(account_today.get("spend", 0))
+            total_spend_month = _safe_float(account_month.get("spend", 0))
 
             # Fetch only ACTIVE and PAUSED campaigns
             resp = await client.get(
@@ -158,8 +158,8 @@ async def fetch_meta_ads_data(project: Project, db: AsyncSession) -> dict:
                 insights_today = await fetch_campaign_insights(client, campaign_id, token, "today")
                 insights_month = await fetch_campaign_insights(client, campaign_id, token, "this_month")
 
-                spend_today = float(insights_today.get("spend", 0))
-                spend_month = float(insights_month.get("spend", 0))
+                spend_today = _safe_float(insights_today.get("spend", 0))
+                spend_month = _safe_float(insights_month.get("spend", 0))
 
                 kpis = build_kpis(objective, insights_month)
                 andromeda_status, andromeda_reason = get_andromeda_status(insights_month)

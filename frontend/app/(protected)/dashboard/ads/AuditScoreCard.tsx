@@ -5,6 +5,22 @@ import { useSession } from "next-auth/react"
 import { Loader2, RefreshCw, AlertTriangle, CheckCircle2, AlertCircle, ClipboardList } from "lucide-react"
 import type { AdsAuditDetail, TriggerAuditResponse } from "./audit-types"
 
+// ─── Niche benchmarks ─────────────────────────────────────────────────────────
+
+const NICHE_BENCHMARKS: Record<string, { ctr: { good: number; ok: number }; cpc: { good: number; ok: number } }> = {
+  "Tech SaaS": { ctr: { good: 1.5, ok: 0.8 }, cpc: { good: 1.50, ok: 3.00 } },
+  "E-commerce": { ctr: { good: 3.0, ok: 1.5 }, cpc: { good: 0.50, ok: 1.50 } },
+  "Coaching / Education": { ctr: { good: 2.5, ok: 1.2 }, cpc: { good: 0.80, ok: 2.00 } },
+  "B2B Agency / Services": { ctr: { good: 0.8, ok: 0.4 }, cpc: { good: 3.00, ok: 8.00 } },
+  "Local Business": { ctr: { good: 2.0, ok: 1.0 }, cpc: { good: 0.60, ok: 1.50 } },
+  "default": { ctr: { good: 2.0, ok: 1.0 }, cpc: { good: 1.00, ok: 2.50 } },
+}
+
+function getNicheBenchmarks(niche?: string | null) {
+  if (niche && niche in NICHE_BENCHMARKS) return { key: niche, benchmarks: NICHE_BENCHMARKS[niche] }
+  return { key: "default", benchmarks: NICHE_BENCHMARKS["default"] }
+}
+
 // ─── Helpers ──────────────────────────────────────────────────────────────────
 
 function relativeTime(dateStr: string): string {
@@ -53,11 +69,13 @@ interface AuditScoreCardProps {
   /** DB integer id of the campaign. When provided, audit is scoped to this campaign. */
   campaignId?: number
   onAuditCompleted?: (auditId: number) => void
+  /** Industry niche for benchmark context. Falls back to "default" if not provided. */
+  niche?: string | null
 }
 
 // ─── Component ────────────────────────────────────────────────────────────────
 
-export function AuditScoreCard({ projectSlug, campaignId, onAuditCompleted }: AuditScoreCardProps) {
+export function AuditScoreCard({ projectSlug, campaignId, onAuditCompleted, niche }: AuditScoreCardProps) {
   const { data: session } = useSession()
   const token = (session as { accessToken?: string } | null)?.accessToken ?? ""
 
@@ -347,6 +365,29 @@ export function AuditScoreCard({ projectSlug, campaignId, onAuditCompleted }: Au
         <CategoryBar label="Structure" score={audit.score_structure} />
         <CategoryBar label="Audience" score={audit.score_audience} />
       </div>
+
+      {/* Niche benchmarks */}
+      {(() => {
+        const { key: nicheKey, benchmarks: bm } = getNicheBenchmarks(niche)
+        return (
+          <div className="rounded-md px-3 py-2 space-y-1.5" style={{ backgroundColor: "#0d0d0d", border: "1px solid #1a1a1a" }}>
+            <p className="text-xs font-medium" style={{ color: "#6b7280" }}>Industry benchmarks</p>
+            <div className="flex flex-wrap gap-x-6 gap-y-1 text-xs" style={{ color: "#9ca3af" }}>
+              <span>
+                CTR good: <span className="text-green-400">&gt;{bm.ctr.good}%</span>
+                <span className="mx-1" style={{ color: "#4b5563" }}>·</span>
+                ok: <span className="text-yellow-400">&gt;{bm.ctr.ok}%</span>
+              </span>
+              <span>
+                CPC good: <span className="text-green-400">&lt;${bm.cpc.good.toFixed(2)}</span>
+                <span className="mx-1" style={{ color: "#4b5563" }}>·</span>
+                ok: <span className="text-yellow-400">&lt;${bm.cpc.ok.toFixed(2)}</span>
+              </span>
+            </div>
+            <p className="text-xs" style={{ color: "#4b5563" }}>Benchmark: {nicheKey} industry</p>
+          </div>
+        )
+      })()}
 
       {/* Check counts */}
       <div className="flex flex-wrap gap-4 text-sm">

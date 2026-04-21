@@ -914,14 +914,14 @@ async def get_campaign_detail(
     cpa_dict = {a["action_type"]: _safe_float(a.get("value")) for a in insights_summary_raw.get("cost_per_action_type", []) if a.get("action_type")}
     objective = (campaign_info.get("objective") or (campaign.objective if campaign else None) or "").upper()
 
-    total_spend = float(insights_summary_raw.get("spend", 0))
+    total_spend = _safe_float(insights_summary_raw.get("spend", 0))
     total_impressions = int(insights_summary_raw.get("impressions", 0))
     total_reach = int(insights_summary_raw.get("reach", 0))
     total_clicks = int(insights_summary_raw.get("clicks", 0))
-    avg_ctr = float(insights_summary_raw.get("ctr", 0))
-    avg_cpc = float(insights_summary_raw.get("cpc", 0))
-    avg_cpm = float(insights_summary_raw.get("cpm", 0))
-    avg_frequency = float(insights_summary_raw.get("frequency", 0))
+    avg_ctr = _safe_float(insights_summary_raw.get("ctr", 0))
+    avg_cpc = _safe_float(insights_summary_raw.get("cpc", 0))
+    avg_cpm = _safe_float(insights_summary_raw.get("cpm", 0))
+    avg_frequency = _safe_float(insights_summary_raw.get("frequency", 0))
 
     # Extract action counts
     leads = actions.get("lead") or None
@@ -1055,17 +1055,17 @@ async def get_campaign_detail(
             )
         else:
             day_results = float(int(day.get("clicks", 0)))
-            day_spend = float(day.get("spend", 0))
+            day_spend = _safe_float(day.get("spend", 0))
             day_clicks = int(day.get("clicks", 0))
             day_cpr = day_spend / day_clicks if day_clicks > 0 else 0
         daily_insights.append({
             "date": day.get("date_start", ""),
-            "spend": float(day.get("spend", 0)),
+            "spend": _safe_float(day.get("spend", 0)),
             "impressions": int(day.get("impressions", 0)),
             "clicks": int(day.get("clicks", 0)),
-            "ctr": float(day.get("ctr", 0)),
-            "cpc": float(day.get("cpc", 0)),
-            "frequency": float(day.get("frequency", 0)),
+            "ctr": _safe_float(day.get("ctr", 0)),
+            "cpc": _safe_float(day.get("cpc", 0)),
+            "frequency": _safe_float(day.get("frequency", 0)),
             "results": day_results,
             "cost_per_result": day_cpr,
         })

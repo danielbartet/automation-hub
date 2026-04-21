@@ -370,6 +370,25 @@ RULES:
         else:
             result["narrative_angle"] = _detect_angle_from_content(result)
 
+        # Carousel slide structure validation (log only — never block)
+        if content_type not in ("single_image", "image", "story", "story_vertical", "text_post"):
+            slides = result.get("slides", [])
+            if len(slides) >= 2:
+                first_slide = slides[0]
+                last_slide = slides[-1]
+                if not first_slide.get("hook") and not first_slide.get("title") and not first_slide.get("headline"):
+                    logger.warning("Carousel validation: slide 1 missing hook/title/headline")
+                has_cta = (
+                    last_slide.get("cta")
+                    or last_slide.get("call_to_action")
+                    or any(
+                        word in str(last_slide).lower()
+                        for word in ["descubre", "aprende", "visita", "link", "bio", "sigue", "click"]
+                    )
+                )
+                if not has_cta:
+                    logger.warning("Carousel validation: last slide missing CTA")
+
         return result, usage
 
     def _build_single_image_system_prompt(self, project, content_config: dict | None = None) -> str:
@@ -1360,6 +1379,80 @@ Return ONLY valid JSON matching this exact schema, no other text:
         except json.JSONDecodeError as e:
             logger.error("analyze_competitor_brief: failed to parse Claude JSON: %s", e)
             raise
+
+    async def generate_hook_variations(
+        self,
+        topic: str,
+        num_hooks: int = 5,
+        content_config: dict = None,
+    ) -> list[dict]:
+        """Generates N hook variations for a given topic.
+
+        Returns: [{hook_type, hook, rationale}]
+        """
+        cfg = content_config or {}
+        market_region = cfg.get("market_region", "Global")
+        brand_voice = cfg.get("brand_voice", "conversational")
+        voice_instruction = VOICE_STYLES.get(brand_voice, VOICE_STYLES["conversational"])
+
+        # Regional context for the hook
+        intel = MARKET_INTELLIGENCE.get(market_region, MARKET_INTELLIGENCE["Global"])
+        regional_copy_style = intel.get("copy_style", "clear, benefit-led")
+
+        system_prompt = f"""You are a copywriter expert in social media hooks.
+Generate exactly {num_hooks} hooks for the topic: "{topic}"
+Each hook must be a DIFFERENT type from: question, statistic, bold_statement, story_opener, how_to, controversial
+Each hook must be under 125 characters.
+Brand voice ({brand_voice}): {voice_instruction}
+Regional copy style ({market_region}): {regional_copy_style}
+Return ONLY a valid JSON array. No preamble, no explanation, only JSON:
+[{{"hook_type": "...", "hook": "...", "rationale": "..."}}]"""
+
+        try:
+            response = await self.client.messages.create(
+                model=self.MODEL,
+                max_tokens=1000,
+                system=system_prompt,
+                messages=[
+                    {
+                        "role": "user",
+                        "content": f"Generate {num_hooks} hook variations for the topic: {topic}",
+                    }
+                ],
+            )
+        except anthropic.RateLimitError as e:
+            logger.warning("Claude rate limit in generate_hook_variations: %s", e)
+            raise
+        except anthropic.APIConnectionError as e:
+            logger.warning("Claude connection error in generate_hook_variations: %s", e)
+            raise
+        except anthropic.APIError as e:
+            logger.error("Claude API error in generate_hook_variations: %s", e)
+            raise
+
+        raw = response.content[0].text.strip()
+        # Strip markdown fences if present
+        if raw.startswith("```"):
+            raw = raw.split("```", 2)[1]
+            if raw.startswith("json"):
+                raw = raw[4:]
+            raw = raw.rsplit("```", 1)[0].strip()
+
+        try:
+            hooks = json.loads(raw)
+        except json.JSONDecodeError as e:
+            logger.error("generate_hook_variations: failed to parse Claude JSON: %s", e)
+            raise
+
+        if not isinstance(hooks, list):
+            raise ValueError("generate_hook_variations: expected a JSON array from Claude")
+
+        # Enforce 125-char limit on each hook
+        for h in hooks:
+            if len(h.get("hook", "")) > 125:
+                h["hook"] = h["hook"][:125].rsplit(" ", 1)[0]
+
+        return hooks
 
     async def generate_ab_test_variants(
         self,

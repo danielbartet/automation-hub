@@ -1,18 +1,30 @@
 """Carousel slide renderer — generates styled 1080x1080 PNG images using Pillow."""
 import io
+import logging
 from PIL import Image, ImageDraw, ImageFont
+
+logger = logging.getLogger(__name__)
+logger.warning("renderer.py (Pillow) is deprecated. Use HTMLSlideRenderer instead.")
 
 
 class CarouselRenderer:
-    """Renders carousel slides as PNG images with Quantoria Labs brand styling."""
+    """Deprecated: Use HTMLSlideRenderer for all new projects."""
 
-    BG = (12, 12, 18)
     WHITE = (255, 255, 255)
     GRAY = (180, 180, 195)
-    ACCENT = (120, 120, 200)
     DIM = (80, 80, 100)
     LINE_COLOR = (40, 40, 60)
     SIZE = (1080, 1080)
+
+    def __init__(
+        self,
+        bg_color: tuple = (12, 12, 18),
+        accent_color: tuple = (120, 120, 200),
+        brand_label: str = "",
+    ) -> None:
+        self.BG = bg_color
+        self.ACCENT = accent_color
+        self._brand_label_text = brand_label
 
     def _make_base(self) -> tuple[Image.Image, ImageDraw.ImageDraw]:
         img = Image.new("RGB", self.SIZE, self.BG)
@@ -22,8 +34,10 @@ class CarouselRenderer:
         return img, draw
 
     def _brand_label(self, draw: ImageDraw.ImageDraw) -> None:
+        if not self._brand_label_text:
+            return
         font = ImageFont.load_default(size=28)
-        draw.text((1020, 1010), "Quantoria Labs", fill=self.DIM, anchor="rm", font=font)
+        draw.text((1020, 1010), self._brand_label_text, fill=self.DIM, anchor="rm", font=font)
 
     def _slide_num(self, draw: ImageDraw.ImageDraw, num: int, total: int = 6) -> None:
         font = ImageFont.load_default(size=24)

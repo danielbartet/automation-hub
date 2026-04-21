@@ -34,6 +34,10 @@ class HTMLSlideRenderer(BaseImageProvider):
           image_primary_color → primary_color → brand_primary_color → "#00FF41"
         brand_* keys come from content_config and are injected by callers when media_config
         does not yet have explicit overrides.
+
+        External fonts: if media_config contains font_urls (list of URLs) and font_family
+        (string name), @font-face blocks are injected and the custom font is used as
+        the primary font with Space Grotesk as fallback.
         """
         bg = (
             mc.get("image_bg_color")
@@ -47,7 +51,20 @@ class HTMLSlideRenderer(BaseImageProvider):
         )
         secondary = mc.get("image_secondary_color", mc.get("secondary_color", "#ffffff"))
         accent = mc.get("accent_color", primary)
-        font_family = mc.get("image_fonts", mc.get("fonts", "'Space Grotesk', sans-serif"))
+
+        # External font support
+        font_urls = mc.get("font_urls", [])
+        font_family_name = mc.get("font_family", "CustomFont")
+        if font_urls and isinstance(font_urls, list):
+            # Build @font-face blocks for each URL
+            custom_font_faces = "\n".join(
+                f"        @font-face {{\n            font-family: '{font_family_name}';\n            src: url('{url}');\n        }}"
+                for url in font_urls
+            )
+            font_family = f"'{font_family_name}', 'Space Grotesk', sans-serif"
+        else:
+            custom_font_faces = ""
+            font_family = mc.get("image_fonts", mc.get("fonts", "'Space Grotesk', sans-serif"))
 
         logger.debug(
             "_base_css colors — bg=%s primary=%s secondary=%s accent=%s",
@@ -70,6 +87,7 @@ class HTMLSlideRenderer(BaseImageProvider):
             font-weight: 600;
             src: url('file:///app/fonts/SpaceGrotesk-SemiBold.ttf') format('truetype');
         }}
+        {custom_font_faces}
         *, *::before, *::after {{ box-sizing: border-box; margin: 0; padding: 0; }}
         :root {{
             --bg: {bg};
@@ -362,13 +380,16 @@ class HTMLSlideRenderer(BaseImageProvider):
         """Assemble complete HTML for a single-image post (1080×1080)."""
         base_css = self._base_css(mc)
         inner = self._single_image_layout(slide_data, mc)
+        is_rtl = mc.get("rtl", False)
+        html_dir = ' dir="rtl"' if is_rtl else ""
+        rtl_css = "\n        body { direction: rtl; text-align: right; }" if is_rtl else ""
         return f"""<!DOCTYPE html>
-<html lang="es">
+<html lang="es"{html_dir}>
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=1080, height=1080">
 <style>
-{base_css}
+{base_css}{rtl_css}
 </style>
 </head>
 <body>
@@ -541,13 +562,16 @@ class HTMLSlideRenderer(BaseImageProvider):
         """Assemble complete HTML for a story post (1080×1920)."""
         base_css = self._base_css_story(mc)
         inner = self._story_layout(slide_data, mc)
+        is_rtl = mc.get("rtl", False)
+        html_dir = ' dir="rtl"' if is_rtl else ""
+        rtl_css = "\n        body { direction: rtl; text-align: right; }" if is_rtl else ""
         return f"""<!DOCTYPE html>
-<html lang="es">
+<html lang="es"{html_dir}>
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=1080, height=1920">
 <style>
-{base_css}
+{base_css}{rtl_css}
 </style>
 </head>
 <body>
@@ -710,13 +734,18 @@ Return ONLY the HTML. No explanations, no markdown, no code blocks."""
 
         base_css = self._base_css(mc)
 
+        # RTL support
+        is_rtl = mc.get("rtl", False)
+        html_dir = ' dir="rtl"' if is_rtl else ""
+        rtl_css = "\n        body { direction: rtl; text-align: right; }" if is_rtl else ""
+
         return f"""<!DOCTYPE html>
-<html lang="es">
+<html lang="es"{html_dir}>
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=1080, height=1080">
 <style>
-{base_css}
+{base_css}{rtl_css}
 </style>
 </head>
 <body>
