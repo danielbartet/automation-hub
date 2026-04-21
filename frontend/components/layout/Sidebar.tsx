@@ -24,6 +24,7 @@ import {
   Linkedin,
   Music,
   Facebook,
+  BookOpen,
 } from "lucide-react";
 import { getHealthSummary } from "@/lib/api";
 import { useT } from "@/lib/i18n";
@@ -294,6 +295,7 @@ export function Sidebar() {
               </p>
               {renderSubLink("/dashboard/ads", t.nav_campanias, Megaphone, true)}
               {renderSubLink("/dashboard/ads/audiences", t.nav_audiences, Users2, false)}
+              {!isClient && renderSubLink("/dashboard/ads/hooks", "Hooks", BookOpen, false)}
             </div>
           )}
         </div>

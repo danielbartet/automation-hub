@@ -104,11 +104,26 @@ const ANDROMEDA_STATUS_CLASSES: Record<string, string> = {
   error: "bg-red-900/50 text-red-400",
 };
 
+interface CompetitiveBrief {
+  hook_patterns: { pattern: string; frequency: number }[];
+  angle_distribution: Record<string, number>;
+  opportunity_gap: string;
+  weekly_recommendation: string;
+  [key: string]: unknown;
+}
+
+interface CompetitiveInsightsData {
+  brief: CompetitiveBrief;
+  generated_at: string;
+  analyzed_ads_count: number;
+}
+
 export default function AdsPage() {
   const t = useT();
   const { data: session } = useSession();
   const isClient = session?.user?.role === "client";
   const isAdmin = session?.user?.role === "admin" || session?.user?.role === "super_admin";
+  const isOperator = session?.user?.role === "operator";
   const token = (session as { accessToken?: string } | null)?.accessToken ?? "";
   const { selectedSlug, selectedProject: ctxSelectedProject, loading: loadingProjects } = useProject();
   const [data, setData] = useState<DashboardData | null>(null);
@@ -126,6 +141,8 @@ export default function AdsPage() {
   const [auditLoading, setAuditLoading] = useState(false);
   const [inspirationPrefill, setInspirationPrefill] = useState<InspirationPrefill | undefined>(undefined);
   const [projectContentConfig, setProjectContentConfig] = useState<Record<string, unknown> | undefined>(undefined);
+  const [competitiveInsights, setCompetitiveInsights] = useState<CompetitiveInsightsData | null | "empty">(null);
+  const [insightsPrefillRec, setInsightsPrefillRec] = useState<string | undefined>(undefined);
   const loadData = useCallback(() => {
     if (!selectedSlug) return;
     setLoadingData(true);
@@ -234,6 +251,22 @@ export default function AdsPage() {
       .then((proj) => setProjectContentConfig(proj?.content_config ?? undefined))
       .catch(() => setProjectContentConfig(undefined));
   }, [selectedSlug, token]);
+
+  // Fetch competitive insights (admin + operator only)
+  useEffect(() => {
+    if (!selectedSlug || !token || isClient) return;
+    const api = process.env.NEXT_PUBLIC_API_URL ?? "http://localhost:8000";
+    fetch(`${api}/api/v1/competitor-intelligence/${selectedSlug}`, {
+      headers: { Authorization: `Bearer ${token}` },
+    })
+      .then((r) => {
+        if (r.status === 404) { setCompetitiveInsights("empty"); return null; }
+        if (!r.ok) { setCompetitiveInsights("empty"); return null; }
+        return r.json();
+      })
+      .then((d) => { if (d) setCompetitiveInsights(d as CompetitiveInsightsData); })
+      .catch(() => setCompetitiveInsights("empty"));
+  }, [selectedSlug, token, isClient]);
 
   // Fetch audit log when tab is active (admin only)
   useEffect(() => {
@@ -540,6 +573,75 @@ export default function AdsPage() {
           </div>
         )}
 
+        {/* ── Competitive Insights card (admin + operator, campaigns tab) ── */}
+        {activeTab === "campaigns" && !isClient && (
+          competitiveInsights === "empty" || competitiveInsights === null ? (
+            <div className="rounded-lg p-5" style={{ backgroundColor: "#111111", border: "1px solid #222222" }}>
+              <p className="text-sm font-semibold text-gray-400 mb-1">Inteligencia Competitiva</p>
+              <p className="text-xs" style={{ color: "#6b7280" }}>
+                Brief se genera automáticamente cada domingo. Configurá competidores en el proyecto para activarlo.
+              </p>
+            </div>
+          ) : competitiveInsights !== null && (
+            <div className="rounded-lg overflow-hidden" style={{ backgroundColor: "#111111", border: "1px solid #222222" }}>
+              {/* Header */}
+              <div className="px-6 py-4 flex items-start justify-between flex-wrap gap-2" style={{ borderBottom: "1px solid #222222" }}>
+                <div>
+                  <h3 className="text-base font-semibold text-white">Inteligencia Competitiva</h3>
+                  <p className="text-xs mt-0.5" style={{ color: "#9ca3af" }}>
+                    Actualizado: {new Date(competitiveInsights.generated_at).toLocaleDateString("es-AR", { day: "2-digit", month: "short", year: "numeric" })}
+                    {" · "}
+                    {competitiveInsights.analyzed_ads_count} anuncios analizados
+                  </p>
+                </div>
+                <button
+                  onClick={() => {
+                    setInsightsPrefillRec(competitiveInsights.brief.weekly_recommendation);
+                    setShowCreateModal(true);
+                  }}
+                  className="px-3 py-1.5 text-xs font-medium text-white rounded-lg transition-colors"
+                  style={{ backgroundColor: "#7c3aed" }}
+                  onMouseEnter={e => (e.currentTarget.style.backgroundColor = "#6d28d9")}
+                  onMouseLeave={e => (e.currentTarget.style.backgroundColor = "#7c3aed")}
+                >
+                  Usar esta insight
+                </button>
+              </div>
+              <div className="px-6 py-4 space-y-4">
+                {/* Top 2 hook patterns */}
+                {competitiveInsights.brief.hook_patterns?.slice(0, 2).map((hp, i) => (
+                  <div key={i}>
+                    <div className="flex items-center justify-between mb-1">
+                      <span className="text-xs text-white">{hp.pattern}</span>
+                      <span className="text-xs" style={{ color: "#9ca3af" }}>{Math.round(hp.frequency * 100)}%</span>
+                    </div>
+                    <div className="h-1.5 rounded-full" style={{ backgroundColor: "#222222" }}>
+                      <div
+                        className="h-1.5 rounded-full"
+                        style={{ width: `${hp.frequency * 100}%`, backgroundColor: "#7c3aed" }}
+                      />
+                    </div>
+                  </div>
+                ))}
+                {/* Opportunity gap */}
+                {competitiveInsights.brief.opportunity_gap && (
+                  <div className="flex items-start gap-2 px-3 py-2 rounded-md" style={{ backgroundColor: "#2d2300", border: "1px solid #4d3800" }}>
+                    <span className="text-amber-400 text-sm">⚡</span>
+                    <p className="text-xs text-amber-300">{competitiveInsights.brief.opportunity_gap}</p>
+                  </div>
+                )}
+                {/* Weekly recommendation */}
+                {competitiveInsights.brief.weekly_recommendation && (
+                  <div className="px-3 py-2 rounded-md" style={{ backgroundColor: "#0d1b2e", border: "1px solid #1e3a5f" }}>
+                    <p className="text-xs font-semibold text-blue-400 mb-1">Recomendación semanal</p>
+                    <p className="text-xs text-blue-200">{competitiveInsights.brief.weekly_recommendation}</p>
+                  </div>
+                )}
+              </div>
+            </div>
+          )
+        )}
+
         {/* KPI Cards — campaigns tab only */}
         {activeTab === "campaigns" && <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
           <KPICard
@@ -702,10 +804,12 @@ export default function AdsPage() {
           projectId={selectedProject.id}
           prefill={inspirationPrefill}
           contentConfig={projectContentConfig}
-          onClose={() => { setShowCreateModal(false); setInspirationPrefill(undefined); }}
+          initialContext={insightsPrefillRec}
+          onClose={() => { setShowCreateModal(false); setInspirationPrefill(undefined); setInsightsPrefillRec(undefined); }}
           onSuccess={() => {
             setShowCreateModal(false);
             setInspirationPrefill(undefined);
+            setInsightsPrefillRec(undefined);
             loadData();
           }}
         />

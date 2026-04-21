@@ -3,15 +3,16 @@ import json
 import logging
 import re
 import uuid as uuid_module
-from datetime import datetime, timezone
+from datetime import datetime, timezone, timedelta
 
 logger = logging.getLogger(__name__)
 from sqlalchemy.ext.asyncio import AsyncSession
-from sqlalchemy import select
+from sqlalchemy import select, desc
 from app.models.ad_campaign import AdCampaign
 from app.models.project import Project
 from app.models.optimization_log import CampaignOptimizationLog
 from app.models.competitor_cache import CompetitorResearchCache  # noqa: F401 — ensures model is registered
+from app.models.competitor_intelligence import CompetitorIntelligenceBrief
 from app.services.ads.meta_campaign import MetaCampaignService
 from app.services.meta.ad_library import MetaAdLibraryService
 from app.services.claude.client import ClaudeClient
@@ -48,6 +49,53 @@ DECISION OUTPUT FORMAT (valid JSON only):
 }"""
 
 
+async def _get_competitor_delta_context(project: Project, db: AsyncSession) -> str:
+    """Fetch the latest competitor intelligence brief and return a formatted context string.
+
+    Returns empty string if no brief exists or if it is older than 14 days.
+    """
+    try:
+        brief_result = await db.execute(
+            select(CompetitorIntelligenceBrief)
+            .where(CompetitorIntelligenceBrief.project_id == project.id)
+            .order_by(desc(CompetitorIntelligenceBrief.generated_at))
+            .limit(1)
+        )
+        latest_brief = brief_result.scalar_one_or_none()
+
+        cutoff = datetime.now(timezone.utc) - timedelta(days=14)
+
+        if not latest_brief:
+            logger.info(f"No competitor brief for project {project.id} — skipping delta")
+            return ""
+
+        gen_at = latest_brief.generated_at
+        if gen_at.tzinfo is None:
+            gen_at = gen_at.replace(tzinfo=timezone.utc)
+
+        if gen_at <= cutoff:
+            logger.info(f"Competitor brief for project {project.id} is older than 14 days — skipping delta")
+            return ""
+
+        angle_dist = latest_brief.brief.get("angle_distribution", {})
+        top_angles = sorted(angle_dist.items(), key=lambda x: x[1], reverse=True)[:2]
+        top_angles_str = ", ".join([f"{a[0]} ({int(a[1] * 100)}%)" for a in top_angles])
+
+        competitor_context = f"""
+COMPETITIVE CONTEXT (last {latest_brief.analyzed_ads_count} ads analyzed):
+- Dominant angles used by competitors: {top_angles_str}
+- Opportunity gap: {latest_brief.brief.get('opportunity_gap', 'N/A')}
+- Weekly intelligence recommendation: {latest_brief.brief.get('weekly_recommendation', 'N/A')}
+
+Your brief should prioritize the underused angle to maximize differentiation from competitors.
+"""
+        logger.info(f"Creative brief enriched with competitor delta for project {project.id}")
+        return competitor_context
+    except Exception as e:
+        logger.warning(f"Failed to fetch competitor delta for project {project.id}: {e}")
+        return ""
+
+
 async def generate_creative_brief(
     campaign_name: str,
     objective: str,
@@ -55,6 +103,7 @@ async def generate_creative_brief(
     metrics: dict,
     project: Project,
     competitor_ads: list[dict] = None,
+    db: AsyncSession = None,
 ) -> dict:
     """Call Claude to generate an actionable creative replacement brief for a fatigued ad."""
     language = (project.content_config or {}).get("language", "es")
@@ -64,6 +113,11 @@ async def generate_creative_brief(
     cost_per_result = metrics.get("cost_per_result", 0)
     cpl_7d_ago = metrics.get("cpl_7d_ago", 0)
     days_running = metrics.get("days_running", 0)
+
+    # Fetch competitor intelligence delta (if db available)
+    competitor_delta = ""
+    if db is not None:
+        competitor_delta = await _get_competitor_delta_context(project, db)
 
     # Build competitor context block
     if competitor_ads:
@@ -97,7 +151,7 @@ Brand:
 - Audience: {(project.content_config or {}).get('target_audience')}
 - Language: {language}
 
-{comp_block}
+{competitor_delta}{comp_block}
 
 The creative is fatigued. Generate a replacement brief.
 
@@ -533,6 +587,7 @@ Return your JSON decision."""
                 fatigue_info=fatigue_info,
                 notification_svc=notification_svc,
                 competitor_ads=competitor_ads,
+                db=db,
             )
 
         # 7. Check for high CTR + low conversion rate (landing page issue signal)
@@ -584,6 +639,7 @@ async def _create_fatigue_notification(
     fatigue_info: dict,
     notification_svc,
     competitor_ads: list[dict] = None,
+    db: AsyncSession = None,
 ) -> None:
     """Generate creative brief and create campaign_fatigued notification + Telegram message."""
     # Determine current ad info (use campaign stored copy info as fallback)
@@ -613,6 +669,7 @@ async def _create_fatigue_notification(
             metrics=enriched_metrics,
             project=project,
             competitor_ads=competitor_ads,
+            db=db,
         )
     except Exception:
         brief = {

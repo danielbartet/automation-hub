@@ -20,6 +20,7 @@ interface CreateCampaignModalProps {
   onSuccess: () => void;
   prefill?: InspirationPrefill;
   contentConfig?: Record<string, unknown>;
+  initialContext?: string;
 }
 
 const OBJECTIVES = [
@@ -65,7 +66,7 @@ const COUNTRY_OPTIONS = [
 
 const STEPS = ["Campaña", "Conceptos", "Imágenes", "Creativo", "Lanzar"];
 
-export function CreateCampaignModal({ projectSlug, projectId, onClose, onSuccess, prefill, contentConfig }: CreateCampaignModalProps) {
+export function CreateCampaignModal({ projectSlug, projectId, onClose, onSuccess, prefill, contentConfig, initialContext }: CreateCampaignModalProps) {
   const { data: session } = useSession();
   const token = (session as any)?.accessToken as string | undefined;
   const [step, setStep] = useState(1);
@@ -105,6 +106,7 @@ export function CreateCampaignModal({ projectSlug, projectId, onClose, onSuccess
   const [adCopy, setAdCopy] = useState("");
   const [headline, setHeadline] = useState("");
   const [destinationUrl, setDestinationUrl] = useState("");
+  const [additionalContext, setAdditionalContext] = useState(initialContext ?? "");
 
   // Step 3 — Image review (pre-launch image generation)
   const [conceptImages, setConceptImages] = useState<Record<number, string>>({});
@@ -780,6 +782,25 @@ export function CreateCampaignModal({ projectSlug, projectId, onClose, onSuccess
                       + Crear nueva audiencia
                     </button>
                   </div>
+                )}
+              </div>
+
+              {/* Additional context / competitive insight */}
+              <div>
+                <label className="block text-sm font-medium mb-1" style={{ color: "#d1d5db" }}>
+                  Contexto adicional{" "}
+                  <span className="font-normal text-xs" style={{ color: "#6b7280" }}>(opcional — se inyecta en la generación de conceptos)</span>
+                </label>
+                <textarea
+                  value={additionalContext}
+                  onChange={e => setAdditionalContext(e.target.value)}
+                  rows={2}
+                  className="w-full rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-[#7c3aed] text-white placeholder-gray-500 resize-none"
+                  style={{ border: "1px solid #333333", backgroundColor: "#1a1a1a" }}
+                  placeholder="Ej: Enfocate en el ángulo educativo. Evitar el ángulo de urgencia que usan los competidores."
+                />
+                {initialContext && additionalContext === initialContext && (
+                  <p className="text-xs mt-1" style={{ color: "#7c3aed" }}>Pre-filled from Competitive Insights</p>
                 )}
               </div>
 

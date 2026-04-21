@@ -70,6 +70,22 @@ def _detect_angle_from_content(data: dict) -> str:
     return "Educational"
 
 
+VOICE_STYLES: dict[str, str] = {
+    "formal": "Use precise, authoritative language. Avoid contractions. Write in third person when addressing the brand.",
+    "conversational": "Write as if talking to a friend. Use 'you' directly. Keep it warm and approachable.",
+    "bold": "Be direct and provocative. Short sentences. Strong statements. Never hedge.",
+    "educational": "Explain concepts clearly. Use analogies and examples. Break down complexity.",
+    "playful": "Light tone, humor welcome. Avoid corporate language. Emojis are acceptable when natural.",
+}
+
+FORMAT_SUGGESTIONS_BY_VOICE: dict[str, str] = {
+    "playful": "trending/meme formats, short video hooks, entertaining reels",
+    "educational": "how-to/tutorial formats, step-by-step carousels, frameworks and checklists",
+    "bold": "single strong statement posts, controversy hooks, unpopular opinion formats",
+    "formal": "thought leadership posts, data-driven analysis, authoritative long-form",
+    "conversational": "Q&A format, behind-the-scenes, polls, personal stories",
+}
+
 MODEL_PRICING = {
     "claude-sonnet-4-6": {"input": 3.0, "output": 15.0},
 }
@@ -112,13 +128,6 @@ class ClaudeClient:
 
         # Brand voice instruction
         brand_voice = config.get("brand_voice", "conversational")
-        VOICE_STYLES = {
-            "formal": "Use precise, authoritative language. Avoid contractions. Write in third person when addressing the brand.",
-            "conversational": "Write as if talking to a friend. Use 'you' directly. Keep it warm and approachable.",
-            "bold": "Be direct and provocative. Short sentences. Strong statements. Never hedge.",
-            "educational": "Explain concepts clearly. Use analogies and examples. Break down complexity.",
-            "playful": "Light tone, humor welcome. Avoid corporate language. Emojis are acceptable when natural.",
-        }
         voice_instruction = VOICE_STYLES.get(brand_voice, VOICE_STYLES["conversational"])
 
         # Regional intelligence block
@@ -375,6 +384,9 @@ RULES:
         social_proof_examples = config.get("social_proof_examples", "")
         offer = config.get("offer", "")
 
+        brand_voice = config.get("brand_voice", "conversational")
+        voice_instruction = VOICE_STYLES.get(brand_voice, VOICE_STYLES["conversational"])
+
         brand_assets = []
         if price_range:
             brand_assets.append(f"- Precio: {price_range}")
@@ -385,6 +397,8 @@ RULES:
         brand_assets_block = ("BRAND ASSETS (usa estos datos concretos en el copy cuando aplique):\n" + "\n".join(brand_assets)) if brand_assets else ""
 
         return f"""You are a Senior Social Media Copywriter specialized in high-impact single-image posts.
+
+BRAND VOICE: {voice_instruction}
 
 SINGLE IMAGE RULES:
 - ONE bold idea. No explanations, no lists.
@@ -438,6 +452,9 @@ Return valid JSON only, nothing else."""
         social_proof_examples = config.get("social_proof_examples", "")
         offer = config.get("offer", "")
 
+        brand_voice = config.get("brand_voice", "conversational")
+        voice_instruction = VOICE_STYLES.get(brand_voice, VOICE_STYLES["conversational"])
+
         brand_assets = []
         if price_range:
             brand_assets.append(f"- Precio: {price_range}")
@@ -448,6 +465,8 @@ Return valid JSON only, nothing else."""
         brand_assets_block = ("BRAND ASSETS (usa estos datos concretos en el copy cuando aplique):\n" + "\n".join(brand_assets)) if brand_assets else ""
 
         return f"""You are a Senior Social Media Copywriter specialized in Instagram/Facebook Stories.
+
+BRAND VOICE: {voice_instruction}
 
 STORY RULES:
 - Vertical format (9:16). Minimal text — max 3 lines visible.
@@ -503,6 +522,9 @@ Return valid JSON only, nothing else."""
         social_proof_examples = config.get("social_proof_examples", "")
         offer = config.get("offer", "")
 
+        brand_voice = config.get("brand_voice", "conversational")
+        voice_instruction = VOICE_STYLES.get(brand_voice, VOICE_STYLES["conversational"])
+
         brand_assets = []
         if price_range:
             brand_assets.append(f"- Precio: {price_range}")
@@ -513,6 +535,8 @@ Return valid JSON only, nothing else."""
         brand_assets_block = ("BRAND ASSETS (usa estos datos concretos en el copy cuando aplique):\n" + "\n".join(brand_assets)) if brand_assets else ""
 
         return f"""You are the content generation system for {brand_name}.
+
+BRAND VOICE: {voice_instruction}
 
 CONTEXTO DE MARCA:
 {f"- Marca: {brand_name}" if brand_name else ""}
@@ -642,10 +666,17 @@ RULES:
         else:
             angle_avoidance = "No angle history — choose freely based on the day of week guidelines."
 
+        brand_voice = config.get("brand_voice", "conversational")
+        voice_instruction = VOICE_STYLES.get(brand_voice, VOICE_STYLES["conversational"])
+        format_suggestion = FORMAT_SUGGESTIONS_BY_VOICE.get(brand_voice, FORMAT_SUGGESTIONS_BY_VOICE["conversational"])
+
         system_prompt = f"""You are a social media strategist expert for {language} content.
 You specialize in maximizing organic reach on Instagram and Facebook for {brand_name}.
 You always respond with valid JSON only, no markdown, no explanations outside the JSON.
 CRITICAL JSON RULES: All string values must be on a single line. Never include literal newlines, tabs, or unescaped quotes inside string values. Use spaces instead of newlines within strings.
+
+BRAND VOICE: {voice_instruction}
+PREFERRED FORMAT DIRECTION (based on brand voice): {format_suggestion}
 
 Apply the 6 Narrative Angles framework when recommending content:
 1. Transformation, 2. Educational, 3. Social Proof,
@@ -1042,9 +1073,14 @@ Use this as directional inspiration — adapt the angle and emotional trigger fo
 Do NOT copy the text. Translate the strategic insight into original concepts that reflect {brand_name}'s voice and positioning.
 """
 
+        brand_voice = config.get("brand_voice", "conversational")
+        voice_instruction = VOICE_STYLES.get(brand_voice, VOICE_STYLES["conversational"])
+
         system_prompt = f"""You are an expert Meta Ads creative strategist specializing in the Andromeda algorithm.
 
 Generate {count} advertising concepts for {brand_name}.
+
+BRAND VOICE: {voice_instruction}
 
 Brand context:
 - Product/service: {core_message}
