@@ -191,15 +191,75 @@ async def delete_project(
     db: AsyncSession = Depends(get_session),
     current_user=Depends(get_current_user),
 ) -> None:
-    """Delete a project. super_admin can delete any; admin can only delete their own."""
+    """Delete a project and all its child records.
+
+    super_admin can delete any project; admin can only delete projects they own.
+    Child records are deleted explicitly in FK-safe order because SQLite does not
+    enforce ON DELETE CASCADE unless the pragma is enabled, and the Project ORM
+    relationships do not declare cascade='all, delete-orphan'.
+    """
+    from sqlalchemy import delete as sql_delete
+    from app.models.content import ContentPost
+    from app.models.batch import ContentBatch
+    from app.models.ad_campaign import AdCampaign
+    from app.models.optimization_log import CampaignOptimizationLog
+    from app.models.user_project import UserProject
+    from app.models.notification import Notification
+    from app.models.competitor_cache import CompetitorResearchCache
+    from app.models.competitor_intelligence import CompetitorIntelligenceBrief
+    from app.models.pinterest_pin import PinterestPin
+    from app.models.audience import Audience
+    from app.models.ads_audit import AdsAudit
+    from app.models.meta_api_audit_log import MetaAPIAuditLog
+    from app.models.meta_api_cache import MetaApiCache, AuditLog
+    from app.models.approval import Approval
+
     result = await db.execute(select(Project).where(Project.slug == slug))
     project = result.scalar_one_or_none()
     if not project:
         raise HTTPException(status_code=404, detail=f"Project '{slug}' not found")
-    if current_user.role == "admin" and project.owner_id != current_user.id:
+    if current_user.role not in ("super_admin",) and current_user.role == "admin" and project.owner_id != current_user.id:
         raise HTTPException(status_code=403, detail="You can only delete projects you own")
+    if current_user.role not in ("super_admin", "admin"):
+        raise HTTPException(status_code=403, detail="Insufficient permissions to delete projects")
+
+    pid = project.id
+
+    # 1. Delete grandchild records first (children of ContentPost)
+    # Approval references content_posts.id — must go before ContentPost.
+    content_post_ids_result = await db.execute(
+        select(ContentPost.id).where(ContentPost.project_id == pid)
+    )
+    content_post_ids = [row[0] for row in content_post_ids_result.fetchall()]
+    if content_post_ids:
+        await db.execute(sql_delete(Approval).where(Approval.content_post_id.in_(content_post_ids)))
+
+    # 2. Delete direct child records of Project
+    await db.execute(sql_delete(ContentPost).where(ContentPost.project_id == pid))
+    await db.execute(sql_delete(ContentBatch).where(ContentBatch.project_id == pid))
+    await db.execute(sql_delete(CampaignOptimizationLog).where(CampaignOptimizationLog.project_id == pid))
+    await db.execute(sql_delete(AdCampaign).where(AdCampaign.project_id == pid))
+    await db.execute(sql_delete(UserProject).where(UserProject.project_id == pid))
+    await db.execute(sql_delete(Notification).where(Notification.project_id == pid))
+    await db.execute(sql_delete(CompetitorResearchCache).where(CompetitorResearchCache.project_id == pid))
+    await db.execute(sql_delete(CompetitorIntelligenceBrief).where(CompetitorIntelligenceBrief.project_id == pid))
+    await db.execute(sql_delete(PinterestPin).where(PinterestPin.project_id == pid))
+    await db.execute(sql_delete(Audience).where(Audience.project_id == pid))
+    await db.execute(sql_delete(MetaAPIAuditLog).where(MetaAPIAuditLog.project_id == pid))
+    await db.execute(sql_delete(MetaApiCache).where(MetaApiCache.project_id == pid))
+    await db.execute(sql_delete(AuditLog).where(AuditLog.project_id == pid))
+
+    # AdsAudit has a child table (ads_audit_items); delete parent — SQLAlchemy
+    # cascade='all, delete-orphan' is already declared on AdsAudit itself.
+    ads_audits = await db.execute(select(AdsAudit).where(AdsAudit.project_id == pid))
+    for audit in ads_audits.scalars().all():
+        await db.delete(audit)
+
+    # 2. Finally delete the project itself
     await db.delete(project)
     await db.commit()
+
+    logger.info("delete_project: user=%s deleted project slug=%s id=%s", current_user.id, slug, pid)
 
 
 @router.get("/{slug}", response_model=ProjectResponse)
