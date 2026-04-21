@@ -109,8 +109,19 @@ export default function HookLibraryPage() {
         <div>
           <h2 className="text-xl font-semibold text-white">Hook Library</h2>
           <p className="text-sm mt-1" style={{ color: "#9ca3af" }}>
-            Anuncios activos de competidores — ordenados por duración
+            Anuncios de competidores — ordenados por duración
           </p>
+        </div>
+
+        {/* Cache freshness disclaimer */}
+        <div
+          className="flex items-start gap-2 rounded-md px-4 py-3 text-xs"
+          style={{ backgroundColor: "#451a03", border: "1px solid #92400e", color: "#fcd34d" }}
+        >
+          <span className="mt-0.5 shrink-0">⚠</span>
+          <span>
+            Los datos provienen del caché de Apify (hasta 48h de antigüedad). Algunos anuncios pueden haber sido pausados desde la última actualización. El estado mostrado es una estimación — verificá el anuncio original antes de usarlo como referencia.
+          </span>
         </div>
 
         {/* Filter tabs */}

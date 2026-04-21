@@ -335,6 +335,8 @@ class MetaAdLibraryService:
         variations = item.get("collation_count") or 1
         start_date_formatted = item.get("start_date_formatted") or ""
         end_date_formatted = item.get("end_date_formatted") or ""
+        # Raw end date — may be an ISO string or epoch int; stored for staleness filtering in /hooks
+        end_date_raw = item.get("end_date") or item.get("ad_delivery_stop_time") or ""
 
         return {
             "competitor": competitor,
@@ -343,6 +345,8 @@ class MetaAdLibraryService:
             "title": title,
             "ad_creative_bodies": bodies,
             "days_active": self._days_since(start_time),
+            "start_date": start_time,  # raw ISO/epoch value — stored so /hooks can recalculate dynamically
+            "end_date": end_date_raw,  # raw ISO/epoch value — stored so /hooks can filter past ads
             "platforms": platforms,
             "snapshot_url": snapshot_url,
             "page_like_count": page_like_count,

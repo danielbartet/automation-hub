@@ -1,5 +1,6 @@
 """Competitor Intelligence endpoints — weekly brief per project."""
 import logging
+from datetime import datetime, timezone
 from fastapi import APIRouter, Depends, HTTPException
 from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
@@ -91,10 +92,32 @@ async def get_hook_library(
     # Extract ads from research_json
     raw_ads: list[dict] = cache.research_json.get("ads", []) if cache.research_json else []
 
+    now = datetime.now(timezone.utc)
+
     hooks: list[dict] = []
     seen: set[tuple] = set()
 
     for ad in raw_ads:
+        # Filter out explicitly inactive ads (Apify provides is_active field)
+        if ad.get("is_active") is False:
+            continue
+
+        # Filter out ads with a past end_date
+        # Prefer the raw ISO/epoch end_date over the human-readable end_date_formatted
+        end_date_raw = ad.get("end_date") or ""
+        if end_date_raw:
+            try:
+                if isinstance(end_date_raw, (int, float)):
+                    end_dt = datetime.fromtimestamp(end_date_raw, tz=timezone.utc)
+                else:
+                    end_dt = datetime.fromisoformat(str(end_date_raw).replace("Z", "+00:00"))
+                if end_dt.tzinfo is None:
+                    end_dt = end_dt.replace(tzinfo=timezone.utc)
+                if end_dt < now:
+                    continue
+            except Exception:
+                pass  # unparseable end_date — keep the ad
+
         page_name = ad.get("page_name") or ad.get("competitor") or ""
         # headline: try title first, then ad_creative_link_titles
         headline = ad.get("title") or ""
@@ -108,7 +131,23 @@ async def get_hook_library(
             bodies = ad.get("ad_creative_bodies") or []
             body = bodies[0] if bodies else ""
 
-        days_active = int(ad.get("days_active") or 0)
+        # Recalculate days_active dynamically from raw start_date so the value
+        # is always accurate at query time, not frozen at scrape time (cache TTL 48h).
+        raw_start = ad.get("start_date") or ad.get("ad_delivery_start_time") or ""
+        if raw_start:
+            try:
+                if isinstance(raw_start, (int, float)):
+                    start_dt = datetime.fromtimestamp(raw_start, tz=timezone.utc)
+                else:
+                    start_dt = datetime.fromisoformat(str(raw_start).replace("Z", "+00:00"))
+                if start_dt.tzinfo is None:
+                    start_dt = start_dt.replace(tzinfo=timezone.utc)
+                days_active = (now - start_dt).days
+            except Exception:
+                days_active = int(ad.get("days_active") or 0)
+        else:
+            days_active = int(ad.get("days_active") or 0)
+
         start_date = ad.get("start_date_formatted") or ad.get("start_date") or ""
         snapshot_url = ad.get("snapshot_url") or ""
 
