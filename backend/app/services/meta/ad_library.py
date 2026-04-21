@@ -331,7 +331,10 @@ class MetaAdLibraryService:
         cta_text = snapshot.get("cta_text") or ""
 
         # Extended fields from top-level
-        is_active = item.get("is_active", False)
+        # Use None (not False) as default — None means "unknown/not provided by Apify".
+        # Only store False when the field is explicitly present and falsy.
+        is_active_raw = item.get("is_active", None)
+        is_active = bool(is_active_raw) if is_active_raw is not None else None
         variations = item.get("collation_count") or 1
         start_date_formatted = item.get("start_date_formatted") or ""
         end_date_formatted = item.get("end_date_formatted") or ""

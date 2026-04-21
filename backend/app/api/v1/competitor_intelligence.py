@@ -98,12 +98,15 @@ async def get_hook_library(
     seen: set[tuple] = set()
 
     for ad in raw_ads:
-        # Filter out explicitly inactive ads (Apify provides is_active field)
-        if ad.get("is_active") is False:
+        # Only skip ads with EXPLICIT evidence they have stopped.
+        # Missing is_active (None) or True → keep. Only False → skip.
+        is_active = ad.get("is_active")
+        if is_active is False:
             continue
 
-        # Filter out ads with a past end_date
-        # Prefer the raw ISO/epoch end_date over the human-readable end_date_formatted
+        # Filter out ads with a past end_date — only if the field is present and parseable.
+        # Absent end_date means the ad is still running (Apify omits it for active ads).
+        # Prefer the raw ISO/epoch end_date over the human-readable end_date_formatted.
         end_date_raw = ad.get("end_date") or ""
         if end_date_raw:
             try:
