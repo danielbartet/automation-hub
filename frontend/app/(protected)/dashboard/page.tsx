@@ -7,7 +7,7 @@ import { Header } from "@/components/layout/Header";
 import { KPICard } from "@/components/dashboard/KPICard";
 import { WhatToPostTodayCard } from "@/components/dashboard/WhatToPostTodayCard";
 import { fetchDashboard } from "@/lib/api";
-import { Loader2, FileText } from "lucide-react";
+import { Loader2, FileText, Activity } from "lucide-react";
 import { useT } from "@/lib/i18n";
 import { useProject } from "@/lib/project-context";
 
@@ -52,6 +52,18 @@ interface DashboardData {
   };
 }
 
+interface AuditLogEntry {
+  id: number;
+  timestamp: string;
+  operation: string;
+  entity_type: string;
+  entity_id: string | null;
+  success: boolean;
+  response_status: number | null;
+  error_message: string | null;
+  user_id: number | null;
+}
+
 const STATUS_CLASSES: Record<string, string> = {
   pending_approval: "bg-yellow-900/50 text-yellow-400",
   published: "bg-green-900/50 text-green-400",
@@ -83,24 +95,43 @@ export default function DashboardPage() {
   const router = useRouter();
   const { selectedSlug, selectedProject } = useProject();
 
+  const isAdmin = session?.user?.role === "admin" || session?.user?.role === "super_admin";
+  const token = (session as { accessToken?: string } | null)?.accessToken ?? "";
+
   const [data, setData] = useState<DashboardData | null>(null);
   const [loadingData, setLoadingData] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  const [activeTab, setActiveTab] = useState<"overview" | "actividad">("overview");
+  const [auditLog, setAuditLog] = useState<AuditLogEntry[]>([]);
+  const [auditLoading, setAuditLoading] = useState(false);
 
   const loadData = useCallback(() => {
     if (!selectedSlug) return;
-    const token = (session as any)?.accessToken as string | undefined;
     setLoadingData(true);
     setError(null);
     fetchDashboard(selectedSlug, token)
       .then((d) => setData(d))
       .catch((err) => setError(err.message))
       .finally(() => setLoadingData(false));
-  }, [selectedSlug, session]);
+  }, [selectedSlug, token]);
 
   useEffect(() => {
     loadData();
   }, [loadData]);
+
+  // Fetch audit log when Actividad tab is active (admin only)
+  useEffect(() => {
+    if (activeTab !== "actividad" || !selectedSlug || !token || !isAdmin) return;
+    setAuditLoading(true);
+    const api = process.env.NEXT_PUBLIC_API_URL ?? "http://localhost:8000";
+    fetch(`${api}/api/v1/ads/audit-log/${selectedSlug}?limit=50`, {
+      headers: { Authorization: `Bearer ${token}` },
+    })
+      .then((r) => (r.ok ? r.json() : { entries: [] }))
+      .then((d) => setAuditLog(d.entries ?? []))
+      .catch(() => setAuditLog([]))
+      .finally(() => setAuditLoading(false));
+  }, [activeTab, selectedSlug, token, isAdmin]);
 
   const recentPosts = data?.content?.recent_posts ?? [];
   const campaigns = data?.meta_ads?.campaigns ?? [];
@@ -126,6 +157,110 @@ export default function DashboardPage() {
           </div>
         )}
 
+        {/* Tab bar — admin only */}
+        {isAdmin && (
+          <div className="flex gap-1" style={{ borderBottom: "1px solid #222222" }}>
+            {(["overview", "actividad"] as const).map((tab) => (
+              <button
+                key={tab}
+                onClick={() => setActiveTab(tab)}
+                className="px-4 py-2 text-sm font-medium transition-colors"
+                style={
+                  activeTab === tab
+                    ? { color: "#ffffff", borderBottom: "2px solid #7c3aed" }
+                    : { color: "#9ca3af", borderBottom: "2px solid transparent" }
+                }
+              >
+                {tab === "overview" ? "Overview" : "Actividad"}
+              </button>
+            ))}
+          </div>
+        )}
+
+        {/* ── Actividad tab ── */}
+        {activeTab === "actividad" && isAdmin && (
+          <div className="rounded-lg overflow-hidden" style={{ backgroundColor: "#111111", border: "1px solid #222222" }}>
+            <div className="px-6 py-4" style={{ borderBottom: "1px solid #222222" }}>
+              <h3 className="text-base font-semibold text-white flex items-center gap-2">
+                <Activity className="h-4 w-4" style={{ color: "#9ca3af" }} />
+                Actividad Meta API
+              </h3>
+            </div>
+            {auditLoading ? (
+              <div className="flex items-center justify-center h-40 text-sm" style={{ color: "#9ca3af" }}>
+                <Loader2 className="h-5 w-5 animate-spin mr-2" />
+                Cargando actividad…
+              </div>
+            ) : auditLog.length === 0 ? (
+              <div className="flex items-center justify-center h-40 text-sm" style={{ color: "#9ca3af" }}>
+                No hay actividad registrada aún.
+              </div>
+            ) : (
+              <div className="overflow-x-auto">
+                <table className="w-full text-sm">
+                  <thead style={{ backgroundColor: "#111111", borderBottom: "1px solid #222222" }}>
+                    <tr>
+                      <th className="text-left px-4 py-3 font-medium" style={{ color: "#9ca3af" }}>Timestamp</th>
+                      <th className="text-left px-4 py-3 font-medium" style={{ color: "#9ca3af" }}>Operación</th>
+                      <th className="text-left px-4 py-3 font-medium" style={{ color: "#9ca3af" }}>Entidad</th>
+                      <th className="text-left px-4 py-3 font-medium" style={{ color: "#9ca3af" }}>Estado</th>
+                      <th className="text-left px-4 py-3 font-medium" style={{ color: "#9ca3af" }}>Error</th>
+                    </tr>
+                  </thead>
+                  <tbody>
+                    {auditLog.map((entry, i) => (
+                      <tr
+                        key={entry.id}
+                        style={{ borderTop: i > 0 ? "1px solid #1a1a1a" : undefined }}
+                        className="hover:bg-[#161616] transition-colors"
+                      >
+                        <td className="px-4 py-3 whitespace-nowrap" style={{ color: "#9ca3af" }}>
+                          {new Date(entry.timestamp).toLocaleString("es-AR", {
+                            day: "2-digit",
+                            month: "short",
+                            year: "numeric",
+                            hour: "2-digit",
+                            minute: "2-digit",
+                          })}
+                        </td>
+                        <td className="px-4 py-3">
+                          <span
+                            className="inline-flex items-center px-2 py-0.5 rounded text-xs font-medium"
+                            style={{ backgroundColor: "#1e1b4b", color: "#a5b4fc" }}
+                          >
+                            {entry.operation}
+                          </span>
+                        </td>
+                        <td className="px-4 py-3 text-white">
+                          {entry.entity_type}
+                          {entry.entity_id && (
+                            <span style={{ color: "#6b7280" }}>
+                              {" "}·{" "}{entry.entity_id.slice(0, 12)}
+                            </span>
+                          )}
+                        </td>
+                        <td className="px-4 py-3">
+                          {entry.success ? (
+                            <span className="text-green-400 font-medium">✓</span>
+                          ) : (
+                            <span className="text-red-400 font-medium">✗</span>
+                          )}
+                        </td>
+                        <td className="px-4 py-3 text-xs max-w-[200px] truncate" style={{ color: "#9ca3af" }}>
+                          {entry.error_message ?? "—"}
+                        </td>
+                      </tr>
+                    ))}
+                  </tbody>
+                </table>
+              </div>
+            )}
+          </div>
+        )}
+
+        {/* ── Overview tab content ── */}
+        {(activeTab === "overview" || !isAdmin) && (
+          <>
         {/* What to post today wizard */}
         {selectedSlug && (
           <WhatToPostTodayCard
@@ -284,6 +419,8 @@ export default function DashboardPage() {
             )}
           </div>
         </div>
+          </>
+        )}
       </div>
     </div>
   );
