@@ -1048,16 +1048,23 @@ export function CreateCampaignModal({ projectSlug, projectId, onClose, onSuccess
                                 if (!file) return;
                                 const formData = new FormData();
                                 formData.append("file", file);
+                                const uploadHeaders: HeadersInit = {};
+                                if (token) uploadHeaders["Authorization"] = `Bearer ${token}`;
                                 try {
                                   const res = await fetch(
                                     `${process.env.NEXT_PUBLIC_API_URL || "http://localhost:8000"}/api/v1/upload/${projectSlug}`,
-                                    { method: "POST", body: formData }
+                                    { method: "POST", body: formData, headers: uploadHeaders }
                                   );
                                   if (res.ok) {
                                     const data = await res.json();
                                     setConceptImages(prev => ({ ...prev, [concept.id]: data.url }));
+                                  } else {
+                                    const err = await res.json().catch(() => ({}));
+                                    console.error("Image upload failed:", (err as { detail?: string }).detail || res.status);
                                   }
-                                } catch {}
+                                } catch (err) {
+                                  console.error("Image upload error:", err);
+                                }
                               }}
                             />
                             <Upload className="h-3 w-3" /> Subir imagen
