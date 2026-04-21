@@ -629,6 +629,8 @@ async def create_content_manual(
 
 async def _publish_post_to_meta(post: ContentPost, project: Project, db: AsyncSession) -> None:
     """Publish a content post to Meta (Instagram + Facebook). Updates post.status in place."""
+    from app.services.meta.rate_limiter import meta_rate_limiter
+    meta_rate_limiter.check_and_record(project.id, "publish")
     try:
         access_token = await get_project_token(project, db)
         if not access_token:
@@ -1899,6 +1901,7 @@ async def recommend_today(
             project=project,
             recent_posts=recent_posts,
             competitor_ads=competitor_ads,
+            posting_timezone=(project.content_config or {}).get("posting_timezone", "UTC"),
         )
     except Exception as e:
         raise HTTPException(status_code=503, detail=f"Failed to generate recommendation: {str(e)}")

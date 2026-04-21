@@ -15,6 +15,36 @@ APIFY_ACTOR_ID = "curious_coder~facebook-ads-library-scraper"
 _fetch_locks: dict[int, asyncio.Lock] = {}
 
 
+def _parse_competitors(competitors_raw) -> list[str]:
+    """Parse competitors from content_config into a clean list of handles.
+
+    Handles backward-compatible formats:
+    - list of str (new structured format): ["@midudev", "hola.devs"]
+    - list of dict with 'handle' key (structured objects): [{"handle": "@midudev", ...}]
+    - comma/newline-separated str (legacy): "@midudev\nhola.devs, codewithchris"
+    - empty / None: returns []
+    """
+    if not competitors_raw:
+        return []
+    if isinstance(competitors_raw, list):
+        result = []
+        for item in competitors_raw:
+            if isinstance(item, dict):
+                handle = item.get("handle") or item.get("name") or ""
+            else:
+                handle = str(item)
+            handle = handle.strip().lstrip("@")
+            if handle:
+                result.append(handle)
+        return result
+    # Legacy string format
+    return [
+        c.strip().lstrip("@")
+        for c in str(competitors_raw).replace("\n", ",").split(",")
+        if c.strip()
+    ]
+
+
 class MetaAdLibraryService:
     BASE_URL = "https://graph.facebook.com/v19.0/ads_archive"
 
@@ -381,12 +411,7 @@ class MetaAdLibraryService:
                 # Cache hit but empty — try Claude fallback only for organic content
                 if not ads and use_claude_fallback and not cache.research_json.get("_synthetic"):
                     config = project.content_config or {}
-                    competitors_raw = config.get("competitors", "")
-                    competitors_list = [
-                        c.strip().lstrip("@")
-                        for c in competitors_raw.replace("\n", ",").split(",")
-                        if c.strip()
-                    ]
+                    competitors_list = _parse_competitors(config.get("competitors"))
                     if competitors_list:
                         try:
                             from app.services.claude.client import ClaudeClient
@@ -416,15 +441,9 @@ class MetaAdLibraryService:
 
             # Fetch fresh data
             config = project.content_config or {}
-            competitors_raw = config.get("competitors", "")
-            if not competitors_raw:
+            competitors_list = _parse_competitors(config.get("competitors"))
+            if not competitors_list:
                 return []
-
-            competitors_list = [
-                c.strip().lstrip("@")
-                for c in competitors_raw.replace("\n", ",").split(",")
-                if c.strip()
-            ]
 
             countries = config.get("ad_library_countries", ["AR", "MX", "CO", "CL"])
 

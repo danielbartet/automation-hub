@@ -190,7 +190,13 @@ export function ProjectFormDialog({ project, onClose, onSuccess }: ProjectFormDi
   );
 
   // Tab 2 — Mercado y Ventas
-  const [marketRegion, setMarketRegion] = useState((cc.market_region as string) ?? "LATAM");
+  const [marketRegion, setMarketRegion] = useState((cc.market_region as string) ?? "Global");
+  const [targetCountries, setTargetCountries] = useState(
+    Array.isArray(cc.target_countries)
+      ? (cc.target_countries as string[]).join(", ")
+      : (cc.target_countries as string) ?? ""
+  );
+  const [postingTimezone, setPostingTimezone] = useState((cc.posting_timezone as string) ?? "UTC");
   const [priceRange, setPriceRange] = useState((cc.price_range as string) ?? "");
   const [socialProof, setSocialProof] = useState((cc.social_proof_examples as string) ?? "");
   const [offer, setOffer] = useState((cc.offer as string) ?? "");
@@ -212,8 +218,40 @@ export function ProjectFormDialog({ project, onClose, onSuccess }: ProjectFormDi
   const [visualStyle, setVisualStyle] = useState((cc.visual_style as string) ?? "typographic");
   const [imageMood, setImageMood] = useState((cc.image_mood as string) ?? "");
   const [brandFonts, setBrandFonts] = useState((cc.brand_fonts as string) ?? "");
-  const [competitors, setCompetitors] = useState((cc.competitors as string) ?? "");
+  // Competitors — structured list with backward-compat parsing
+  const parseCompetitorsFromConfig = (raw: unknown): Array<{ handle: string }> => {
+    if (!raw) return [];
+    if (Array.isArray(raw)) {
+      return raw.map((item) => {
+        if (typeof item === "object" && item !== null && "handle" in item) {
+          return { handle: String((item as Record<string, unknown>).handle ?? "").replace(/^@/, "") };
+        }
+        return { handle: String(item).replace(/^@/, "").trim() };
+      }).filter((c) => c.handle);
+    }
+    return String(raw)
+      .replace(/\n/g, ",")
+      .split(",")
+      .map((c) => ({ handle: c.replace(/^@/, "").trim() }))
+      .filter((c) => c.handle);
+  };
+  const [competitorsList, setCompetitorsList] = useState<Array<{ handle: string }>>(
+    parseCompetitorsFromConfig(cc.competitors)
+  );
+  const [newCompetitorHandle, setNewCompetitorHandle] = useState("");
   const [website, setWebsite] = useState((cc.website as string) ?? "");
+
+  // Optimizer config
+  const rawOptimizerConfig = (cc.optimizer_config as Record<string, unknown>) ?? {};
+  const [optimizerTargetCpl, setOptimizerTargetCpl] = useState(
+    rawOptimizerConfig.target_cpl != null ? String(rawOptimizerConfig.target_cpl) : ""
+  );
+  const [optimizerTargetRoas, setOptimizerTargetRoas] = useState(
+    rawOptimizerConfig.target_roas != null ? String(rawOptimizerConfig.target_roas) : ""
+  );
+  const [optimizerTargetCpc, setOptimizerTargetCpc] = useState(
+    rawOptimizerConfig.target_cpc != null ? String(rawOptimizerConfig.target_cpc) : ""
+  );
   const [businessObjective, setBusinessObjective] = useState((cc.business_objective as string) ?? "generate_leads");
   const [targetPlatforms, setTargetPlatforms] = useState<string[]>(
     Array.isArray(cc.target_platforms) ? (cc.target_platforms as string[]) : []
@@ -270,6 +308,11 @@ export function ProjectFormDialog({ project, onClose, onSuccess }: ProjectFormDi
           .map((r) => r.trim())
           .filter(Boolean),
         market_region: marketRegion,
+        target_countries: targetCountries
+          .split(",")
+          .map((c) => c.trim())
+          .filter(Boolean),
+        posting_timezone: postingTimezone,
         price_range: priceRange,
         social_proof_examples: socialProof,
         offer,
@@ -283,11 +326,17 @@ export function ProjectFormDialog({ project, onClose, onSuccess }: ProjectFormDi
         visual_style: visualStyle,
         image_mood: imageMood,
         brand_fonts: brandFonts,
-        competitors,
+        competitors: competitorsList.map((c) => c.handle),
         website,
         business_objective: businessObjective,
         target_platforms: targetPlatforms,
         posting_frequency: postingFrequency,
+        optimizer_config: {
+          ...(rawOptimizerConfig),
+          ...(optimizerTargetCpl !== "" ? { target_cpl: parseFloat(optimizerTargetCpl) } : {}),
+          ...(optimizerTargetRoas !== "" ? { target_roas: parseFloat(optimizerTargetRoas) } : {}),
+          ...(optimizerTargetCpc !== "" ? { target_cpc: parseFloat(optimizerTargetCpc) } : {}),
+        },
       };
 
       // Auto-derive media_config from brand visual settings
@@ -448,14 +497,53 @@ export function ProjectFormDialog({ project, onClose, onSuccess }: ProjectFormDi
                 <div className="space-y-5">
                   <div>
                     <label className="block text-sm font-medium text-white mb-1">{t.form_market_region_label}</label>
-                    <input
+                    <select
                       value={marketRegion}
                       onChange={(e) => setMarketRegion(e.target.value)}
                       className="w-full rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-[#7c3aed]"
                       style={inputStyle}
-                      placeholder={t.form_market_region_placeholder}
+                    >
+                      <option value="LATAM">LATAM</option>
+                      <option value="North America">North America</option>
+                      <option value="Europe">Europe</option>
+                      <option value="Global">Global</option>
+                    </select>
+                    <p className="text-xs mt-1" style={{ color: "#6b7280" }}>Affects AI copy style, psychological hooks, and platform recommendations</p>
+                  </div>
+                  <div>
+                    <label className="block text-sm font-medium text-white mb-1">Target Countries</label>
+                    <input
+                      value={targetCountries}
+                      onChange={(e) => setTargetCountries(e.target.value)}
+                      className="w-full rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-[#7c3aed]"
+                      style={inputStyle}
+                      placeholder="AR, MX, CO"
                     />
-                    <p className="text-xs mt-1" style={{ color: "#6b7280" }}>{t.form_market_region_hint}</p>
+                    <p className="text-xs mt-1" style={{ color: "#6b7280" }}>ISO codes, comma-separated (e.g. AR,MX,CO)</p>
+                  </div>
+                  <div>
+                    <label className="block text-sm font-medium text-white mb-1">Posting Timezone</label>
+                    <select
+                      value={postingTimezone}
+                      onChange={(e) => setPostingTimezone(e.target.value)}
+                      className="w-full rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-[#7c3aed]"
+                      style={inputStyle}
+                    >
+                      <option value="UTC">UTC</option>
+                      <option value="America/Argentina/Buenos_Aires">America/Argentina/Buenos_Aires</option>
+                      <option value="America/Mexico_City">America/Mexico_City</option>
+                      <option value="America/Bogota">America/Bogota</option>
+                      <option value="America/Santiago">America/Santiago</option>
+                      <option value="America/Lima">America/Lima</option>
+                      <option value="America/New_York">America/New_York</option>
+                      <option value="America/Sao_Paulo">America/Sao_Paulo</option>
+                      <option value="Europe/London">Europe/London</option>
+                      <option value="Europe/Madrid">Europe/Madrid</option>
+                      <option value="Europe/Paris">Europe/Paris</option>
+                      <option value="Asia/Tokyo">Asia/Tokyo</option>
+                      <option value="Australia/Sydney">Australia/Sydney</option>
+                    </select>
+                    <p className="text-xs mt-1" style={{ color: "#6b7280" }}>Used to display the content calendar in the correct timezone</p>
                   </div>
                   <div>
                     <label className="block text-sm font-medium text-white mb-1">{t.form_price_range_label}</label>
@@ -756,17 +844,65 @@ export function ProjectFormDialog({ project, onClose, onSuccess }: ProjectFormDi
                 />
               </div>
 
-              {/* Competitors */}
+              {/* Competitors — structured list */}
               <div>
                 <label className="block text-sm font-medium text-white mb-1">{t.form_competitors_label}</label>
-                <textarea
-                  value={competitors}
-                  onChange={(e) => setCompetitors(e.target.value)}
-                  rows={3}
-                  className="w-full rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-[#7c3aed]"
-                  style={inputStyle}
-                  placeholder={"@midudev\n@hola.devs\n@codewithchris"}
-                />
+                {competitorsList.length > 0 && (
+                  <div className="flex flex-wrap gap-2 mb-2">
+                    {competitorsList.map((c, idx) => (
+                      <div
+                        key={idx}
+                        className="flex items-center gap-1.5 px-2.5 py-1 rounded-full text-xs font-medium"
+                        style={{ backgroundColor: "#1a1a2e", border: "1px solid #333333", color: "#d1d5db" }}
+                      >
+                        <span>@{c.handle}</span>
+                        <button
+                          type="button"
+                          onClick={() => setCompetitorsList((prev) => prev.filter((_, i) => i !== idx))}
+                          className="text-gray-500 hover:text-red-400 transition-colors ml-1"
+                          style={{ lineHeight: 1 }}
+                        >
+                          &times;
+                        </button>
+                      </div>
+                    ))}
+                  </div>
+                )}
+                <div className="flex gap-2">
+                  <input
+                    value={newCompetitorHandle}
+                    onChange={(e) => setNewCompetitorHandle(e.target.value)}
+                    onKeyDown={(e) => {
+                      if (e.key === "Enter") {
+                        e.preventDefault();
+                        const handle = newCompetitorHandle.replace(/^@/, "").trim();
+                        if (handle && !competitorsList.some((c) => c.handle === handle)) {
+                          setCompetitorsList((prev) => [...prev, { handle }]);
+                        }
+                        setNewCompetitorHandle("");
+                      }
+                    }}
+                    className="flex-1 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-[#7c3aed]"
+                    style={inputStyle}
+                    placeholder="@midudev (Enter to add)"
+                  />
+                  <button
+                    type="button"
+                    onClick={() => {
+                      const handle = newCompetitorHandle.replace(/^@/, "").trim();
+                      if (handle && !competitorsList.some((c) => c.handle === handle)) {
+                        setCompetitorsList((prev) => [...prev, { handle }]);
+                      }
+                      setNewCompetitorHandle("");
+                    }}
+                    className="px-3 py-2 text-sm rounded-lg font-medium text-white transition-colors"
+                    style={{ backgroundColor: "#7c3aed" }}
+                    onMouseEnter={e => { (e.currentTarget as HTMLButtonElement).style.backgroundColor = "#6d28d9"; }}
+                    onMouseLeave={e => { (e.currentTarget as HTMLButtonElement).style.backgroundColor = "#7c3aed"; }}
+                  >
+                    Add
+                  </button>
+                </div>
               </div>
 
               {/* Website / Landing URL */}
@@ -838,6 +974,55 @@ export function ProjectFormDialog({ project, onClose, onSuccess }: ProjectFormDi
                     </option>
                   ))}
                 </select>
+              </div>
+
+              {/* Andromeda optimizer thresholds */}
+              <div>
+                <label className="block text-sm font-medium text-white mb-1">Andromeda Optimizer Targets</label>
+                <p className="text-xs mb-3" style={{ color: "#9ca3af" }}>
+                  Leave blank to use Andromeda defaults (CPL $5, ROAS 2.0, CPC $0.30).
+                </p>
+                <div className="grid grid-cols-3 gap-3">
+                  <div>
+                    <label className="block text-xs mb-1" style={{ color: "#9ca3af" }}>Target CPL ($)</label>
+                    <input
+                      type="number"
+                      min="0"
+                      step="0.01"
+                      value={optimizerTargetCpl}
+                      onChange={(e) => setOptimizerTargetCpl(e.target.value)}
+                      className="w-full rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-[#7c3aed]"
+                      style={inputStyle}
+                      placeholder="5.00"
+                    />
+                  </div>
+                  <div>
+                    <label className="block text-xs mb-1" style={{ color: "#9ca3af" }}>Target ROAS</label>
+                    <input
+                      type="number"
+                      min="0"
+                      step="0.1"
+                      value={optimizerTargetRoas}
+                      onChange={(e) => setOptimizerTargetRoas(e.target.value)}
+                      className="w-full rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-[#7c3aed]"
+                      style={inputStyle}
+                      placeholder="2.0"
+                    />
+                  </div>
+                  <div>
+                    <label className="block text-xs mb-1" style={{ color: "#9ca3af" }}>Target CPC ($)</label>
+                    <input
+                      type="number"
+                      min="0"
+                      step="0.01"
+                      value={optimizerTargetCpc}
+                      onChange={(e) => setOptimizerTargetCpc(e.target.value)}
+                      className="w-full rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-[#7c3aed]"
+                      style={inputStyle}
+                      placeholder="0.30"
+                    />
+                  </div>
+                </div>
               </div>
             </div>
           )}

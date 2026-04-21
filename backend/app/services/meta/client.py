@@ -82,3 +82,39 @@ class MetaClient:
                 logger.error("Meta API POST %s → %s: %s", path, resp.status_code, resp.text)
             resp.raise_for_status()
             return resp.json()
+
+
+async def validate_meta_token(token: str, project_id: int | None = None) -> dict:
+    """
+    Validates a Meta access token.
+    Returns: {"valid": bool, "expires_in_days": int | None, "error": str | None}
+    """
+    client = MetaClient(token)
+    try:
+        # Step 1: verify token works
+        me = await client.get("/me", params={"fields": "id,name"})
+        if "error" in me:
+            return {"valid": False, "expires_in_days": None, "error": me["error"].get("message", "Token invalid")}
+
+        # Step 2: check expiry via debug_token
+        debug = await client.get("/debug_token", params={"input_token": token, "access_token": token})
+        data = debug.get("data", {})
+        expires_at = data.get("expires_at")
+
+        expires_in_days = None
+        if expires_at and expires_at != 0:
+            from datetime import datetime, timezone
+            expiry = datetime.fromtimestamp(expires_at, tz=timezone.utc)
+            expires_in_days = (expiry - datetime.now(timezone.utc)).days
+
+            if expires_in_days < 3:
+                logger.warning(
+                    "Meta token expiring in %d days%s",
+                    expires_in_days,
+                    f" for project {project_id}" if project_id else "",
+                )
+
+        return {"valid": True, "expires_in_days": expires_in_days, "error": None}
+
+    except Exception as e:
+        return {"valid": False, "expires_in_days": None, "error": str(e)}

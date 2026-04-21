@@ -19,6 +19,7 @@ interface CreateCampaignModalProps {
   onClose: () => void;
   onSuccess: () => void;
   prefill?: InspirationPrefill;
+  contentConfig?: Record<string, unknown>;
 }
 
 const OBJECTIVES = [
@@ -64,7 +65,7 @@ const COUNTRY_OPTIONS = [
 
 const STEPS = ["Campaña", "Conceptos", "Imágenes", "Creativo", "Lanzar"];
 
-export function CreateCampaignModal({ projectSlug, projectId, onClose, onSuccess, prefill }: CreateCampaignModalProps) {
+export function CreateCampaignModal({ projectSlug, projectId, onClose, onSuccess, prefill, contentConfig }: CreateCampaignModalProps) {
   const { data: session } = useSession();
   const token = (session as any)?.accessToken as string | undefined;
   const [step, setStep] = useState(1);
@@ -79,6 +80,8 @@ export function CreateCampaignModal({ projectSlug, projectId, onClose, onSuccess
   const [budget, setBudget] = useState(10);
   const [countries, setCountries] = useState<string[]>(["AR", "MX", "CO", "CL"]);
   const [destinationUrlStep1, setDestinationUrlStep1] = useState("");
+  // Track which fields were pre-filled from project config
+  const [preFilledFields, setPreFilledFields] = useState<Set<string>>(new Set());
   const [pixelEvent, setPixelEvent] = useState("Purchase");
   const [audienceType, setAudienceType] = useState<"broad" | "custom" | "lookalike" | "retargeting_lookalike">("broad");
   const [customAudienceIds, setCustomAudienceIds] = useState<string[]>([]);
@@ -171,6 +174,34 @@ export function CreateCampaignModal({ projectSlug, projectId, onClose, onSuccess
     setDestinationUrlStep1(prefill.destination_url);
   // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
+
+  // Pre-fill campaign wizard fields from project content_config
+  useEffect(() => {
+    if (!contentConfig) return;
+    const filled = new Set<string>();
+
+    const rawCountries = contentConfig.target_countries;
+    if (rawCountries) {
+      const parsed: string[] = Array.isArray(rawCountries)
+        ? (rawCountries as string[])
+        : String(rawCountries).split(",").map((s: string) => s.trim()).filter(Boolean);
+      if (parsed.length > 0) {
+        setCountries(parsed);
+        filled.add("countries");
+      }
+    }
+
+    const websiteUrl = contentConfig.website_url || contentConfig.website;
+    if (websiteUrl && !destinationUrlStep1) {
+      setDestinationUrlStep1(String(websiteUrl));
+      filled.add("destinationUrl");
+    }
+
+    if (filled.size > 0) {
+      setPreFilledFields(filled);
+    }
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [contentConfig]);
 
   // Fetch audiences when audience type changes away from "broad"
   useEffect(() => {
@@ -506,6 +537,9 @@ export function CreateCampaignModal({ projectSlug, projectId, onClose, onSuccess
                     </button>
                   ))}
                 </div>
+                {preFilledFields.has("countries") && (
+                  <p className="text-xs text-gray-400 mt-1">Pre-filled from project settings</p>
+                )}
               </div>
 
               {/* Destination URL — shown for OUTCOME_SALES and OUTCOME_TRAFFIC */}
@@ -524,6 +558,9 @@ export function CreateCampaignModal({ projectSlug, projectId, onClose, onSuccess
                   />
                   {destinationUrlStep1 && !destinationUrlStep1.startsWith("https://") && (
                     <p className="text-xs mt-1 text-red-400">La URL debe comenzar con https://</p>
+                  )}
+                  {preFilledFields.has("destinationUrl") && (
+                    <p className="text-xs text-gray-400 mt-1">Pre-filled from project settings</p>
                   )}
                 </div>
               )}

@@ -14,6 +14,7 @@ interface Project {
   name: string;
   slug: string;
   is_active: boolean;
+  content_config?: Record<string, unknown>;
 }
 
 interface ContentPost {
@@ -47,6 +48,15 @@ function getMonthDates(year: number, month: number): (Date | null)[] {
     days.push(new Date(year, month, d));
   }
   return days;
+}
+
+function formatInTimezone(utcDate: string | Date, tz: string): string {
+  return new Intl.DateTimeFormat("es-AR", {
+    timeZone: tz,
+    hour: "2-digit",
+    minute: "2-digit",
+    hour12: false,
+  }).format(new Date(utcDate));
 }
 
 const STATUS_COLORS: Record<string, string> = {
@@ -89,6 +99,8 @@ export default function CalendarPage() {
   const { data: session } = useSession();
   const isClient = session?.user?.role === "client";
   const { selectedProject, projects } = useProject();
+  const projectTimezone =
+    ((selectedProject as Project | null)?.content_config?.posting_timezone as string | undefined) ?? "UTC";
   const [view, setView] = useState<"week" | "month">("week");
   const [currentDate, setCurrentDate] = useState(new Date());
   const [posts, setPosts] = useState<ContentPost[]>([]);
@@ -195,6 +207,7 @@ export default function CalendarPage() {
               <span className="text-sm font-medium min-w-[180px] text-center text-white">
                 {view === "week" ? weekLabel : monthLabel}
               </span>
+              <span className="text-xs" style={{ color: "#6b7280" }}>({projectTimezone})</span>
               <button
                 onClick={() => navigate(1)}
                 className="p-1.5 rounded-md transition-colors text-white"
@@ -288,6 +301,11 @@ export default function CalendarPage() {
                             }`}
                           />
                           <span className="text-xs truncate" style={{ color: "#9ca3af" }}>{post.status}</span>
+                          {post.scheduled_at && (
+                            <span className="text-xs ml-auto" style={{ color: "#6b7280" }}>
+                              {formatInTimezone(post.scheduled_at, projectTimezone)}
+                            </span>
+                          )}
                         </div>
                         <p className="text-xs line-clamp-2" style={{ color: "#d1d5db" }}>{post.caption}</p>
                       </div>
@@ -431,17 +449,24 @@ export default function CalendarPage() {
                     )}
                     <div className="flex-1 min-w-0">
                       <p className="text-sm truncate" style={{ color: "#d1d5db" }}>{post.caption}</p>
-                      <span
-                        className={`inline-block mt-0.5 px-1.5 py-0.5 rounded text-xs font-medium ${
-                          post.status === "published"
-                            ? "bg-green-900/50 text-green-400"
-                            : post.status === "pending_approval"
-                            ? "bg-yellow-900/50 text-yellow-400"
-                            : "bg-gray-800 text-gray-400"
-                        }`}
-                      >
-                        {post.status}
-                      </span>
+                      <div className="flex items-center gap-2 mt-0.5 flex-wrap">
+                        <span
+                          className={`inline-block px-1.5 py-0.5 rounded text-xs font-medium ${
+                            post.status === "published"
+                              ? "bg-green-900/50 text-green-400"
+                              : post.status === "pending_approval"
+                              ? "bg-yellow-900/50 text-yellow-400"
+                              : "bg-gray-800 text-gray-400"
+                          }`}
+                        >
+                          {post.status}
+                        </span>
+                        {post.scheduled_at && (
+                          <span className="text-xs" style={{ color: "#6b7280" }}>
+                            {formatInTimezone(post.scheduled_at, projectTimezone)}
+                          </span>
+                        )}
+                      </div>
                     </div>
                   </div>
                 ))}
@@ -456,6 +481,7 @@ export default function CalendarPage() {
           projects={projects}
           defaultProject={selectedProject}
           defaultDate={selectedDay || currentDate}
+          projectTimezone={projectTimezone}
           onClose={() => {
             setShowPlanModal(false);
             setSelectedDay(null);

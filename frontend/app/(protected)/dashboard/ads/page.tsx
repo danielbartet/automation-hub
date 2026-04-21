@@ -11,6 +11,7 @@ import {
   fetchDashboard,
   importCampaigns,
   fetchCampaignRecommendations,
+  fetchProjectBySlug,
   approveOptimizerAction,
   rejectOptimizerAction,
   type CampaignRecommendations,
@@ -109,6 +110,7 @@ export default function AdsPage() {
   const [recsToast, setRecsToast] = useState<string | null>(null);
   const [activeTab, setActiveTab] = useState<"campaigns" | "inspiration">("campaigns");
   const [inspirationPrefill, setInspirationPrefill] = useState<InspirationPrefill | undefined>(undefined);
+  const [projectContentConfig, setProjectContentConfig] = useState<Record<string, unknown> | undefined>(undefined);
   const loadData = useCallback(() => {
     if (!selectedSlug) return;
     setLoadingData(true);
@@ -210,6 +212,13 @@ export default function AdsPage() {
   useEffect(() => {
     loadData();
   }, [loadData]);
+
+  useEffect(() => {
+    if (!selectedSlug || !token) return;
+    fetchProjectBySlug(selectedSlug, token)
+      .then((proj) => setProjectContentConfig(proj?.content_config ?? undefined))
+      .catch(() => setProjectContentConfig(undefined));
+  }, [selectedSlug, token]);
 
   const handleAdapted = (prefill: InspirationPrefill) => {
     setInspirationPrefill(prefill);
@@ -584,6 +593,7 @@ export default function AdsPage() {
           projectSlug={selectedProject.slug}
           projectId={selectedProject.id}
           prefill={inspirationPrefill}
+          contentConfig={projectContentConfig}
           onClose={() => { setShowCreateModal(false); setInspirationPrefill(undefined); }}
           onSuccess={() => {
             setShowCreateModal(false);

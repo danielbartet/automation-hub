@@ -27,6 +27,7 @@ interface PlanContentModalProps {
   defaultDate: Date;
   onClose: () => void;
   onSuccess: () => void;
+  projectTimezone?: string;
 }
 
 const DAY_LABELS = ["Mon", "Tue", "Wed", "Thu", "Fri", "Sat", "Sun"];
@@ -85,6 +86,7 @@ export function PlanContentModal({
   defaultDate: _defaultDate,
   onClose,
   onSuccess,
+  projectTimezone = "UTC",
 }: PlanContentModalProps) {
   const { data: session } = useSession();
   const [projectSlug, setProjectSlug] = useState(defaultProject.slug);
@@ -393,6 +395,7 @@ export function PlanContentModal({
                 className="w-full rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-[#7c3aed]"
                 style={inputStyle}
               />
+              <p className="text-xs mt-1" style={{ color: "#6b7280" }}>Hora del proyecto: {projectTimezone}</p>
             </div>
           </div>
 

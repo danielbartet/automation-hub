@@ -250,19 +250,39 @@ def _detect_fatigue(metrics: dict, days_since_created: int) -> dict | None:
     }
 
 
-def _can_optimize(metrics: dict) -> tuple[bool, str]:
+def _get_optimizer_config(project: Project) -> dict:
+    """Extract optimizer config from project.content_config with Andromeda defaults."""
+    raw = (project.content_config or {}).get("optimizer_config", {})
+    if not isinstance(raw, dict):
+        raw = {}
+    return {
+        "min_days": int(raw.get("min_days", 7)),
+        "min_spend": float(raw.get("min_spend", 50.0)),
+        "max_budget_multiplier": float(raw.get("max_budget_multiplier", 1.3)),
+        "target_cpl": float(raw.get("target_cpl", 5.0)),
+        "target_roas": float(raw.get("target_roas", 2.0)),
+        "target_cpc": float(raw.get("target_cpc", 0.30)),
+    }
+
+
+def _can_optimize(metrics: dict, cfg: dict | None = None) -> tuple[bool, str]:
     """
     Hard guards that prevent optimization regardless of what Claude says.
     These are non-negotiable Andromeda rules.
     """
+    if cfg is None:
+        cfg = {}
+    min_days = int(cfg.get("min_days", 7))
+    min_spend = float(cfg.get("min_spend", 50.0))
+
     days_running = int(metrics.get("days_running", 0))
     total_spend = float(metrics.get("total_spend", 0.0))
 
-    if days_running < 7:
-        return False, f"Learning phase active ({days_running}/7 days). No changes until day 7."
+    if days_running < min_days:
+        return False, f"Learning phase active ({days_running}/{min_days} days). No changes until day {min_days}."
 
-    if total_spend < 50.0:
-        return False, f"Insufficient spend (${total_spend:.2f}/$50.00 minimum). Wait for more data."
+    if total_spend < min_spend:
+        return False, f"Insufficient spend (${total_spend:.2f}/${min_spend:.2f} minimum). Wait for more data."
 
     return True, "OK"
 
@@ -287,12 +307,15 @@ async def analyze_campaign(
     # 2. Build prompt for Claude
     days_since_created = (datetime.now(timezone.utc).replace(tzinfo=None) - campaign.created_at).days
 
+    # Load per-project optimizer config (with Andromeda defaults)
+    opt_cfg = _get_optimizer_config(project)
+
     # Hard guards — check before calling Claude
     guard_metrics = {
         "days_running": days_since_created,
         "total_spend": float(metrics.get("spend", 0.0)),
     }
-    can_optimize, reason = _can_optimize(guard_metrics)
+    can_optimize, reason = _can_optimize(guard_metrics, cfg=opt_cfg)
     if not can_optimize:
         import logging
         logger = logging.getLogger(__name__)
@@ -379,6 +402,12 @@ OPTIMIZATION HISTORY (last 3 decisions):
 COMPETITOR ADS (currently active — longer-running ads are likely performing):
 {comp_text}
 
+PROJECT THRESHOLDS (override Andromeda defaults for this project):
+- Target CPL: ${opt_cfg['target_cpl']:.2f} (LEADS campaigns — scale if CPL at or below this)
+- Target ROAS: {opt_cfg['target_roas']:.2f} (SALES campaigns — scale if ROAS at or above this)
+- Target CPC: ${opt_cfg['target_cpc']:.2f} (TRAFFIC campaigns — scale if CPC at or below this)
+- Max budget increase: {int((opt_cfg['max_budget_multiplier'] - 1) * 100)}% per optimization cycle
+
 CRITICAL RULES:
 - The "Days running" value above is the authoritative campaign age. Never override it with inferences from spend or impressions volume.
 - Metrics show only the last 7-day window — low spend does not mean the campaign is new.
@@ -443,12 +472,12 @@ Return your JSON decision."""
             if campaign.id in pending_campaign_ids:
                 action_taken = "NO_ACTION"  # already has a pending SCALE/PAUSE notification
             else:
-                MAX_BUDGET_MULTIPLIER = 1.3
+                max_budget_multiplier = opt_cfg["max_budget_multiplier"]
                 proposed_multiplier = analysis.get("new_budget_multiplier", 1.2)
-                safe_multiplier = min(proposed_multiplier, MAX_BUDGET_MULTIPLIER)
+                safe_multiplier = min(proposed_multiplier, max_budget_multiplier)
                 if safe_multiplier < proposed_multiplier:
                     logger.warning(
-                        f"Budget multiplier capped from {proposed_multiplier} to {MAX_BUDGET_MULTIPLIER} for campaign {campaign.id}"
+                        f"Budget multiplier capped from {proposed_multiplier} to {max_budget_multiplier} for campaign {campaign.id}"
                     )
                 new_budget = round(old_budget * safe_multiplier, 2)
                 new_budget = max(new_budget, 10.0)

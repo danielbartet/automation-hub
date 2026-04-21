@@ -17,6 +17,13 @@ export async function fetchProjects(token?: string) {
   return res.json();
 }
 
+export async function fetchProjectBySlug(slug: string, token?: string) {
+  const headers: HeadersInit = token ? { Authorization: `Bearer ${token}` } : {};
+  const res = await fetch(`${API_BASE}/api/v1/projects/${slug}`, { headers, cache: "no-store" });
+  if (!res.ok) throw new Error("Failed to fetch project");
+  return res.json();
+}
+
 export async function deleteProject(slug: string, token?: string) {
   const headers: HeadersInit = token ? { Authorization: `Bearer ${token}` } : {};
   const res = await fetch(`${API_BASE}/api/v1/projects/${slug}`, {

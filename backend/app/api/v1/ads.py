@@ -129,6 +129,41 @@ async def fetch_live_campaign_statuses(project: Project, db: AsyncSession) -> di
         return {}
 
 
+class ABTestVariantsRequest(BaseModel):
+    concept: dict
+    num_variants: int = 3
+
+
+@router.post("/ab-test-variants/{project_slug}")
+async def generate_ab_test_variants(
+    project_slug: str,
+    body: ABTestVariantsRequest,
+    db: AsyncSession = Depends(get_session),
+    current_user=Depends(require_role("admin", "operator", "super_admin")),
+) -> dict:
+    """Generate A/B test hook variants for an existing ad concept."""
+    from app.services.claude.client import ClaudeClient
+
+    proj_result = await db.execute(select(Project).where(Project.slug == project_slug))
+    project = proj_result.scalar_one_or_none()
+    if not project:
+        raise HTTPException(404, f"Project '{project_slug}' not found")
+
+    await assert_project_access(current_user, project.id, db)
+
+    try:
+        claude = ClaudeClient()
+        variants = await claude.generate_ab_test_variants(
+            concept=body.concept,
+            num_variants=body.num_variants,
+            content_config=project.content_config or {},
+        )
+    except Exception as e:
+        raise HTTPException(500, f"A/B variant generation failed: {str(e)}")
+
+    return {"variants": variants}
+
+
 class AdaptCompetitorRequest(BaseModel):
     ad_index: int
     competitor_ad: dict
@@ -168,7 +203,8 @@ async def get_competitor_ads(
         raise HTTPException(400, "No Meta access token configured. Connect your Meta account in Settings.")
 
     config = project.content_config or {}
-    competitors_configured = bool(config.get("competitors", "").strip())
+    from app.services.meta.ad_library import _parse_competitors
+    competitors_configured = bool(_parse_competitors(config.get("competitors")))
 
     # Inspiration tab: real data only — no Claude fallback
     ads = await MetaAdLibraryService().get_competitor_ads_cached(db, project, token, use_claude_fallback=False)
@@ -429,6 +465,17 @@ async def create_campaign(
         raise HTTPException(400, "Project missing meta_access_token or ad_account_id")
     if not facebook_page_id:
         raise HTTPException(400, "Project missing facebook_page_id")
+
+    from app.services.meta.client import validate_meta_token
+    token_status = await validate_meta_token(token, project_id=project.id)
+    if not token_status["valid"]:
+        raise HTTPException(
+            status_code=400,
+            detail="Meta token is invalid or expired. Go to Settings → Meta Account to reconnect.",
+        )
+
+    from app.services.meta.rate_limiter import meta_rate_limiter
+    meta_rate_limiter.check_and_record(project.id, "publish")
 
     if not body.countries:
         raise HTTPException(status_code=422, detail="Select at least one target country for this campaign.")

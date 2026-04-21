@@ -7,6 +7,37 @@ from app.core.config import settings
 
 logger = logging.getLogger(__name__)
 
+MARKET_INTELLIGENCE: dict[str, dict[str, str]] = {
+    "LATAM": {
+        "psychology": "loss aversion, community proof, family/collective identity",
+        "price_sensitivity": "high — anchor with monthly not annual pricing",
+        "trust_signals": "testimonials from local cities, Spanish-language social proof",
+        "platform_behavior": "Instagram Stories > Feed, WhatsApp sharing culture",
+        "copy_style": "direct, conversational, avoid corporate tone",
+    },
+    "North America": {
+        "psychology": "individual achievement, ROI-first, time savings",
+        "price_sensitivity": "medium — value over price",
+        "trust_signals": "case studies, data, authoritative sources",
+        "platform_behavior": "LinkedIn for B2B, Instagram for B2C, email converts well",
+        "copy_style": "benefit-led, clear CTA, short sentences",
+    },
+    "Europe": {
+        "psychology": "quality, sustainability, privacy-conscious",
+        "price_sensitivity": "low for quality products",
+        "trust_signals": "certifications, transparency, origin story",
+        "platform_behavior": "platform varies by country, email high open rates",
+        "copy_style": "formal-moderate, nuanced, avoid hype language",
+    },
+    "Global": {
+        "psychology": "universal human motivations: status, belonging, security, growth",
+        "price_sensitivity": "medium",
+        "trust_signals": "universal social proof, data, transformation stories",
+        "platform_behavior": "optimize for Instagram + Facebook baseline",
+        "copy_style": "clear, inclusive, benefit-led, minimal jargon",
+    },
+}
+
 VALID_FORMATS = ("carousel_6_slides", "single_image", "story_vertical")
 
 VALID_ANGLES = ("Transformation", "Educational", "Social Proof", "Urgency", "Identity", "Comparative")
@@ -66,7 +97,12 @@ class ClaudeClient:
         categories = config.get("content_categories", ["educational", "inspirational"])
         language = config.get("language", "en")
         additional_rules = config.get("additional_rules", [])
-        market_region = config.get("market_region", "LATAM")
+        market_region = config.get("market_region")
+        if not market_region:
+            logger.warning(
+                "Project has no market_region set in content_config — using Global defaults"
+            )
+            market_region = "Global"
         price_range = config.get("price_range", "")
         social_proof_examples = config.get("social_proof_examples", "")
         offer = config.get("offer", "")
@@ -75,17 +111,13 @@ class ClaudeClient:
         rules_text = "\n".join([f"- {rule}" for rule in additional_rules]) if additional_rules else ""
 
         # Regional intelligence block
-        if market_region.upper() == "LATAM":
-            regional_block = f"""LATAM INTELLIGENCE:
-- Price sensitivity: always justify cost with specific comparative value
-- Trust hierarchy: community proof > authority > brand claims
-- Specificity converts: "73 personas" beats "mucha gente"
-- Loss aversion beats gain framing: "deja de ser reemplazable" beats "volve valioso"
-- Peak-end rule: Slide 1 = peak impact, Slide {num_slides} = memorable CTA"""
-        else:
-            regional_block = f"""{market_region.upper()} MARKET INTELLIGENCE:
-- Adapt tone and cultural references to {market_region} audience
-- Use price anchoring relevant to {market_region} market"""
+        intel = MARKET_INTELLIGENCE.get(market_region, MARKET_INTELLIGENCE["Global"])
+        regional_block = f"""MARKET INTELLIGENCE ({market_region}):
+- Consumer psychology: {intel['psychology']}
+- Price sensitivity: {intel['price_sensitivity']}
+- Trust signals that convert: {intel['trust_signals']}
+- Platform behavior: {intel['platform_behavior']}
+- Copy style: {intel['copy_style']}"""
 
         # Brand assets block
         brand_assets = []
@@ -535,6 +567,7 @@ RULES:
         project,
         recent_posts: list[dict],
         competitor_ads: list[dict],
+        posting_timezone: str = "UTC",
     ) -> dict:
         """Generate a 'what to post today' recommendation."""
         import re
@@ -556,6 +589,7 @@ RULES:
         weekday = weekdays_es[weekday_idx] if language == "es" else weekdays_en[weekday_idx]
         date_str = now.strftime("%d/%m/%Y")
         time_str = now.strftime("%H:%M")
+        tz_note = f" (UTC — target audience timezone: {posting_timezone})" if posting_timezone and posting_timezone != "UTC" else " (UTC)"
 
         # Build recent posts summary (includes narrative_angle for tracking)
         recent_angles: list[str] = []
@@ -640,7 +674,8 @@ FORMAT SELECTION RULES — choose the best format for today:
 - story_vertical: casual/personal content, behind-the-scenes, community building, time-sensitive CTAs. Best any day for warm audiences.
 Consider what formats competitors are using — differentiate when possible."""
 
-        user_prompt = f"""Today is {weekday}, {date_str} at {time_str} UTC.
+        user_prompt = f"""Today is {weekday}, {date_str} at {time_str}{tz_note}.
+Posting timezone: {posting_timezone} — factor this into best_time_to_post recommendations.
 
 Project context:
 - Brand: {brand_name}
@@ -869,6 +904,34 @@ REGLAS:
                 f"PDA diversity warning: only {unique_awarenesses} distinct awareness levels found (recommend ≥2)"
             )
 
+    def _validate_ad_concepts(self, concepts: list[dict]) -> int:
+        """Validate each concept for required fields. Logs warnings. Returns count of valid concepts."""
+        valid_count = 0
+        valid_angles = {"transformation", "educational", "social_proof", "urgency", "identity_community", "comparative"}
+
+        for i, concept in enumerate(concepts):
+            errors = []
+
+            # Check required text fields — using field names from the actual schema
+            for field in ["body", "hook_3s", "headline"]:
+                if not concept.get(field):
+                    errors.append(f"missing or empty '{field}'")
+
+            # Check narrative angle — the schema uses 'psychological_angle' for concepts
+            angle = concept.get("psychological_angle") or concept.get("narrative_angle")
+            if not angle:
+                errors.append("missing 'psychological_angle'")
+            # Note: ad concepts use Logical/Emotional/Social Proof/Problem-Solution angles,
+            # not the carousel content angles. We validate presence only, not the specific value.
+
+            if errors:
+                logger.warning(f"Concept {i} failed validation: {'; '.join(errors)}")
+            else:
+                valid_count += 1
+
+        logger.info(f"generate_ad_concepts: {valid_count}/{len(concepts)} concepts passed full validation")
+        return valid_count
+
     async def generate_ad_concepts(
         self,
         project,
@@ -1060,8 +1123,46 @@ Return ONLY valid JSON:
         concepts = self._validate_entity_diversity(concepts)
         concepts = [self._enforce_meta_limits(c) for c in concepts]
         self._validate_pda_diversity(concepts)
+        self._validate_ad_concepts(concepts)
         result["concepts"] = concepts
         return result
+
+    @staticmethod
+    def _parse_competitors(competitors_raw) -> list[str]:
+        """Parse competitors from content_config into a clean list of handles.
+
+        Handles backward-compatible formats:
+        - list of str (new): ["@midudev", "hola.devs"]
+        - list of dict with 'handle' key: [{"handle": "@midudev", ...}]
+        - comma/newline-separated str (legacy): "@midudev\nhola.devs, codewithchris"
+        - empty / None: returns []
+        """
+        if not competitors_raw:
+            return []
+        if isinstance(competitors_raw, list):
+            result = []
+            for item in competitors_raw:
+                if isinstance(item, dict):
+                    handle = item.get("handle") or item.get("name") or ""
+                else:
+                    handle = str(item)
+                handle = handle.strip().lstrip("@")
+                if handle:
+                    result.append(handle)
+            return result
+        return [
+            c.strip().lstrip("@")
+            for c in str(competitors_raw).replace("\n", ",").split(",")
+            if c.strip()
+        ]
+
+    @staticmethod
+    def _jaccard_similarity(text1: str, text2: str) -> float:
+        words1 = set(text1.lower().split())
+        words2 = set(text2.lower().split())
+        if not words1 or not words2:
+            return 0.0
+        return len(words1 & words2) / len(words1 | words2)
 
     def _validate_entity_diversity(self, concepts: list[dict]) -> list[dict]:
         """
@@ -1113,6 +1214,82 @@ Return ONLY valid JSON:
                     break
 
         return validated
+
+    async def generate_ab_test_variants(
+        self,
+        concept: dict,
+        num_variants: int = 3,
+        content_config: dict | None = None,
+    ) -> list[dict]:
+        """
+        Given an existing ad concept, generates N hook variants.
+        Same core message, different opening hooks and headlines.
+        Returns list of dicts: [{hook_type, hook, headline, rationale}]
+        """
+        config = content_config or {}
+        brand_name = config.get("brand_name", "the brand")
+        language = config.get("language", "en")
+
+        original_hook = concept.get("hook_3s") or concept.get("body", "")
+        original_headline = concept.get("headline", "")
+        original_body = concept.get("body", "")
+
+        system_prompt = f"""You are an expert Meta Ads copywriter specializing in hook optimization.
+Your task is to generate {num_variants} A/B test hook variants for an existing ad concept.
+
+ORIGINAL CONCEPT:
+- Hook: {original_hook}
+- Headline: {original_headline}
+- Body: {original_body}
+
+REQUIREMENTS:
+- Keep the SAME core message and value proposition
+- Change ONLY the opening hook and headline
+- Each variant must use a DIFFERENT hook type:
+  * question: Opens with a provocative question
+  * statistic: Opens with a surprising data point or number
+  * bold_statement: Opens with a confident, contrarian claim
+  * story_opener: Opens with a micro-narrative ("Last Tuesday...")
+  * how_to: Opens with an actionable promise
+- Apply Meta limits: headline ≤ 40 chars, hook ≤ 125 chars
+- Language: {language}
+- Brand: {brand_name}
+
+Return ONLY valid JSON array. No markdown, no explanation.
+[
+  {{
+    "hook_type": "question",
+    "hook": "...",
+    "headline": "...",
+    "rationale": "Why this variant might outperform the original"
+  }},
+  ...
+]"""
+
+        response = await self.client.messages.create(
+            model=self.MODEL,
+            max_tokens=1000,
+            messages=[{"role": "user", "content": f"Generate {num_variants} hook variants for A/B testing."}],
+            system=system_prompt,
+        )
+
+        raw = response.content[0].text.strip()
+        # Strip markdown fences if present
+        if raw.startswith("```"):
+            raw = raw.split("```")[1]
+            if raw.startswith("json"):
+                raw = raw[4:]
+
+        variants = json.loads(raw)
+
+        # Enforce meta limits
+        for v in variants:
+            if len(v.get("hook", "")) > 125:
+                v["hook"] = v["hook"][:125].rsplit(" ", 1)[0]
+            if len(v.get("headline", "")) > 40:
+                v["headline"] = v["headline"][:40].rsplit(" ", 1)[0]
+
+        return variants
 
     async def analyze_competitor_ads(self, ads: list[dict], brand_config: dict) -> list[dict]:
         """Analyze a batch of competitor ads (up to 20) and return 1:1 analysis list."""
@@ -1354,13 +1531,15 @@ Return ONLY valid JSON:
             ensure_ascii=False,
         )
 
+        user_message = f"Adapt this competitor ad for {brand_name}:\n{competitor_payload}"
+
         response = await self.client.messages.create(
             model=self.MODEL,
             max_tokens=500,
             messages=[
                 {
                     "role": "user",
-                    "content": f"Adapt this competitor ad for {brand_name}:\n{competitor_payload}",
+                    "content": user_message,
                 }
             ],
             system=system_prompt,
@@ -1387,5 +1566,48 @@ Return ONLY valid JSON:
                 "adapt_competitor_ad: headline truncated from %d to 40 chars", len(result["headline"])
             )
             result["headline"] = result["headline"][:40].rsplit(" ", 1)[0]
+
+        # Jaccard similarity check — retry if adapted copy is too similar to competitor original
+        competitor_text = competitor_ad.get("body", "") + " " + competitor_ad.get("title", "")
+        adapted_text = result.get("ad_copy", "") + " " + result.get("headline", "")
+        similarity = self._jaccard_similarity(competitor_text, adapted_text)
+
+        if similarity > 0.6:
+            logger.warning(
+                f"adapt_competitor_ad similarity too high ({similarity:.2f}) — retrying with stricter prompt"
+            )
+            retry_user_message = (
+                "IMPORTANT: The previous adaptation was too similar to the original. "
+                "Make it significantly different — change the angle, hook, and structure completely. "
+                "Do not reuse the same opening words or sentence structure.\n\n"
+                + user_message
+            )
+            retry_response = await self.client.messages.create(
+                model=self.MODEL,
+                max_tokens=500,
+                messages=[{"role": "user", "content": retry_user_message}],
+                system=system_prompt,
+            )
+            retry_content = retry_response.content[0].text.strip()
+            if retry_content.startswith("```"):
+                retry_content = retry_content.split("```", 2)[1]
+                if retry_content.startswith("json"):
+                    retry_content = retry_content[4:]
+                retry_content = retry_content.rsplit("```", 1)[0].strip()
+            retry_result = json.loads(retry_content)
+            if retry_result.get("objective") not in valid_objectives:
+                retry_result["objective"] = "OUTCOME_LEADS"
+            if retry_result.get("ad_copy") and len(retry_result["ad_copy"]) > 125:
+                retry_result["ad_copy"] = retry_result["ad_copy"][:125].rsplit(" ", 1)[0]
+            if retry_result.get("headline") and len(retry_result["headline"]) > 40:
+                retry_result["headline"] = retry_result["headline"][:40].rsplit(" ", 1)[0]
+
+            retry_adapted = retry_result.get("ad_copy", "") + " " + retry_result.get("headline", "")
+            retry_sim = self._jaccard_similarity(competitor_text, retry_adapted)
+            if retry_sim > 0.6:
+                logger.warning(
+                    f"adapt_competitor_ad retry still similar ({retry_sim:.2f}) — returning retry result anyway"
+                )
+            return retry_result
 
         return result
