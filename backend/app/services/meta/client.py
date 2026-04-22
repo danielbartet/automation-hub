@@ -31,6 +31,10 @@ class MetaClient:
             try:
                 # Structure: {"<ad_account_id>": [{"type": "...", "call_count": N, ...}]}
                 buc_data: dict = _json.loads(buc_raw)
+                buc_max_overall = 0.0
+                buc_call_count_agg = 0.0
+                buc_total_time_agg = 0.0
+                buc_cputime_agg = 0.0
                 for account_id, entries in buc_data.items():
                     if not isinstance(entries, list):
                         continue
@@ -42,6 +46,11 @@ class MetaClient:
                         est_reset = entry.get("estimated_time_to_regain_access", 0)
 
                         max_pct = max(call_count, total_cputime, total_time)
+                        if max_pct > buc_max_overall:
+                            buc_max_overall = max_pct
+                            buc_call_count_agg = call_count
+                            buc_total_time_agg = total_time
+                            buc_cputime_agg = total_cputime
 
                         # Store in usage dict
                         key = f"{account_id}:{buc_type}"
@@ -75,6 +84,24 @@ class MetaClient:
                                 "Meta API BUC usage high: account=%s type=%s max_pct=%s%%",
                                 account_id, buc_type, max_pct,
                             )
+
+                # Persist the highest BUC snapshot to DB
+                if buc_max_overall > 0:
+                    try:
+                        from app.models.meta_api_audit_log import MetaAppUsage
+                        from app.core.database import AsyncSessionLocal
+                        async with AsyncSessionLocal() as db:
+                            record = MetaAppUsage(
+                                call_count_pct=buc_call_count_agg,
+                                total_time_pct=buc_total_time_agg,
+                                total_cputime_pct=buc_cputime_agg,
+                                max_pct=buc_max_overall,
+                            )
+                            db.add(record)
+                            await db.commit()
+                    except Exception:
+                        pass
+
             except HTTPException:
                 raise
             except Exception:
@@ -88,6 +115,10 @@ class MetaClient:
             try:
                 data = _json.loads(app_raw)
                 self._usage["app_usage"] = data
+                call_count = float(data.get("call_count", 0))
+                total_time = float(data.get("total_time", 0))
+                total_cputime = float(data.get("total_cputime", 0))
+                app_max = max(call_count, total_time, total_cputime)
                 for field, val in data.items():
                     if isinstance(val, (int, float)):
                         if val > 95:
@@ -97,6 +128,21 @@ class MetaClient:
                             )
                         elif val > 85:
                             logger.warning("Meta API app usage high: X-App-Usage.%s = %s%%", field, val)
+                # Persist to DB
+                try:
+                    from app.models.meta_api_audit_log import MetaAppUsage
+                    from app.core.database import AsyncSessionLocal
+                    async with AsyncSessionLocal() as db:
+                        record = MetaAppUsage(
+                            call_count_pct=call_count,
+                            total_time_pct=total_time,
+                            total_cputime_pct=total_cputime,
+                            max_pct=app_max,
+                        )
+                        db.add(record)
+                        await db.commit()
+                except Exception:
+                    pass
             except Exception:
                 pass
 

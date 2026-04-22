@@ -835,6 +835,12 @@ export const translations = {
     activity_status_warning: "Near limit",
     activity_status_blocked: "Limited by Meta",
     activity_limit_note: "Meta allows up to 300 calls/hour per ad account (Standard Access). With Advanced Access this limit increases to 100,000/hour.",
+    activity_project_usage: "This project (ad account)",
+    activity_platform_usage: "Platform (app-level)",
+    activity_app_usage_pct: "Current usage",
+    activity_app_no_data: "No data yet — updates with each operation",
+    activity_app_updated: "Updated",
+    activity_app_warning: "If it reaches 100% it affects all projects on the platform",
 
     // ── Ads page — Competitive Insights card ────────────────────────────────
     ads_competitive_title: "Competitive Intelligence",
@@ -1892,6 +1898,12 @@ export const translations = {
     activity_status_warning: "Cerca del límite",
     activity_status_blocked: "Limitado por Meta",
     activity_limit_note: "Meta permite hasta 300 llamadas/hora por cuenta publicitaria (Standard Access). Con Advanced Access el límite sube a 100,000 llamadas/hora.",
+    activity_project_usage: "Este proyecto (ad account)",
+    activity_platform_usage: "Plataforma (app general)",
+    activity_app_usage_pct: "Uso actual",
+    activity_app_no_data: "Sin datos aún — se actualiza con cada operación",
+    activity_app_updated: "Actualizado",
+    activity_app_warning: "Si llega al 100% afecta a todos los proyectos de la plataforma",
 
     // ── Ads page — Competitive Insights card ────────────────────────────────
     ads_competitive_title: "Inteligencia Competitiva",

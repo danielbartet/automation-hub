@@ -1,7 +1,7 @@
 """Meta API Audit Log model — records every write operation sent to the Meta Graph API."""
 from datetime import datetime, timezone
 from typing import TYPE_CHECKING, Optional
-from sqlalchemy import Boolean, DateTime, ForeignKey, Integer, JSON, String
+from sqlalchemy import Boolean, DateTime, Float, ForeignKey, Integer, JSON, String
 from sqlalchemy.orm import Mapped, mapped_column, relationship
 from app.core.database import Base
 
@@ -43,3 +43,22 @@ class MetaAPIAuditLog(Base):
     error_message: Mapped[Optional[str]] = mapped_column(String(1024), nullable=True)
 
     project: Mapped["Project"] = relationship("Project", back_populates="meta_audit_logs")
+
+
+class MetaAppUsage(Base):
+    """App-level X-App-Usage snapshots recorded after every Meta API call."""
+
+    __tablename__ = "meta_app_usage"
+
+    id: Mapped[int] = mapped_column(primary_key=True)
+    recorded_at: Mapped[datetime] = mapped_column(
+        DateTime(timezone=False),
+        default=lambda: datetime.now(timezone.utc).replace(tzinfo=None),
+        nullable=False,
+    )
+    # Percentage values parsed from X-App-Usage or X-Business-Use-Case-Usage headers
+    call_count_pct: Mapped[Optional[float]] = mapped_column(Float, nullable=True)
+    total_time_pct: Mapped[Optional[float]] = mapped_column(Float, nullable=True)
+    total_cputime_pct: Mapped[Optional[float]] = mapped_column(Float, nullable=True)
+    # Max of the three percentages above — used for status determination
+    max_pct: Mapped[Optional[float]] = mapped_column(Float, nullable=True)

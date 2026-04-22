@@ -2339,15 +2339,25 @@ async def meta_rate_status(
     calls have been made yet this server session, returns status="ok" with
     an empty usage list.
 
+    Also queries the latest MetaAppUsage DB record and returns it as app_usage.
+
     Response shape:
       {
         "status": "ok" | "warning" | "blocked",
         "usage": [{"buc": str, "call_count_pct": int, "estimated_reset_minutes": int|None}],
-        "blocked_until": null
+        "blocked_until": null,
+        "app_usage": {
+          "max_pct": float,
+          "call_count_pct": float,
+          "total_time_pct": float,
+          "total_cputime_pct": float,
+          "recorded_at": str
+        } | null
       }
     """
     from app.services.meta.client import MetaClient
     from app.core.security import get_project_token
+    from app.models.meta_api_audit_log import MetaAppUsage
 
     # Try to get a real MetaClient instance for the project so we read its usage state.
     # Since MetaClient is stateless per-request, we return an empty status when no
@@ -2362,7 +2372,28 @@ async def meta_rate_status(
     # Build a client instance; its _usage will be empty unless a module-level singleton
     # is used. Return a neutral "ok" response — real blocking is enforced in _parse_usage_headers.
     client = MetaClient(token or "")
-    return client.get_rate_status()
+    rate_status = client.get_rate_status()
+
+    # Query latest app-level usage snapshot from DB
+    latest_result = await db.execute(
+        select(MetaAppUsage).order_by(MetaAppUsage.id.desc()).limit(1)
+    )
+    latest_usage = latest_result.scalar_one_or_none()
+
+    app_usage_payload = None
+    if latest_usage is not None:
+        from datetime import timezone as _tz
+        recorded_at_str = latest_usage.recorded_at.replace(tzinfo=_tz.utc).isoformat()
+        app_usage_payload = {
+            "max_pct": latest_usage.max_pct,
+            "call_count_pct": latest_usage.call_count_pct,
+            "total_time_pct": latest_usage.total_time_pct,
+            "total_cputime_pct": latest_usage.total_cputime_pct,
+            "recorded_at": recorded_at_str,
+        }
+
+    rate_status["app_usage"] = app_usage_payload
+    return rate_status
 
 
 # ── Audit Log ─────────────────────────────────────────────────────────────────

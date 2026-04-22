@@ -104,6 +104,17 @@ export default function DashboardPage() {
   const [activeTab, setActiveTab] = useState<"overview" | "actividad">("overview");
   const [auditLog, setAuditLog] = useState<AuditLogEntry[]>([]);
   const [auditLoading, setAuditLoading] = useState(false);
+  const [metaRateStatus, setMetaRateStatus] = useState<{
+    status: string;
+    usage: unknown[];
+    app_usage: {
+      max_pct: number | null;
+      call_count_pct: number | null;
+      total_time_pct: number | null;
+      total_cputime_pct: number | null;
+      recorded_at: string;
+    } | null;
+  } | null>(null);
 
   const loadData = useCallback(() => {
     if (!selectedSlug) return;
@@ -131,6 +142,19 @@ export default function DashboardPage() {
       .then((d) => setAuditLog(d.entries ?? []))
       .catch(() => setAuditLog([]))
       .finally(() => setAuditLoading(false));
+  }, [activeTab, selectedSlug, token, isAdmin]);
+
+  // Fetch Meta rate status when Actividad tab is active (admin only)
+  useEffect(() => {
+    if (activeTab !== "actividad" || !token || !isAdmin) return;
+    const api = process.env.NEXT_PUBLIC_API_URL ?? "http://localhost:8000";
+    const query = selectedSlug ? `?project_slug=${selectedSlug}` : "";
+    fetch(`${api}/api/v1/ads/meta-rate-status${query}`, {
+      headers: { Authorization: `Bearer ${token}` },
+    })
+      .then((r) => (r.ok ? r.json() : null))
+      .then((d) => setMetaRateStatus(d))
+      .catch(() => setMetaRateStatus(null));
   }, [activeTab, selectedSlug, token, isAdmin]);
 
   const recentPosts = data?.content?.recent_posts ?? [];
@@ -217,36 +241,73 @@ export default function DashboardPage() {
                 <div className="px-6 py-4" style={{ borderBottom: "1px solid #222222" }}>
                   <h3 className="text-base font-semibold text-white">{t.activity_usage_title}</h3>
                 </div>
-                <div className="px-6 py-4 space-y-3">
-                  {/* Row 1 — Calls today */}
-                  <div className="flex items-center justify-between text-sm">
-                    <span style={{ color: "#9ca3af" }}>{t.activity_calls_today}</span>
-                    <span>
-                      <span className={`font-semibold ${todayColor}`}>{callsToday}</span>
-                      <span className="ml-1" style={{ color: "#6b7280" }}>{t.activity_limit_standard}</span>
-                    </span>
-                  </div>
-                  {/* Row 2 — Calls this hour */}
-                  <div className="flex items-center justify-between text-sm">
-                    <span style={{ color: "#9ca3af" }}>{t.activity_calls_hour}</span>
-                    <span>
-                      <span className={`font-semibold ${hourColor}`}>{callsThisHour}</span>
-                      <span className="ml-1" style={{ color: "#6b7280" }}>{t.activity_limit_standard}</span>
-                    </span>
-                  </div>
-                  {/* Row 3 — Status */}
-                  <div className="flex items-center justify-between text-sm">
-                    <span style={{ color: "#9ca3af" }}>{t.activity_status}</span>
-                    <span className="font-medium text-white">{statusLabel}</span>
+                <div className="px-6 py-4 space-y-5">
+
+                  {/* Section A — Este proyecto (ad account) */}
+                  <div>
+                    <p className="text-xs font-semibold uppercase tracking-wide mb-3" style={{ color: "#6b7280" }}>{t.activity_project_usage}</p>
+                    <div className="space-y-3">
+                      {/* Row 1 — Calls today */}
+                      <div className="flex items-center justify-between text-sm">
+                        <span style={{ color: "#9ca3af" }}>{t.activity_calls_today}</span>
+                        <span>
+                          <span className={`font-semibold ${todayColor}`}>{callsToday}</span>
+                          <span className="ml-1" style={{ color: "#6b7280" }}>{t.activity_limit_standard}</span>
+                        </span>
+                      </div>
+                      {/* Row 2 — Calls this hour */}
+                      <div className="flex items-center justify-between text-sm">
+                        <span style={{ color: "#9ca3af" }}>{t.activity_calls_hour}</span>
+                        <span>
+                          <span className={`font-semibold ${hourColor}`}>{callsThisHour}</span>
+                          <span className="ml-1" style={{ color: "#6b7280" }}>{t.activity_limit_standard}</span>
+                        </span>
+                      </div>
+                      {/* Row 3 — Status */}
+                      <div className="flex items-center justify-between text-sm">
+                        <span style={{ color: "#9ca3af" }}>{t.activity_status}</span>
+                        <span className="font-medium text-white">{statusLabel}</span>
+                      </div>
+                    </div>
                   </div>
 
-                  {/* Info note */}
-                  <div
-                    className="mt-4 rounded-md px-4 py-3 text-xs"
-                    style={{ backgroundColor: "#1a1a1a", color: "#6b7280", border: "1px solid #2a2a2a" }}
-                  >
-                    {t.activity_limit_note}
+                  {/* Divider */}
+                  <div style={{ borderTop: "1px solid #222222" }} />
+
+                  {/* Section B — Plataforma (app-level) */}
+                  <div>
+                    <p className="text-xs font-semibold uppercase tracking-wide mb-3" style={{ color: "#6b7280" }}>{t.activity_platform_usage}</p>
+                    {metaRateStatus?.app_usage ? (() => {
+                      const au = metaRateStatus.app_usage;
+                      const maxPct = au.max_pct ?? 0;
+                      const appDotColor = maxPct >= 90 ? "bg-red-400" : maxPct >= 70 ? "bg-yellow-400" : "bg-green-400";
+                      const appPctColor = maxPct >= 90 ? "text-red-400" : maxPct >= 70 ? "text-yellow-400" : "text-green-400";
+                      const recordedTime = new Date(au.recorded_at).toLocaleTimeString("es-AR", { hour: "2-digit", minute: "2-digit" });
+                      return (
+                        <div className="space-y-3">
+                          <div className="flex items-center justify-between text-sm">
+                            <span style={{ color: "#9ca3af" }}>{t.activity_app_usage_pct}</span>
+                            <span className="flex items-center gap-2">
+                              <span className={`inline-block w-2 h-2 rounded-full ${appDotColor}`} />
+                              <span className={`font-semibold ${appPctColor}`}>{maxPct.toFixed(1)}%</span>
+                            </span>
+                          </div>
+                          <div className="flex items-center justify-between text-xs" style={{ color: "#6b7280" }}>
+                            <span>{t.activity_app_updated}: {recordedTime}</span>
+                          </div>
+                          <div
+                            className="rounded-md px-3 py-2 text-xs"
+                            style={{ backgroundColor: "#1a1a1a", color: "#6b7280", border: "1px solid #2a2a2a" }}
+                          >
+                            {t.activity_app_warning}
+                          </div>
+                        </div>
+                      );
+                    })() : (
+                      <p className="text-sm" style={{ color: "#6b7280" }}>{t.activity_app_no_data}</p>
+                    )}
                   </div>
+
                 </div>
               </div>
 
