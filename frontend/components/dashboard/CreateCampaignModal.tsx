@@ -5,7 +5,8 @@ import { X, Loader2, ChevronRight, ChevronLeft, Check, RefreshCw, Sparkles, Aler
 import { ImageUploadZone } from "./ImageUploadZone";
 import { ConceptsGrid } from "./ConceptsGrid";
 import { CreateAudienceModal } from "./CreateAudienceModal";
-import { createCampaign, fetchProjectPosts, generateAdConcepts, createCampaignWithConcepts, fetchAudiences, generateConceptImage, AdConcept, DiversityAudit, InspirationPrefill } from "@/lib/api";
+import { createCampaign, fetchProjectPosts, generateAdConcepts, createCampaignWithConcepts, fetchAudiences, generateConceptImage, AdConcept, DiversityAudit, InspirationPrefill, MetaRateLimitError } from "@/lib/api";
+import { useMetaRateLimit } from "./MetaRateLimitProvider";
 
 interface Post {
   id: number;
@@ -69,6 +70,7 @@ const STEPS = ["Campaña", "Conceptos", "Imágenes", "Creativo", "Lanzar"];
 export function CreateCampaignModal({ projectSlug, projectId, onClose, onSuccess, prefill, contentConfig, initialContext }: CreateCampaignModalProps) {
   const { data: session } = useSession();
   const token = (session as any)?.accessToken as string | undefined;
+  const { triggerRateLimit } = useMetaRateLimit();
   const [step, setStep] = useState(1);
   const [prefillActive, setPrefillActive] = useState(!!prefill);
   const [loading, setLoading] = useState(false);
@@ -346,7 +348,11 @@ export function CreateCampaignModal({ projectSlug, projectId, onClose, onSuccess
       onSuccess();
       onClose();
     } catch (e) {
-      setError(e instanceof Error ? e.message : "Error creando campaña");
+      if (e instanceof MetaRateLimitError) {
+        triggerRateLimit(e.detail);
+      } else {
+        setError(e instanceof Error ? e.message : "Error creando campaña");
+      }
     } finally {
       setLoading(false);
     }

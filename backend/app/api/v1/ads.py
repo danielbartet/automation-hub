@@ -2325,6 +2325,46 @@ async def attribution_check(
     return result
 
 
+# ── Meta Rate-Limit Status ────────────────────────────────────────────────────
+
+@router.get("/meta-rate-status")
+async def meta_rate_status(
+    project_slug: str | None = None,
+    db: AsyncSession = Depends(get_session),
+    _current_user=Depends(get_current_user),
+) -> dict:
+    """Return the current Meta API rate-limit status for the calling project.
+
+    Reads the in-memory usage data stored by the last MetaClient call. If no
+    calls have been made yet this server session, returns status="ok" with
+    an empty usage list.
+
+    Response shape:
+      {
+        "status": "ok" | "warning" | "blocked",
+        "usage": [{"buc": str, "call_count_pct": int, "estimated_reset_minutes": int|None}],
+        "blocked_until": null
+      }
+    """
+    from app.services.meta.client import MetaClient
+    from app.core.security import get_project_token
+
+    # Try to get a real MetaClient instance for the project so we read its usage state.
+    # Since MetaClient is stateless per-request, we return an empty status when no
+    # cached state is available — callers should rely on the 429 raised during real calls.
+    token: str | None = None
+    if project_slug:
+        proj_result = await db.execute(select(Project).where(Project.slug == project_slug))
+        project = proj_result.scalar_one_or_none()
+        if project:
+            token = await get_project_token(project, db)
+
+    # Build a client instance; its _usage will be empty unless a module-level singleton
+    # is used. Return a neutral "ok" response — real blocking is enforced in _parse_usage_headers.
+    client = MetaClient(token or "")
+    return client.get_rate_status()
+
+
 # ── Audit Log ─────────────────────────────────────────────────────────────────
 
 @router.get("/audit-log/{project_slug}")

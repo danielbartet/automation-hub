@@ -3,9 +3,10 @@ import { useState } from "react";
 import { useSession } from "next-auth/react";
 import { X, Loader2, Save, CheckCircle, XCircle, Sparkles, RefreshCw, Instagram } from "lucide-react";
 import { ImageUploadZone } from "./ImageUploadZone";
-import { updateContent, rerenderSlide, retryInstagram, retryFacebook } from "@/lib/api";
+import { updateContent, rerenderSlide, retryInstagram, retryFacebook, MetaRateLimitError } from "@/lib/api";
 import { ImageGeneratorModal } from "./ImageGeneratorModal";
 import { InstagramPostPreview } from "./InstagramPostPreview";
+import { useMetaRateLimit } from "./MetaRateLimitProvider";
 
 interface Slide {
   slide_number: number;
@@ -58,6 +59,7 @@ function parseImageUrls(raw: string | string[] | undefined, fallbackUrl?: string
 export function EditContentModal({ post, projectSlug, project, onClose, onSaved }: EditContentModalProps) {
   const { data: session } = useSession();
   const token = (session as any)?.accessToken as string | undefined;
+  const { triggerRateLimit } = useMetaRateLimit();
   const isPublished = post.status === "published";
   const [caption, setCaption] = useState(post.caption || "");
   const [imageUrl, setImageUrl] = useState(post.image_url || "");
@@ -154,7 +156,11 @@ export function EditContentModal({ post, projectSlug, project, onClose, onSaved 
       onSaved();
       onClose();
     } catch (e) {
-      setError(e instanceof Error ? e.message : "Failed to update status");
+      if (e instanceof MetaRateLimitError) {
+        triggerRateLimit(e.detail);
+      } else {
+        setError(e instanceof Error ? e.message : "Failed to update status");
+      }
     } finally {
       setLoading(false);
     }

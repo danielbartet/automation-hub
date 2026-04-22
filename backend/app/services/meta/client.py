@@ -15,45 +15,154 @@ class MetaClient:
         self._usage: dict = {}
 
     def _parse_usage_headers(self, response) -> None:
-        """Parse Meta API rate limit headers and log warnings."""
+        """Parse Meta API rate limit headers, log warnings, and raise HTTP 429 when blocked.
+
+        Priority order:
+          1. X-Business-Use-Case-Usage  — primary Marketing API header
+          2. X-App-Usage                — fallback app-level header
+          3. X-Ad-Account-Usage         — fallback account-level header
+        """
         import json as _json
+        from fastapi import HTTPException
 
-        header_map = {
-            "X-App-Usage": "app_usage",
-            "X-Ad-Account-Usage": "account_usage",
-            "X-Business-Use-Case-Usage": "buc_usage",
-        }
-
-        for header_name, key in header_map.items():
-            raw = response.headers.get(header_name)
-            if not raw:
-                continue
+        # ── 1. X-Business-Use-Case-Usage (primary) ─────────────────────────────
+        buc_raw = response.headers.get("X-Business-Use-Case-Usage")
+        if buc_raw:
             try:
-                data = _json.loads(raw)
-                self._usage[key] = data
+                # Structure: {"<ad_account_id>": [{"type": "...", "call_count": N, ...}]}
+                buc_data: dict = _json.loads(buc_raw)
+                for account_id, entries in buc_data.items():
+                    if not isinstance(entries, list):
+                        continue
+                    for entry in entries:
+                        buc_type = entry.get("type", "unknown")
+                        call_count = entry.get("call_count", 0)
+                        total_cputime = entry.get("total_cputime", 0)
+                        total_time = entry.get("total_time", 0)
+                        est_reset = entry.get("estimated_time_to_regain_access", 0)
 
-                # X-App-Usage fields: call_count, total_time, total_cputime
-                if key == "app_usage":
-                    for field, val in data.items():
-                        if isinstance(val, (int, float)):
-                            if val > 95:
-                                logger.error(f"Meta API usage critical: {header_name}.{field} = {val}% — throttling imminent")
-                            elif val > 85:
-                                logger.warning(f"Meta API usage high: {header_name}.{field} = {val}%")
+                        max_pct = max(call_count, total_cputime, total_time)
 
-                # X-Ad-Account-Usage field: acc_id_util_pct
-                elif key == "account_usage":
-                    pct = data.get("acc_id_util_pct", 0)
-                    if pct > 95:
-                        logger.error(f"Meta API usage critical: {header_name} = {pct}% — throttling imminent")
-                    elif pct > 85:
-                        logger.warning(f"Meta API usage high: {header_name} = {pct}%")
+                        # Store in usage dict
+                        key = f"{account_id}:{buc_type}"
+                        self._usage[key] = {
+                            "buc": buc_type,
+                            "account_id": account_id,
+                            "call_count_pct": call_count,
+                            "total_cputime_pct": total_cputime,
+                            "total_time_pct": total_time,
+                            "estimated_reset_minutes": est_reset or None,
+                        }
+
+                        if max_pct >= 95:
+                            logger.error(
+                                "Meta API BUC usage BLOCKED: account=%s type=%s max_pct=%s%% — raising 429",
+                                account_id, buc_type, max_pct,
+                            )
+                            reset_minutes = est_reset if est_reset and est_reset > 0 else 60
+                            raise HTTPException(
+                                status_code=429,
+                                detail={
+                                    "code": "META_RATE_LIMIT",
+                                    "buc": buc_type,
+                                    "usage_pct": max_pct,
+                                    "estimated_reset_minutes": reset_minutes,
+                                    "message": "Meta API rate limit reached. Calls will resume automatically.",
+                                },
+                            )
+                        elif max_pct >= 85:
+                            logger.warning(
+                                "Meta API BUC usage high: account=%s type=%s max_pct=%s%%",
+                                account_id, buc_type, max_pct,
+                            )
+            except HTTPException:
+                raise
+            except Exception:
+                pass
+            # BUC header was present — skip fallback headers
+            return
+
+        # ── 2. X-App-Usage (fallback) ───────────────────────────────────────────
+        app_raw = response.headers.get("X-App-Usage")
+        if app_raw:
+            try:
+                data = _json.loads(app_raw)
+                self._usage["app_usage"] = data
+                for field, val in data.items():
+                    if isinstance(val, (int, float)):
+                        if val > 95:
+                            logger.error(
+                                "Meta API app usage critical: X-App-Usage.%s = %s%% — throttling imminent",
+                                field, val,
+                            )
+                        elif val > 85:
+                            logger.warning("Meta API app usage high: X-App-Usage.%s = %s%%", field, val)
+            except Exception:
+                pass
+
+        # ── 3. X-Ad-Account-Usage (fallback) ────────────────────────────────────
+        acct_raw = response.headers.get("X-Ad-Account-Usage")
+        if acct_raw:
+            try:
+                data = _json.loads(acct_raw)
+                self._usage["account_usage"] = data
+                pct = data.get("acc_id_util_pct", 0)
+                if pct > 95:
+                    logger.error(
+                        "Meta API account usage critical: X-Ad-Account-Usage = %s%% — throttling imminent",
+                        pct,
+                    )
+                elif pct > 85:
+                    logger.warning("Meta API account usage high: X-Ad-Account-Usage = %s%%", pct)
             except Exception:
                 pass
 
     def get_usage(self) -> dict:
         """Return the latest parsed Meta API rate limit usage headers."""
         return self._usage
+
+    def get_rate_status(self) -> dict:
+        """Return a structured rate-limit status summary suitable for the API response.
+
+        Returns:
+            {
+                "status": "ok" | "warning" | "blocked",
+                "usage": [{"buc": str, "call_count_pct": int, "estimated_reset_minutes": int|None}],
+                "blocked_until": None  # populated externally if needed
+            }
+        """
+        usage_list = []
+        overall_status = "ok"
+
+        for key, entry in self._usage.items():
+            if not isinstance(entry, dict):
+                continue
+            # BUC entries have a "buc" key; fallback entries don't — skip them here
+            if "buc" not in entry:
+                continue
+
+            call_count_pct = entry.get("call_count_pct", 0)
+            total_cputime_pct = entry.get("total_cputime_pct", 0)
+            total_time_pct = entry.get("total_time_pct", 0)
+            max_pct = max(call_count_pct, total_cputime_pct, total_time_pct)
+            estimated_reset = entry.get("estimated_reset_minutes")
+
+            usage_list.append({
+                "buc": entry["buc"],
+                "call_count_pct": call_count_pct,
+                "estimated_reset_minutes": estimated_reset,
+            })
+
+            if max_pct >= 95:
+                overall_status = "blocked"
+            elif max_pct >= 85 and overall_status != "blocked":
+                overall_status = "warning"
+
+        return {
+            "status": overall_status,
+            "usage": usage_list,
+            "blocked_until": None,
+        }
 
     async def get(self, path: str, params: dict | None = None) -> dict:
         """Perform a GET request against the Meta Graph API."""

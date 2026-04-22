@@ -1,5 +1,51 @@
 const API_BASE = process.env.NEXT_PUBLIC_API_URL ?? "http://localhost:8000";
 
+// ── Meta rate-limit error ───────────────────────────────────────────────────
+
+export interface MetaRateLimitDetail {
+  code: "META_RATE_LIMIT";
+  buc?: string;
+  usage_pct?: number;
+  estimated_reset_minutes?: number;
+  message?: string;
+}
+
+/**
+ * Thrown by API helpers when the backend responds 429 with code "META_RATE_LIMIT".
+ * Callers should catch this, check `instanceof MetaRateLimitError`, and call
+ * `triggerRateLimit(err.detail)` from the MetaRateLimitContext.
+ */
+export class MetaRateLimitError extends Error {
+  detail: MetaRateLimitDetail;
+  constructor(detail: MetaRateLimitDetail) {
+    super(detail.message ?? "Meta API rate limit reached");
+    this.name = "MetaRateLimitError";
+    this.detail = detail;
+  }
+}
+
+/**
+ * Parse a non-ok Response and throw MetaRateLimitError when appropriate,
+ * otherwise return the parsed error body for the caller to handle.
+ */
+async function parseErrorResponse(res: Response): Promise<{ detail?: unknown }> {
+  try {
+    const body = await res.json();
+    if (
+      res.status === 429 &&
+      body?.detail &&
+      typeof body.detail === "object" &&
+      body.detail.code === "META_RATE_LIMIT"
+    ) {
+      throw new MetaRateLimitError(body.detail as MetaRateLimitDetail);
+    }
+    return body as { detail?: unknown };
+  } catch (e) {
+    if (e instanceof MetaRateLimitError) throw e;
+    return {};
+  }
+}
+
 export async function fetchDashboard(projectSlug: string, token?: string) {
   const headers: HeadersInit = token ? { Authorization: `Bearer ${token}` } : {};
   const res = await fetch(`${API_BASE}/api/v1/dashboard/${projectSlug}`, {
@@ -160,7 +206,10 @@ export async function updateContent(
     headers,
     body: JSON.stringify(data),
   });
-  if (!res.ok) throw new Error("Failed to update content");
+  if (!res.ok) {
+    const err = await parseErrorResponse(res);
+    throw new Error((err as { detail?: string }).detail || "Failed to update content");
+  }
   return res.json();
 }
 
@@ -223,7 +272,7 @@ export async function createCampaign(projectSlug: string, data: {
     body: JSON.stringify(data),
   });
   if (!res.ok) {
-    const err = await res.json().catch(() => ({}));
+    const err = await parseErrorResponse(res);
     throw new Error((err as { detail?: string }).detail || "Failed to create campaign");
   }
   return res.json();
@@ -481,7 +530,7 @@ export async function createCampaignWithConcepts(
     body: JSON.stringify(data),
   });
   if (!res.ok) {
-    const err = await res.json().catch(() => ({}));
+    const err = await parseErrorResponse(res);
     throw new Error((err as { detail?: string }).detail || "Failed to create campaign");
   }
   return res.json();
