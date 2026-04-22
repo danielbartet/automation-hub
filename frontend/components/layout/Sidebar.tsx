@@ -300,7 +300,9 @@ export function Sidebar() {
           )}
         </div>
 
+        {/* TEMP: commented for Meta App Review video — uncomment after */}
         {/* ── Google collapsible group ──────────────────────────────────────── */}
+        {/*
         <div>
           {renderGroupHeader(
             t.nav_google_group,
@@ -319,14 +321,19 @@ export function Sidebar() {
             </div>
           )}
         </div>
+        */}
 
+        {/* TEMP: commented for Meta App Review video — uncomment after */}
         {/* ── LinkedIn (grayed out) ─────────────────────────────────────────── */}
-        {renderGrayedLink("/dashboard/linkedin", t.nav_linkedin, Linkedin)}
+        {/* {renderGrayedLink("/dashboard/linkedin", t.nav_linkedin, Linkedin)} */}
 
+        {/* TEMP: commented for Meta App Review video — uncomment after */}
         {/* ── TikTok (grayed out) ──────────────────────────────────────────── */}
-        {renderGrayedLink("/dashboard/tiktok", t.nav_tiktok, Music)}
+        {/* {renderGrayedLink("/dashboard/tiktok", t.nav_tiktok, Music)} */}
 
+        {/* TEMP: commented for Meta App Review video — uncomment after */}
         {/* ── Pinterest collapsible group ───────────────────────────────────── */}
+        {/*
         <div>
           {renderGroupHeader(
             t.nav_pinterest,
@@ -343,6 +350,7 @@ export function Sidebar() {
             </div>
           )}
         </div>
+        */}
 
         {/* ── Health Monitor collapsible group ──────────────────────────────── */}
         {!isClient && (

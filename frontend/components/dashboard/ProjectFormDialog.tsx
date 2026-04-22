@@ -25,12 +25,13 @@ interface ProjectFormDialogProps {
   onSuccess: (updated: Project) => void;
 }
 
+// TEMP: commented for Meta App Review video — uncomment after
 const PLATFORM_OPTIONS_STATIC = [
   { value: "instagram", label: "Instagram" },
   { value: "facebook", label: "Facebook" },
-  { value: "tiktok", label: "TikTok" },
-  { value: "x_twitter", label: "X/Twitter" },
-  { value: "linkedin", label: "LinkedIn" },
+  // { value: "tiktok", label: "TikTok" },
+  // { value: "x_twitter", label: "X/Twitter" },
+  // { value: "linkedin", label: "LinkedIn" },
 ];
 
 
@@ -731,7 +732,9 @@ export function ProjectFormDialog({ project, onClose, onSuccess }: ProjectFormDi
                 )}
               </div>
 
+              {/* TEMP: commented for Meta App Review video — uncomment after */}
               {/* Pinterest connection */}
+              {/*
               <div style={{ borderTop: "1px solid #222222", paddingTop: "1.25rem" }}>
                 <label className="block text-sm font-medium text-white mb-3">Pinterest</label>
                 {pinterestConnected === null ? (
@@ -770,6 +773,7 @@ export function ProjectFormDialog({ project, onClose, onSuccess }: ProjectFormDi
                   </div>
                 )}
               </div>
+              */}
             </div>
           )}
 
