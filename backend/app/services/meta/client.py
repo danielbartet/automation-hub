@@ -85,22 +85,8 @@ class MetaClient:
                                 account_id, buc_type, max_pct,
                             )
 
-                # Persist the highest BUC snapshot to DB
-                if buc_max_overall > 0:
-                    try:
-                        from app.models.meta_api_audit_log import MetaAppUsage
-                        from app.core.database import AsyncSessionLocal
-                        async with AsyncSessionLocal() as db:
-                            record = MetaAppUsage(
-                                call_count_pct=buc_call_count_agg,
-                                total_time_pct=buc_total_time_agg,
-                                total_cputime_pct=buc_cputime_agg,
-                                max_pct=buc_max_overall,
-                            )
-                            db.add(record)
-                            await db.commit()
-                    except Exception:
-                        pass
+                # BUC snapshot stored in self._usage (in-memory); DB persistence
+                # happens via the /meta-usage-summary endpoint on each read.
 
             except HTTPException:
                 raise
@@ -128,21 +114,7 @@ class MetaClient:
                             )
                         elif val > 85:
                             logger.warning("Meta API app usage high: X-App-Usage.%s = %s%%", field, val)
-                # Persist to DB
-                try:
-                    from app.models.meta_api_audit_log import MetaAppUsage
-                    from app.core.database import AsyncSessionLocal
-                    async with AsyncSessionLocal() as db:
-                        record = MetaAppUsage(
-                            call_count_pct=call_count,
-                            total_time_pct=total_time,
-                            total_cputime_pct=total_cputime,
-                            max_pct=app_max,
-                        )
-                        db.add(record)
-                        await db.commit()
-                except Exception:
-                    pass
+                # In-memory only; DB persistence not needed from sync method.
             except Exception:
                 pass
 
