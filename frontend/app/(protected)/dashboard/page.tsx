@@ -178,85 +178,159 @@ export default function DashboardPage() {
         )}
 
         {/* ── Actividad tab ── */}
-        {activeTab === "actividad" && isAdmin && (
-          <div className="rounded-lg overflow-hidden" style={{ backgroundColor: "#111111", border: "1px solid #222222" }}>
-            <div className="px-6 py-4" style={{ borderBottom: "1px solid #222222" }}>
-              <h3 className="text-base font-semibold text-white flex items-center gap-2">
-                <Activity className="h-4 w-4" style={{ color: "#9ca3af" }} />
-                {t.overview_actividad_title}
-              </h3>
-            </div>
-            {auditLoading ? (
-              <div className="flex items-center justify-center h-40 text-sm" style={{ color: "#9ca3af" }}>
-                <Loader2 className="h-5 w-5 animate-spin mr-2" />
-                {t.overview_actividad_loading}
+        {activeTab === "actividad" && isAdmin && (() => {
+          const now = new Date();
+          const todayStr = now.toDateString();
+          const oneHourAgo = new Date(now.getTime() - 60 * 60 * 1000);
+          const callsToday = auditLog.filter(e => new Date(e.timestamp).toDateString() === todayStr).length;
+          const callsThisHour = auditLog.filter(e => new Date(e.timestamp) >= oneHourAgo).length;
+
+          const todayColor =
+            callsToday > 270 ? "text-red-400" :
+            callsToday >= 200 ? "text-yellow-400" :
+            "text-green-400";
+
+          const hourColor =
+            callsThisHour > 270 ? "text-red-400" :
+            callsThisHour >= 200 ? "text-yellow-400" :
+            "text-green-400";
+
+          const statusLabel =
+            callsToday > 270 ? `🔴 ${t.activity_status_blocked}` :
+            callsToday >= 200 ? `🟡 ${t.activity_status_warning}` :
+            "🟢 Normal";
+
+          return (
+            <div className="space-y-4">
+              {/* Part 1 — Explanatory header card */}
+              <div className="rounded-lg overflow-hidden" style={{ backgroundColor: "#111111", border: "1px solid #222222" }}>
+                <div className="px-6 py-4" style={{ borderBottom: "1px solid #222222" }}>
+                  <h3 className="text-base font-semibold text-white">{t.activity_what_is_this}</h3>
+                </div>
+                <div className="px-6 py-4 text-sm" style={{ color: "#9ca3af" }}>
+                  {t.activity_explanation}
+                </div>
               </div>
-            ) : auditLog.length === 0 ? (
-              <div className="flex items-center justify-center h-40 text-sm" style={{ color: "#9ca3af" }}>
-                {t.overview_actividad_empty}
+
+              {/* Part 2 — Usage stats card */}
+              <div className="rounded-lg overflow-hidden" style={{ backgroundColor: "#111111", border: "1px solid #222222" }}>
+                <div className="px-6 py-4" style={{ borderBottom: "1px solid #222222" }}>
+                  <h3 className="text-base font-semibold text-white">{t.activity_usage_title}</h3>
+                </div>
+                <div className="px-6 py-4 space-y-3">
+                  {/* Row 1 — Calls today */}
+                  <div className="flex items-center justify-between text-sm">
+                    <span style={{ color: "#9ca3af" }}>{t.activity_calls_today}</span>
+                    <span>
+                      <span className={`font-semibold ${todayColor}`}>{callsToday}</span>
+                      <span className="ml-1" style={{ color: "#6b7280" }}>{t.activity_limit_standard}</span>
+                    </span>
+                  </div>
+                  {/* Row 2 — Calls this hour */}
+                  <div className="flex items-center justify-between text-sm">
+                    <span style={{ color: "#9ca3af" }}>{t.activity_calls_hour}</span>
+                    <span>
+                      <span className={`font-semibold ${hourColor}`}>{callsThisHour}</span>
+                      <span className="ml-1" style={{ color: "#6b7280" }}>{t.activity_limit_standard}</span>
+                    </span>
+                  </div>
+                  {/* Row 3 — Status */}
+                  <div className="flex items-center justify-between text-sm">
+                    <span style={{ color: "#9ca3af" }}>{t.activity_status}</span>
+                    <span className="font-medium text-white">{statusLabel}</span>
+                  </div>
+
+                  {/* Info note */}
+                  <div
+                    className="mt-4 rounded-md px-4 py-3 text-xs"
+                    style={{ backgroundColor: "#1a1a1a", color: "#6b7280", border: "1px solid #2a2a2a" }}
+                  >
+                    {t.activity_limit_note}
+                  </div>
+                </div>
               </div>
-            ) : (
-              <div className="overflow-x-auto">
-                <table className="w-full text-sm">
-                  <thead style={{ backgroundColor: "#111111", borderBottom: "1px solid #222222" }}>
-                    <tr>
-                      <th className="text-left px-4 py-3 font-medium" style={{ color: "#9ca3af" }}>{t.overview_actividad_col_timestamp}</th>
-                      <th className="text-left px-4 py-3 font-medium" style={{ color: "#9ca3af" }}>{t.overview_actividad_col_operation}</th>
-                      <th className="text-left px-4 py-3 font-medium" style={{ color: "#9ca3af" }}>{t.overview_actividad_col_entity}</th>
-                      <th className="text-left px-4 py-3 font-medium" style={{ color: "#9ca3af" }}>{t.overview_actividad_col_status}</th>
-                      <th className="text-left px-4 py-3 font-medium" style={{ color: "#9ca3af" }}>{t.overview_actividad_col_error}</th>
-                    </tr>
-                  </thead>
-                  <tbody>
-                    {auditLog.map((entry, i) => (
-                      <tr
-                        key={entry.id}
-                        style={{ borderTop: i > 0 ? "1px solid #1a1a1a" : undefined }}
-                        className="hover:bg-[#161616] transition-colors"
-                      >
-                        <td className="px-4 py-3 whitespace-nowrap" style={{ color: "#9ca3af" }}>
-                          {new Date(entry.timestamp).toLocaleString("es-AR", {
-                            day: "2-digit",
-                            month: "short",
-                            year: "numeric",
-                            hour: "2-digit",
-                            minute: "2-digit",
-                          })}
-                        </td>
-                        <td className="px-4 py-3">
-                          <span
-                            className="inline-flex items-center px-2 py-0.5 rounded text-xs font-medium"
-                            style={{ backgroundColor: "#1e1b4b", color: "#a5b4fc" }}
+
+              {/* Audit log table */}
+              <div className="rounded-lg overflow-hidden" style={{ backgroundColor: "#111111", border: "1px solid #222222" }}>
+                <div className="px-6 py-4" style={{ borderBottom: "1px solid #222222" }}>
+                  <h3 className="text-base font-semibold text-white flex items-center gap-2">
+                    <Activity className="h-4 w-4" style={{ color: "#9ca3af" }} />
+                    {t.overview_actividad_title}
+                  </h3>
+                </div>
+                {auditLoading ? (
+                  <div className="flex items-center justify-center h-40 text-sm" style={{ color: "#9ca3af" }}>
+                    <Loader2 className="h-5 w-5 animate-spin mr-2" />
+                    {t.overview_actividad_loading}
+                  </div>
+                ) : auditLog.length === 0 ? (
+                  <div className="flex items-center justify-center h-40 text-sm" style={{ color: "#9ca3af" }}>
+                    {t.overview_actividad_empty}
+                  </div>
+                ) : (
+                  <div className="overflow-x-auto">
+                    <table className="w-full text-sm">
+                      <thead style={{ backgroundColor: "#111111", borderBottom: "1px solid #222222" }}>
+                        <tr>
+                          <th className="text-left px-4 py-3 font-medium" style={{ color: "#9ca3af" }}>{t.overview_actividad_col_timestamp}</th>
+                          <th className="text-left px-4 py-3 font-medium" style={{ color: "#9ca3af" }}>{t.overview_actividad_col_operation}</th>
+                          <th className="text-left px-4 py-3 font-medium" style={{ color: "#9ca3af" }}>{t.overview_actividad_col_entity}</th>
+                          <th className="text-left px-4 py-3 font-medium" style={{ color: "#9ca3af" }}>{t.overview_actividad_col_status}</th>
+                          <th className="text-left px-4 py-3 font-medium" style={{ color: "#9ca3af" }}>{t.overview_actividad_col_error}</th>
+                        </tr>
+                      </thead>
+                      <tbody>
+                        {auditLog.map((entry, i) => (
+                          <tr
+                            key={entry.id}
+                            style={{ borderTop: i > 0 ? "1px solid #1a1a1a" : undefined }}
+                            className="hover:bg-[#161616] transition-colors"
                           >
-                            {entry.operation}
-                          </span>
-                        </td>
-                        <td className="px-4 py-3 text-white">
-                          {entry.entity_type}
-                          {entry.entity_id && (
-                            <span style={{ color: "#6b7280" }}>
-                              {" "}·{" "}{entry.entity_id.slice(0, 12)}
-                            </span>
-                          )}
-                        </td>
-                        <td className="px-4 py-3">
-                          {entry.success ? (
-                            <span className="text-green-400 font-medium">✓</span>
-                          ) : (
-                            <span className="text-red-400 font-medium">✗</span>
-                          )}
-                        </td>
-                        <td className="px-4 py-3 text-xs max-w-[200px] truncate" style={{ color: "#9ca3af" }}>
-                          {entry.error_message ?? "—"}
-                        </td>
-                      </tr>
-                    ))}
-                  </tbody>
-                </table>
+                            <td className="px-4 py-3 whitespace-nowrap" style={{ color: "#9ca3af" }}>
+                              {new Date(entry.timestamp).toLocaleString("es-AR", {
+                                day: "2-digit",
+                                month: "short",
+                                year: "numeric",
+                                hour: "2-digit",
+                                minute: "2-digit",
+                              })}
+                            </td>
+                            <td className="px-4 py-3">
+                              <span
+                                className="inline-flex items-center px-2 py-0.5 rounded text-xs font-medium"
+                                style={{ backgroundColor: "#1e1b4b", color: "#a5b4fc" }}
+                              >
+                                {entry.operation}
+                              </span>
+                            </td>
+                            <td className="px-4 py-3 text-white">
+                              {entry.entity_type}
+                              {entry.entity_id && (
+                                <span style={{ color: "#6b7280" }}>
+                                  {" "}·{" "}{entry.entity_id.slice(0, 12)}
+                                </span>
+                              )}
+                            </td>
+                            <td className="px-4 py-3">
+                              {entry.success ? (
+                                <span className="text-green-400 font-medium">✓</span>
+                              ) : (
+                                <span className="text-red-400 font-medium">✗</span>
+                              )}
+                            </td>
+                            <td className="px-4 py-3 text-xs max-w-[200px] truncate" style={{ color: "#9ca3af" }}>
+                              {entry.error_message ?? "—"}
+                            </td>
+                          </tr>
+                        ))}
+                      </tbody>
+                    </table>
+                  </div>
+                )}
               </div>
-            )}
-          </div>
-        )}
+            </div>
+          );
+        })()}
 
         {/* ── Overview tab content ── */}
         {(activeTab === "overview" || !isAdmin) && (

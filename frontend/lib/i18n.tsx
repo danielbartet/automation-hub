@@ -824,6 +824,18 @@ export const translations = {
     overview_actividad_col_status: "Status",
     overview_actividad_col_error: "Error",
 
+    // ── Actividad tab — usage panel ──────────────────────────────────────────
+    activity_what_is_this: "What is this?",
+    activity_explanation: "This section records all operations made to the Meta API (posts, campaigns, budgets). Use it to audit what the system did and when.",
+    activity_usage_title: "Meta API Usage",
+    activity_calls_today: "Calls today",
+    activity_calls_hour: "Calls this hour",
+    activity_limit_standard: "/ 300 limit (Standard Access)",
+    activity_status: "Status",
+    activity_status_warning: "Near limit",
+    activity_status_blocked: "Limited by Meta",
+    activity_limit_note: "Meta allows up to 300 calls/hour per ad account (Standard Access). With Advanced Access this limit increases to 100,000/hour.",
+
     // ── Ads page — Competitive Insights card ────────────────────────────────
     ads_competitive_title: "Competitive Intelligence",
     ads_competitive_empty_desc: "Brief is auto-generated every Sunday. Configure competitors in project settings to activate.",
@@ -1868,6 +1880,18 @@ export const translations = {
     overview_actividad_col_entity: "Entidad",
     overview_actividad_col_status: "Estado",
     overview_actividad_col_error: "Error",
+
+    // ── Actividad tab — usage panel ──────────────────────────────────────────
+    activity_what_is_this: "¿Qué es esto?",
+    activity_explanation: "Esta sección registra todas las operaciones realizadas hacia la API de Meta (publicaciones, campañas, presupuestos). Podés usarla para auditar qué hizo el sistema y cuándo.",
+    activity_usage_title: "Uso de Meta API",
+    activity_calls_today: "Llamadas hoy",
+    activity_calls_hour: "Llamadas esta hora",
+    activity_limit_standard: "/ 300 límite (Standard Access)",
+    activity_status: "Estado",
+    activity_status_warning: "Cerca del límite",
+    activity_status_blocked: "Limitado por Meta",
+    activity_limit_note: "Meta permite hasta 300 llamadas/hora por cuenta publicitaria (Standard Access). Con Advanced Access el límite sube a 100,000 llamadas/hora.",
 
     // ── Ads page — Competitive Insights card ────────────────────────────────
     ads_competitive_title: "Inteligencia Competitiva",
