@@ -24,6 +24,36 @@ export class MetaRateLimitError extends Error {
   }
 }
 
+// ── Operation rate-limit error (per-user throttle) ─────────────────────────
+
+export interface OperationRateLimitDetail {
+  reason: string;
+  retry_after_seconds: number;
+}
+
+/**
+ * Thrown when the backend responds 429 for per-user operation throttling
+ * (not a Meta API rate limit).
+ */
+export class OperationRateLimitError extends Error {
+  detail: OperationRateLimitDetail;
+  constructor(detail: OperationRateLimitDetail) {
+    super(detail.reason ?? "Operation rate limit reached");
+    this.name = "OperationRateLimitError";
+    this.detail = detail;
+  }
+}
+
+/**
+ * Thrown when the backend responds 409 for a schedule conflict.
+ */
+export class ScheduleConflictError extends Error {
+  constructor() {
+    super("Schedule conflict");
+    this.name = "ScheduleConflictError";
+  }
+}
+
 /**
  * Parse a non-ok Response and throw MetaRateLimitError when appropriate,
  * otherwise return the parsed error body for the caller to handle.
@@ -39,9 +69,31 @@ async function parseErrorResponse(res: Response): Promise<{ detail?: unknown }> 
     ) {
       throw new MetaRateLimitError(body.detail as MetaRateLimitDetail);
     }
+    if (
+      res.status === 429 &&
+      body?.detail &&
+      typeof body.detail === "object" &&
+      "retry_after_seconds" in body.detail
+    ) {
+      throw new OperationRateLimitError(body.detail as OperationRateLimitDetail);
+    }
+    if (
+      res.status === 409 &&
+      body?.detail &&
+      typeof body.detail === "object" &&
+      body.detail.reason === "schedule_conflict"
+    ) {
+      throw new ScheduleConflictError();
+    }
     return body as { detail?: unknown };
   } catch (e) {
-    if (e instanceof MetaRateLimitError) throw e;
+    if (
+      e instanceof MetaRateLimitError ||
+      e instanceof OperationRateLimitError ||
+      e instanceof ScheduleConflictError
+    ) {
+      throw e;
+    }
     return {};
   }
 }
@@ -138,6 +190,7 @@ export async function generateContent(
     category?: string;
     hint?: string;
     image_mode?: string;
+    num_slides?: number;
   },
   token?: string
 ) {
@@ -149,7 +202,10 @@ export async function generateContent(
     },
     ...(body ? { body: JSON.stringify(body) } : {}),
   });
-  if (!res.ok) throw new Error("Failed to generate content");
+  if (!res.ok) {
+    await parseErrorResponse(res);
+    throw new Error("Failed to generate content");
+  }
   return res.json();
 }
 
@@ -179,7 +235,10 @@ export async function createContentManual(
     headers: { "Content-Type": "application/json", ...(token ? { Authorization: `Bearer ${token}` } : {}) },
     body: JSON.stringify(data),
   });
-  if (!res.ok) throw new Error("Failed to create content");
+  if (!res.ok) {
+    await parseErrorResponse(res);
+    throw new Error("Failed to create content");
+  }
   return res.json();
 }
 

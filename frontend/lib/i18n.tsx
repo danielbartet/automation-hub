@@ -864,6 +864,13 @@ export const translations = {
     rate_limit_footer_link: "Request Advanced Access on Meta for Developers",
     rate_limit_close_label: "Close",
 
+    // ── Operation throttle ───────────────────────────────────────────────────
+    op_rate_limit_title: "Rate limit",
+    op_rate_limit_wait: (minutes: number) => `Wait ${minutes} min before publishing again`,
+    schedule_conflict_title: "Schedule conflict",
+    schedule_conflict_desc: "There is already a post scheduled at that time",
+    meta_usage_tooltip: (pct: number, cap: number) => `Meta API usage: ${pct.toFixed(1)}% · Limit: ${cap}%`,
+
     // ── Hook Library page ────────────────────────────────────────────────────
     hooks_page_title: "Hook Library",
     hooks_subtitle: "Competitor ads — sorted by duration",
@@ -1926,6 +1933,13 @@ export const translations = {
     rate_limit_footer: "¿Límites frecuentes?",
     rate_limit_footer_link: "Solicitá Advanced Access en Meta for Developers",
     rate_limit_close_label: "Cerrar",
+
+    // ── Operation throttle ───────────────────────────────────────────────────
+    op_rate_limit_title: "Límite alcanzado",
+    op_rate_limit_wait: (minutes: number) => `Esperá ${minutes} min antes de volver a publicar`,
+    schedule_conflict_title: "Conflicto de horario",
+    schedule_conflict_desc: "Ya hay un post programado en ese horario",
+    meta_usage_tooltip: (pct: number, cap: number) => `Uso API Meta: ${pct.toFixed(1)}% · Límite: ${cap}%`,
 
     // ── Hook Library page ────────────────────────────────────────────────────
     hooks_page_title: "Hook Library",

@@ -21,6 +21,12 @@ from app.models.project import Project
 from app.services.claude.client import ClaudeClient
 from app.services.media.factory import get_image_provider, get_video_provider
 from app.services.token_usage import log_token_usage, check_token_limit
+from app.services.operation_limiter import (
+    check_operation_allowed,
+    record_operation,
+    get_current_meta_usage,
+    check_schedule_conflict,
+)
 from app.services.meta.client import MetaClient
 from app.services.meta.pages import PagesService
 from app.services.meta.instagram import InstagramService
@@ -243,6 +249,23 @@ async def generate_content(
             raise
         except Exception:
             pass  # never block generation due to limit check failure
+
+    # 2c. Check per-user operation throttle
+    if current_user:
+        try:
+            meta_usage = await get_current_meta_usage(db)
+            allowed, reason, retry_after = await check_operation_allowed(
+                db, current_user.id, "content_post", meta_usage
+            )
+            if not allowed:
+                raise HTTPException(
+                    status_code=429,
+                    detail={"reason": reason, "retry_after_seconds": retry_after},
+                )
+        except HTTPException:
+            raise
+        except Exception:
+            pass  # never block generation due to throttle check failure
 
     # 3. Validate category against project config (if provided)
     if body.category:
@@ -521,6 +544,14 @@ async def generate_content(
     await db.commit()
     await db.refresh(post)
 
+    # Record operation for throttle tracking
+    if current_user:
+        try:
+            await record_operation(db, current_user.id, "content_post")
+            await db.commit()
+        except Exception:
+            pass  # never block on record failure
+
     try:
         from app.services.notifications import NotificationService
         from app.core.database import AsyncSessionLocal
@@ -583,6 +614,20 @@ async def create_content_manual(
             scheduled = datetime.fromisoformat(body.scheduled_at)
         except ValueError:
             pass
+
+    # Check schedule conflict when a scheduled_at is provided
+    if scheduled is not None:
+        try:
+            conflict = await check_schedule_conflict(db, project.id, scheduled)
+            if conflict:
+                raise HTTPException(
+                    status_code=409,
+                    detail={"reason": "schedule_conflict", "retry_after_seconds": 0},
+                )
+        except HTTPException:
+            raise
+        except Exception:
+            pass  # never block on conflict check failure
 
     # Resolve image_url: use explicit single URL, or fall back to first URL in image_urls list
     resolved_image_url = body.image_url or (body.image_urls[0] if body.image_urls else None)
@@ -1207,6 +1252,23 @@ async def batch_generate_content(
     if not project:
         raise HTTPException(status_code=404, detail=f"Project '{project_slug}' not found")
 
+    # Check per-user operation throttle (once for the whole batch)
+    if _current_user:
+        try:
+            meta_usage = await get_current_meta_usage(db)
+            allowed, reason, retry_after = await check_operation_allowed(
+                db, _current_user.id, "content_post", meta_usage
+            )
+            if not allowed:
+                raise HTTPException(
+                    status_code=429,
+                    detail={"reason": reason, "retry_after_seconds": retry_after},
+                )
+        except HTTPException:
+            raise
+        except Exception:
+            pass  # never block generation due to throttle check failure
+
     # Parse dates
     period_start = datetime.fromisoformat(body.period_start)
     period_end = datetime.fromisoformat(body.period_end)
@@ -1236,6 +1298,19 @@ async def batch_generate_content(
     generated_posts = []
 
     for sched_dt in scheduled_dates:
+        # Check schedule conflict for this slot
+        try:
+            conflict = await check_schedule_conflict(db, project.id, sched_dt)
+            if conflict:
+                raise HTTPException(
+                    status_code=409,
+                    detail={"reason": "schedule_conflict", "retry_after_seconds": 0},
+                )
+        except HTTPException:
+            raise
+        except Exception:
+            pass  # never block on conflict check failure
+
         try:
             content, _batch_usage = await claude_client.generate_carousel_content(project, num_slides=body.num_slides)
             try:
@@ -1277,6 +1352,14 @@ async def batch_generate_content(
         })
 
     await db.commit()
+
+    # Record one operation log entry for the batch
+    if _current_user:
+        try:
+            await record_operation(db, _current_user.id, "content_post")
+            await db.commit()
+        except Exception:
+            pass  # never block on record failure
 
     return {
         "batch_id": batch_id,

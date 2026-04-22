@@ -3,7 +3,8 @@ import { useState, useEffect } from "react";
 import { useSession } from "next-auth/react";
 import { X, Loader2, Sparkles, PenLine } from "lucide-react";
 import { ImageUploadZone } from "./ImageUploadZone";
-import { generateContent, createContentManual } from "@/lib/api";
+import { generateContent, createContentManual, OperationRateLimitError, ScheduleConflictError } from "@/lib/api";
+import { useT } from "@/lib/i18n";
 import { InstagramPostPreview } from "./InstagramPostPreview";
 
 interface Project {
@@ -47,6 +48,7 @@ const SPINNER_LABELS: Record<ContentType, string> = {
 
 export function GenerateContentModal({ projectSlug, project, initialHint, initialContentType, initialCategory, onClose, onSuccess }: GenerateContentModalProps) {
   const { data: session } = useSession();
+  const t = useT();
   const token = (session as any)?.accessToken as string | undefined;
   const [tab, setTab] = useState<"auto" | "manual">("auto");
   const [loading, setLoading] = useState(false);
@@ -127,7 +129,14 @@ export function GenerateContentModal({ projectSlug, project, initialHint, initia
       setGeneratedData(data);
       setResult(data.content?.caption || data.content?.title || "Contenido generado con éxito");
     } catch (e) {
-      setError(e instanceof Error ? e.message : "Error al generar");
+      if (e instanceof OperationRateLimitError) {
+        const minutes = Math.ceil(e.detail.retry_after_seconds / 60) || 1;
+        setError(t.op_rate_limit_wait(minutes));
+      } else if (e instanceof ScheduleConflictError) {
+        setError(t.schedule_conflict_desc);
+      } else {
+        setError(e instanceof Error ? e.message : "Error al generar");
+      }
     } finally {
       setLoading(false);
     }
@@ -161,7 +170,14 @@ export function GenerateContentModal({ projectSlug, project, initialHint, initia
       onSuccess();
       onClose();
     } catch (e) {
-      setError(e instanceof Error ? e.message : "Failed");
+      if (e instanceof OperationRateLimitError) {
+        const minutes = Math.ceil(e.detail.retry_after_seconds / 60) || 1;
+        setError(t.op_rate_limit_wait(minutes));
+      } else if (e instanceof ScheduleConflictError) {
+        setError(t.schedule_conflict_desc);
+      } else {
+        setError(e instanceof Error ? e.message : "Failed");
+      }
     } finally {
       setLoading(false);
     }

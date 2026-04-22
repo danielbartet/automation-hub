@@ -2,6 +2,7 @@
 import { signOut } from "next-auth/react";
 import { LogOut } from "lucide-react";
 import { NotificationBell } from "@/components/layout/NotificationBell";
+import { MetaUsageBadge } from "@/components/layout/MetaUsageBadge";
 import { useLang, useT } from "@/lib/i18n";
 
 interface HeaderProps {
@@ -39,6 +40,8 @@ export function Header({ title }: HeaderProps) {
             </button>
           ))}
         </div>
+
+        <MetaUsageBadge />
 
         <NotificationBell />
 

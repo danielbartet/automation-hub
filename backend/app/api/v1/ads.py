@@ -3,6 +3,11 @@ from fastapi import APIRouter, Depends, HTTPException, UploadFile, File
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy import select
 from app.api.deps import get_session, get_current_user, require_super_admin, require_role, assert_project_access
+from app.services.operation_limiter import (
+    check_operation_allowed,
+    record_operation,
+    get_current_meta_usage,
+)
 from app.models.ad_campaign import AdCampaign
 from app.models.notification import Notification
 from app.models.project import Project
@@ -444,6 +449,38 @@ async def generate_concept_image(
         raise HTTPException(500, f"Image generation failed: {str(e)}")
 
 
+@router.get("/meta-usage-summary")
+async def get_meta_usage_summary(
+    db: AsyncSession = Depends(get_session),
+    current_user=Depends(require_role("admin", "super_admin")),
+) -> dict:
+    """Return the latest Meta App-level API usage snapshot."""
+    from app.models.meta_api_audit_log import MetaAppUsage
+
+    result = await db.execute(
+        select(MetaAppUsage)
+        .order_by(MetaAppUsage.recorded_at.desc())
+        .limit(1)
+    )
+    row = result.scalar_one_or_none()
+    if row is None:
+        return {"max_pct": None, "recorded_at": None, "status": "ok"}
+
+    max_pct = row.max_pct if row.max_pct is not None else 0.0
+    if max_pct >= 75:
+        status = "critical"
+    elif max_pct >= 60:
+        status = "warning"
+    else:
+        status = "ok"
+
+    return {
+        "max_pct": max_pct,
+        "recorded_at": row.recorded_at.isoformat() if row.recorded_at else None,
+        "status": status,
+    }
+
+
 @router.post("/create/{project_slug}")
 async def create_campaign(
     project_slug: str,
@@ -465,6 +502,23 @@ async def create_campaign(
         raise HTTPException(400, "Project missing meta_access_token or ad_account_id")
     if not facebook_page_id:
         raise HTTPException(400, "Project missing facebook_page_id")
+
+    # Check per-user operation throttle
+    if _current_user:
+        try:
+            meta_usage = await get_current_meta_usage(db)
+            allowed, reason, retry_after = await check_operation_allowed(
+                db, _current_user.id, "campaign_create", meta_usage
+            )
+            if not allowed:
+                raise HTTPException(
+                    status_code=429,
+                    detail={"reason": reason, "retry_after_seconds": retry_after},
+                )
+        except HTTPException:
+            raise
+        except Exception:
+            pass  # never block due to throttle check failure
 
     from app.services.meta.client import validate_meta_token
     token_status = await validate_meta_token(token, project_id=project.id)
@@ -594,6 +648,14 @@ async def create_campaign(
         )
         await db.commit()
 
+        # Record operation for throttle tracking
+        if _current_user:
+            try:
+                await record_operation(db, _current_user.id, "campaign_create")
+                await db.commit()
+            except Exception:
+                pass  # never block on record failure
+
         return {
             "id": campaign.id,
             "meta_campaign_id": meta_ids["campaign_id"],
@@ -660,6 +722,14 @@ async def create_campaign(
         user_id=getattr(_current_user, "id", None),
     )
     await db.commit()
+
+    # Record operation for throttle tracking
+    if _current_user:
+        try:
+            await record_operation(db, _current_user.id, "campaign_create")
+            await db.commit()
+        except Exception:
+            pass  # never block on record failure
 
     return {
         "id": campaign.id,

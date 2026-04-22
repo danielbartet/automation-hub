@@ -194,3 +194,79 @@ async def update_user(
     )
     project_ids = [row[0] for row in up_result.fetchall()]
     return user_to_dict(user, project_ids)
+
+
+class UpdateOperationLimitRequest(BaseModel):
+    plan: str | None = None
+    max_posts_per_min: int | None = None
+    max_posts_per_hour: int | None = None
+    max_posts_per_day: int | None = None
+    min_post_interval_min: int | None = None
+    max_campaigns_per_min: int | None = None
+    max_campaigns_per_hour: int | None = None
+    max_campaigns_per_day: int | None = None
+    min_campaign_interval_min: int | None = None
+    meta_usage_cap_pct: int | None = None
+
+
+@router.put("/{user_id}/operation-limit")
+async def update_operation_limit(
+    user_id: str,
+    body: UpdateOperationLimitRequest,
+    db: AsyncSession = Depends(get_session),
+    current_user=Depends(require_role("admin", "super_admin")),
+) -> dict:
+    """Set or update the operation throttle limits for a user (admin/super_admin only)."""
+    from app.models.operation_limit import UserOperationLimit
+
+    # Verify target user exists
+    user_result = await db.execute(select(User).where(User.id == user_id))
+    if not user_result.scalar_one_or_none():
+        raise HTTPException(404, "User not found")
+
+    result = await db.execute(
+        select(UserOperationLimit).where(UserOperationLimit.user_id == user_id)
+    )
+    limit = result.scalar_one_or_none()
+
+    if limit is None:
+        limit = UserOperationLimit(user_id=user_id)
+        db.add(limit)
+
+    if body.plan is not None:
+        limit.plan = body.plan
+    if body.max_posts_per_min is not None:
+        limit.max_posts_per_min = body.max_posts_per_min
+    if body.max_posts_per_hour is not None:
+        limit.max_posts_per_hour = body.max_posts_per_hour
+    if body.max_posts_per_day is not None:
+        limit.max_posts_per_day = body.max_posts_per_day
+    if body.min_post_interval_min is not None:
+        limit.min_post_interval_min = body.min_post_interval_min
+    if body.max_campaigns_per_min is not None:
+        limit.max_campaigns_per_min = body.max_campaigns_per_min
+    if body.max_campaigns_per_hour is not None:
+        limit.max_campaigns_per_hour = body.max_campaigns_per_hour
+    if body.max_campaigns_per_day is not None:
+        limit.max_campaigns_per_day = body.max_campaigns_per_day
+    if body.min_campaign_interval_min is not None:
+        limit.min_campaign_interval_min = body.min_campaign_interval_min
+    if body.meta_usage_cap_pct is not None:
+        limit.meta_usage_cap_pct = body.meta_usage_cap_pct
+
+    await db.commit()
+    await db.refresh(limit)
+
+    return {
+        "user_id": limit.user_id,
+        "plan": limit.plan,
+        "max_posts_per_min": limit.max_posts_per_min,
+        "max_posts_per_hour": limit.max_posts_per_hour,
+        "max_posts_per_day": limit.max_posts_per_day,
+        "min_post_interval_min": limit.min_post_interval_min,
+        "max_campaigns_per_min": limit.max_campaigns_per_min,
+        "max_campaigns_per_hour": limit.max_campaigns_per_hour,
+        "max_campaigns_per_day": limit.max_campaigns_per_day,
+        "min_campaign_interval_min": limit.min_campaign_interval_min,
+        "meta_usage_cap_pct": limit.meta_usage_cap_pct,
+    }

@@ -5,7 +5,7 @@ import { X, Loader2, ChevronRight, ChevronLeft, Check, RefreshCw, Sparkles, Aler
 import { ImageUploadZone } from "./ImageUploadZone";
 import { ConceptsGrid } from "./ConceptsGrid";
 import { CreateAudienceModal } from "./CreateAudienceModal";
-import { createCampaign, fetchProjectPosts, generateAdConcepts, createCampaignWithConcepts, fetchAudiences, generateConceptImage, AdConcept, DiversityAudit, InspirationPrefill, MetaRateLimitError } from "@/lib/api";
+import { createCampaign, fetchProjectPosts, generateAdConcepts, createCampaignWithConcepts, fetchAudiences, generateConceptImage, AdConcept, DiversityAudit, InspirationPrefill, MetaRateLimitError, OperationRateLimitError } from "@/lib/api";
 import { useMetaRateLimit } from "./MetaRateLimitProvider";
 import { useT } from "@/lib/i18n";
 
@@ -359,6 +359,9 @@ export function CreateCampaignModal({ projectSlug, projectId, onClose, onSuccess
     } catch (e) {
       if (e instanceof MetaRateLimitError) {
         triggerRateLimit(e.detail);
+      } else if (e instanceof OperationRateLimitError) {
+        const minutes = Math.ceil(e.detail.retry_after_seconds / 60) || 1;
+        setError(t.op_rate_limit_wait(minutes));
       } else {
         setError(e instanceof Error ? e.message : t.campaign_create_error_default);
       }
