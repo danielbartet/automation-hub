@@ -295,7 +295,8 @@ export function Sidebar() {
               </p>
               {renderSubLink("/dashboard/ads", t.nav_campanias, Megaphone, true)}
               {renderSubLink("/dashboard/ads/audiences", t.nav_audiences, Users2, false)}
-              {!isClient && renderSubLink("/dashboard/ads/hooks", "Hooks", BookOpen, false)}
+              {/* TEMP: commented for Meta App Review video — uncomment after */}
+              {/* {!isClient && renderSubLink("/dashboard/ads/hooks", "Hooks", BookOpen, false)} */}
             </div>
           )}
         </div>

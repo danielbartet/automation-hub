@@ -311,7 +311,9 @@ export default function AdsPage() {
         {/* Tab bar — admin/operator only */}
         {!isClient && (
           <div className="flex gap-1" style={{ borderBottom: "1px solid #222222" }}>
-            {(["campaigns", "inspiration"] as const).map((tab) => (
+            {/* TEMP: commented for Meta App Review video — uncomment after */}
+            {/* {(["campaigns", "inspiration"] as const).map((tab) => ( */}
+            {(["campaigns"] as const).map((tab) => (
               <button
                 key={tab}
                 onClick={() => { setActiveTab(tab); setInspirationPrefill(undefined); }}
@@ -466,8 +468,9 @@ export default function AdsPage() {
           </div>
         )}
 
+        {/* TEMP: commented for Meta App Review video — uncomment after */}
         {/* ── Competitive Insights card (admin + operator, campaigns tab) ── */}
-        {activeTab === "campaigns" && !isClient && (
+        {/* {activeTab === "campaigns" && !isClient && (
           competitiveInsights === "empty" || competitiveInsights === null ? (
             <div className="rounded-lg p-5" style={{ backgroundColor: "#111111", border: "1px solid #222222" }}>
               <p className="text-sm font-semibold text-gray-400 mb-1">{t.ads_competitive_title}</p>
@@ -477,7 +480,6 @@ export default function AdsPage() {
             </div>
           ) : competitiveInsights !== null && (
             <div className="rounded-lg overflow-hidden" style={{ backgroundColor: "#111111", border: "1px solid #222222" }}>
-              {/* Header */}
               <div className="px-6 py-4 flex items-start justify-between flex-wrap gap-2" style={{ borderBottom: "1px solid #222222" }}>
                 <div>
                   <h3 className="text-base font-semibold text-white">{t.ads_competitive_title}</h3>
@@ -501,7 +503,6 @@ export default function AdsPage() {
                 </button>
               </div>
               <div className="px-6 py-4 space-y-4">
-                {/* Top 2 hook patterns */}
                 {competitiveInsights.brief.hook_patterns?.slice(0, 2).map((hp, i) => (
                   <div key={i}>
                     <div className="flex items-center justify-between mb-1">
@@ -516,14 +517,12 @@ export default function AdsPage() {
                     </div>
                   </div>
                 ))}
-                {/* Opportunity gap */}
                 {competitiveInsights.brief.opportunity_gap && (
                   <div className="flex items-start gap-2 px-3 py-2 rounded-md" style={{ backgroundColor: "#2d2300", border: "1px solid #4d3800" }}>
                     <span className="text-amber-400 text-sm">⚡</span>
                     <p className="text-xs text-amber-300">{competitiveInsights.brief.opportunity_gap}</p>
                   </div>
                 )}
-                {/* Weekly recommendation */}
                 {competitiveInsights.brief.weekly_recommendation && (
                   <div className="px-3 py-2 rounded-md" style={{ backgroundColor: "#0d1b2e", border: "1px solid #1e3a5f" }}>
                     <p className="text-xs font-semibold text-blue-400 mb-1">{t.ads_competitive_weekly_rec}</p>
@@ -533,7 +532,7 @@ export default function AdsPage() {
               </div>
             </div>
           )
-        )}
+        )} */}
 
         {/* KPI Cards — campaigns tab only */}
         {activeTab === "campaigns" && <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
