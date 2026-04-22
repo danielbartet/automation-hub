@@ -62,13 +62,19 @@ export function MetaTokenSection() {
   const handleMetaConnect = async () => {
     if (!rawToken) return;
     try {
+      // The /start?mode=user endpoint returns JSON {"oauth_url": "..."} so we
+      // can send the Authorization header. We then navigate with
+      // window.location.href to avoid CORS errors — fetch() following a 302
+      // redirect cross-origin to Facebook is blocked by the browser.
       const res = await fetch(`${API_BASE}/api/v1/auth/meta/start?mode=user`, {
         headers: { Authorization: `Bearer ${rawToken}` },
       });
       if (!res.ok) throw new Error("Failed to get OAuth URL");
       const data = await res.json();
       if (data.oauth_url) {
-        window.location.assign(data.oauth_url);
+        window.location.href = data.oauth_url;
+      } else {
+        throw new Error("No oauth_url in response");
       }
     } catch (err) {
       console.error("Meta connect error:", err);

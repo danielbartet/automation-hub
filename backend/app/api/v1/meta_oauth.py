@@ -44,21 +44,39 @@ async def meta_oauth_start(
     current_user=Depends(get_current_user_optional),
     project_slug: str | None = None,
     mode: str = "project",
-) -> RedirectResponse:
+):
     """Initiate the Meta OAuth flow.
 
     Supports two modes:
     - ``mode="project"`` (default): connects a token to the given project. Requires
-      ``project_slug``. Browser redirect — no auth header needed.
+      ``project_slug``. Returns a 302 redirect — must be triggered via
+      ``window.location.href``, not ``fetch()``.
     - ``mode="user"``: connects a personal Meta token to the authenticated user.
       No ``project_slug`` needed. Requires an authenticated session via
-      Authorization: Bearer header.
+      Authorization: Bearer header. Returns ``{"oauth_url": "..."}`` as JSON so
+      the frontend can fetch it (with the auth header) and then navigate with
+      ``window.location.href`` — avoids CORS errors caused by fetch following
+      the redirect cross-origin to Facebook.
     """
     if mode == "user":
         # Require Authorization header-based auth (fetch + Bearer from frontend)
         if not current_user:
             raise HTTPException(status_code=401, detail="Not authenticated")
         state = generate_state(mode="user", user_id=current_user.id)
+
+        authorize_url = (
+            f"{_META_AUTHORIZE_URL}"
+            f"?client_id={settings.META_APP_ID}"
+            f"&redirect_uri={settings.META_OAUTH_REDIRECT_URI}"
+            f"&scope={_META_OAUTH_SCOPES}"
+            f"&state={state}"
+            f"&response_type=code"
+        )
+        # Return JSON so the frontend can navigate with window.location.href.
+        # A 302 redirect here would be followed by fetch() cross-origin to
+        # Facebook, which the browser blocks with a CORS error.
+        from fastapi.responses import JSONResponse
+        return JSONResponse({"oauth_url": authorize_url})
     else:
         # mode="project" — project_slug is required
         if not project_slug:
@@ -69,15 +87,15 @@ async def meta_oauth_start(
             raise HTTPException(status_code=404, detail=f"Project '{project_slug}' not found")
         state = generate_state(mode="project", slug=project_slug)
 
-    authorize_url = (
-        f"{_META_AUTHORIZE_URL}"
-        f"?client_id={settings.META_APP_ID}"
-        f"&redirect_uri={settings.META_OAUTH_REDIRECT_URI}"
-        f"&scope={_META_OAUTH_SCOPES}"
-        f"&state={state}"
-        f"&response_type=code"
-    )
-    return RedirectResponse(url=authorize_url, status_code=302)
+        authorize_url = (
+            f"{_META_AUTHORIZE_URL}"
+            f"?client_id={settings.META_APP_ID}"
+            f"&redirect_uri={settings.META_OAUTH_REDIRECT_URI}"
+            f"&scope={_META_OAUTH_SCOPES}"
+            f"&state={state}"
+            f"&response_type=code"
+        )
+        return RedirectResponse(url=authorize_url, status_code=302)
 
 
 @router.get("/callback")
