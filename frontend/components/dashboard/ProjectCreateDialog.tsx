@@ -122,7 +122,7 @@ export function ProjectCreateDialog({ onClose, onSuccess }: Props) {
             <div className="flex items-center justify-between">
               <div>
                 <h2 className="text-lg font-semibold text-white">{t.create_dialog_title}</h2>
-                <p className="text-xs mt-0.5" style={{ color: "#9ca3af" }}>Choose a template to pre-fill your project settings</p>
+                <p className="text-xs mt-0.5" style={{ color: "#9ca3af" }}>{t.create_dialog_template_subtitle}</p>
               </div>
               <button onClick={onClose} className="text-gray-400 hover:text-white transition-colors">
                 <X className="h-5 w-5" />
@@ -131,7 +131,7 @@ export function ProjectCreateDialog({ onClose, onSuccess }: Props) {
 
             {loadingTemplates ? (
               <div className="flex items-center justify-center h-32 text-sm" style={{ color: "#9ca3af" }}>
-                <Loader2 className="h-4 w-4 animate-spin mr-2" /> Loading templates…
+                <Loader2 className="h-4 w-4 animate-spin mr-2" /> {t.create_dialog_loading_templates}
               </div>
             ) : (
               <div className="space-y-2">
@@ -164,7 +164,7 @@ export function ProjectCreateDialog({ onClose, onSuccess }: Props) {
                 >
                   <div className="flex items-center gap-2">
                     <LayoutGrid className="h-4 w-4" style={{ color: "#9ca3af" }} />
-                    <p className="text-sm font-medium" style={{ color: "#9ca3af" }}>Start from scratch</p>
+                    <p className="text-sm font-medium" style={{ color: "#9ca3af" }}>{t.create_dialog_start_scratch}</p>
                   </div>
                   <ChevronRight className="h-4 w-4 flex-shrink-0 ml-3" style={{ color: "#6b7280" }} />
                 </button>
@@ -182,7 +182,7 @@ export function ProjectCreateDialog({ onClose, onSuccess }: Props) {
                 <h2 className="text-lg font-semibold text-white">{t.create_dialog_title}</h2>
                 {selectedTemplate && (
                   <p className="text-xs mt-0.5" style={{ color: "#7c3aed" }}>
-                    Template: {selectedTemplate.name}
+                    {t.create_dialog_template_label(selectedTemplate.name)}
                   </p>
                 )}
               </div>
@@ -200,7 +200,7 @@ export function ProjectCreateDialog({ onClose, onSuccess }: Props) {
               onMouseEnter={(e) => { (e.currentTarget as HTMLButtonElement).style.color = "#ffffff"; }}
               onMouseLeave={(e) => { (e.currentTarget as HTMLButtonElement).style.color = "#9ca3af"; }}
             >
-              ← Change template
+              {t.create_dialog_change_template}
             </button>
 
             {/* Name */}

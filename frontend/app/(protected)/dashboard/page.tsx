@@ -171,7 +171,7 @@ export default function DashboardPage() {
                     : { color: "#9ca3af", borderBottom: "2px solid transparent" }
                 }
               >
-                {tab === "overview" ? "Overview" : "Actividad"}
+                {tab === "overview" ? t.overview_tab_overview : t.overview_tab_actividad}
               </button>
             ))}
           </div>
@@ -183,28 +183,28 @@ export default function DashboardPage() {
             <div className="px-6 py-4" style={{ borderBottom: "1px solid #222222" }}>
               <h3 className="text-base font-semibold text-white flex items-center gap-2">
                 <Activity className="h-4 w-4" style={{ color: "#9ca3af" }} />
-                Actividad Meta API
+                {t.overview_actividad_title}
               </h3>
             </div>
             {auditLoading ? (
               <div className="flex items-center justify-center h-40 text-sm" style={{ color: "#9ca3af" }}>
                 <Loader2 className="h-5 w-5 animate-spin mr-2" />
-                Cargando actividad…
+                {t.overview_actividad_loading}
               </div>
             ) : auditLog.length === 0 ? (
               <div className="flex items-center justify-center h-40 text-sm" style={{ color: "#9ca3af" }}>
-                No hay actividad registrada aún.
+                {t.overview_actividad_empty}
               </div>
             ) : (
               <div className="overflow-x-auto">
                 <table className="w-full text-sm">
                   <thead style={{ backgroundColor: "#111111", borderBottom: "1px solid #222222" }}>
                     <tr>
-                      <th className="text-left px-4 py-3 font-medium" style={{ color: "#9ca3af" }}>Timestamp</th>
-                      <th className="text-left px-4 py-3 font-medium" style={{ color: "#9ca3af" }}>Operación</th>
-                      <th className="text-left px-4 py-3 font-medium" style={{ color: "#9ca3af" }}>Entidad</th>
-                      <th className="text-left px-4 py-3 font-medium" style={{ color: "#9ca3af" }}>Estado</th>
-                      <th className="text-left px-4 py-3 font-medium" style={{ color: "#9ca3af" }}>Error</th>
+                      <th className="text-left px-4 py-3 font-medium" style={{ color: "#9ca3af" }}>{t.overview_actividad_col_timestamp}</th>
+                      <th className="text-left px-4 py-3 font-medium" style={{ color: "#9ca3af" }}>{t.overview_actividad_col_operation}</th>
+                      <th className="text-left px-4 py-3 font-medium" style={{ color: "#9ca3af" }}>{t.overview_actividad_col_entity}</th>
+                      <th className="text-left px-4 py-3 font-medium" style={{ color: "#9ca3af" }}>{t.overview_actividad_col_status}</th>
+                      <th className="text-left px-4 py-3 font-medium" style={{ color: "#9ca3af" }}>{t.overview_actividad_col_error}</th>
                     </tr>
                   </thead>
                   <tbody>

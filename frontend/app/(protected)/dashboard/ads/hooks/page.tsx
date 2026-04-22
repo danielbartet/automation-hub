@@ -6,6 +6,7 @@ import { Header } from "@/components/layout/Header";
 import { useProject } from "@/lib/project-context";
 import { Loader2, ExternalLink } from "lucide-react";
 import { adaptCompetitorAd } from "@/lib/api";
+import { useT } from "@/lib/i18n";
 
 interface HookEntry {
   page_name: string;
@@ -18,17 +19,18 @@ interface HookEntry {
 
 type DaysFilter = "all" | "7" | "14" | "30";
 
-const FILTER_OPTIONS: { label: string; value: DaysFilter }[] = [
-  { label: "Todos", value: "all" },
-  { label: "+7 días", value: "7" },
-  { label: "+14 días", value: "14" },
-  { label: "+30 días", value: "30" },
-];
-
 export default function HookLibraryPage() {
+  const t = useT();
   const { data: session } = useSession();
   const token = (session as { accessToken?: string } | null)?.accessToken ?? "";
   const { selectedSlug } = useProject();
+
+  const FILTER_OPTIONS: { label: string; value: DaysFilter }[] = [
+    { label: t.hooks_filter_all, value: "all" },
+    { label: t.hooks_filter_7d, value: "7" },
+    { label: t.hooks_filter_14d, value: "14" },
+    { label: t.hooks_filter_30d, value: "30" },
+  ];
   const [hooks, setHooks] = useState<HookEntry[]>([]);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
@@ -93,9 +95,9 @@ export default function HookLibraryPage() {
           days_active_signal: `${hook.days_active} days active`,
         },
       });
-      showToast("Concepto adaptado generado. Abrí Crear Campaña para usarlo.", "success");
+      showToast(t.hooks_adapt_success, "success");
     } catch (err) {
-      showToast(err instanceof Error ? err.message : "Error al adaptar el anuncio", "error");
+      showToast(err instanceof Error ? err.message : t.hooks_adapt_error, "error");
     } finally {
       setAdaptingIndex(null);
     }
@@ -103,13 +105,13 @@ export default function HookLibraryPage() {
 
   return (
     <div>
-      <Header title="Hook Library" />
+      <Header title={t.hooks_page_title} />
       <div className="p-6 space-y-6">
         {/* Title block */}
         <div>
-          <h2 className="text-xl font-semibold text-white">Hook Library</h2>
+          <h2 className="text-xl font-semibold text-white">{t.hooks_page_title}</h2>
           <p className="text-sm mt-1" style={{ color: "#9ca3af" }}>
-            Anuncios de competidores — ordenados por duración
+            {t.hooks_subtitle}
           </p>
         </div>
 
@@ -120,7 +122,7 @@ export default function HookLibraryPage() {
         >
           <span className="mt-0.5 shrink-0">⚠</span>
           <span>
-            Los datos provienen del caché de Apify (hasta 48h de antigüedad). Algunos anuncios pueden haber sido pausados desde la última actualización. El estado mostrado es una estimación — verificá el anuncio original antes de usarlo como referencia.
+            {t.hooks_cache_warning}
           </span>
         </div>
 
@@ -156,7 +158,7 @@ export default function HookLibraryPage() {
         {loading && (
           <div className="flex items-center justify-center h-40 text-sm" style={{ color: "#9ca3af" }}>
             <Loader2 className="h-5 w-5 animate-spin mr-2" />
-            Cargando hooks...
+            {t.hooks_loading}
           </div>
         )}
 
@@ -167,8 +169,8 @@ export default function HookLibraryPage() {
             style={{ backgroundColor: "#111111", border: "1px solid #222222", color: "#9ca3af" }}
           >
             {hooks.length === 0
-              ? "Configurá competidores en Settings → Proyecto para ver sus hooks"
-              : "No hay hooks con esa duración mínima"}
+              ? t.hooks_empty_no_competitors
+              : t.hooks_empty_no_filter}
           </div>
         )}
 
@@ -178,10 +180,10 @@ export default function HookLibraryPage() {
             <table className="w-full text-sm">
               <thead style={{ backgroundColor: "#111111", borderBottom: "1px solid #222222" }}>
                 <tr>
-                  <th className="text-left px-4 py-3 font-medium text-xs" style={{ color: "#9ca3af" }}>Competidor</th>
-                  <th className="text-left px-4 py-3 font-medium text-xs" style={{ color: "#9ca3af" }}>Hook</th>
-                  <th className="text-left px-4 py-3 font-medium text-xs" style={{ color: "#9ca3af" }}>Días activo</th>
-                  <th className="text-left px-4 py-3 font-medium text-xs" style={{ color: "#9ca3af" }}>Acciones</th>
+                  <th className="text-left px-4 py-3 font-medium text-xs" style={{ color: "#9ca3af" }}>{t.hooks_col_competitor}</th>
+                  <th className="text-left px-4 py-3 font-medium text-xs" style={{ color: "#9ca3af" }}>{t.hooks_col_hook}</th>
+                  <th className="text-left px-4 py-3 font-medium text-xs" style={{ color: "#9ca3af" }}>{t.hooks_col_days_active}</th>
+                  <th className="text-left px-4 py-3 font-medium text-xs" style={{ color: "#9ca3af" }}>{t.hooks_col_actions}</th>
                 </tr>
               </thead>
               <tbody>
@@ -237,7 +239,7 @@ export default function HookLibraryPage() {
                           {adaptingIndex === i ? (
                             <Loader2 className="h-3 w-3 animate-spin" />
                           ) : (
-                            "Adaptar"
+                            t.hooks_adapt_btn
                           )}
                         </button>
                         {hook.snapshot_url && (
@@ -246,7 +248,7 @@ export default function HookLibraryPage() {
                             target="_blank"
                             rel="noopener noreferrer"
                             className="text-blue-400 hover:text-blue-300 transition-colors"
-                            title="Ver anuncio original"
+                            title={t.hooks_see_original}
                           >
                             <ExternalLink className="h-3.5 w-3.5" />
                           </a>
@@ -263,7 +265,7 @@ export default function HookLibraryPage() {
         {/* Result count */}
         {!loading && filteredHooks.length > 0 && (
           <p className="text-xs" style={{ color: "#6b7280" }}>
-            Mostrando {filteredHooks.length} de {hooks.length} hooks
+            {t.hooks_showing(filteredHooks.length, hooks.length)}
           </p>
         )}
       </div>

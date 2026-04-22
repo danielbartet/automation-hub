@@ -470,9 +470,9 @@ export default function AdsPage() {
         {activeTab === "campaigns" && !isClient && (
           competitiveInsights === "empty" || competitiveInsights === null ? (
             <div className="rounded-lg p-5" style={{ backgroundColor: "#111111", border: "1px solid #222222" }}>
-              <p className="text-sm font-semibold text-gray-400 mb-1">Inteligencia Competitiva</p>
+              <p className="text-sm font-semibold text-gray-400 mb-1">{t.ads_competitive_title}</p>
               <p className="text-xs" style={{ color: "#6b7280" }}>
-                Brief se genera automáticamente cada domingo. Configurá competidores en el proyecto para activarlo.
+                {t.ads_competitive_empty_desc}
               </p>
             </div>
           ) : competitiveInsights !== null && (
@@ -480,11 +480,11 @@ export default function AdsPage() {
               {/* Header */}
               <div className="px-6 py-4 flex items-start justify-between flex-wrap gap-2" style={{ borderBottom: "1px solid #222222" }}>
                 <div>
-                  <h3 className="text-base font-semibold text-white">Inteligencia Competitiva</h3>
+                  <h3 className="text-base font-semibold text-white">{t.ads_competitive_title}</h3>
                   <p className="text-xs mt-0.5" style={{ color: "#9ca3af" }}>
-                    Actualizado: {new Date(competitiveInsights.generated_at).toLocaleDateString("es-AR", { day: "2-digit", month: "short", year: "numeric" })}
+                    {t.ads_competitive_updated} {new Date(competitiveInsights.generated_at).toLocaleDateString("es-AR", { day: "2-digit", month: "short", year: "numeric" })}
                     {" · "}
-                    {competitiveInsights.analyzed_ads_count} anuncios analizados
+                    {t.ads_competitive_ads_analyzed(competitiveInsights.analyzed_ads_count)}
                   </p>
                 </div>
                 <button
@@ -497,7 +497,7 @@ export default function AdsPage() {
                   onMouseEnter={e => (e.currentTarget.style.backgroundColor = "#6d28d9")}
                   onMouseLeave={e => (e.currentTarget.style.backgroundColor = "#7c3aed")}
                 >
-                  Usar esta insight
+                  {t.ads_competitive_use_insight}
                 </button>
               </div>
               <div className="px-6 py-4 space-y-4">
@@ -526,7 +526,7 @@ export default function AdsPage() {
                 {/* Weekly recommendation */}
                 {competitiveInsights.brief.weekly_recommendation && (
                   <div className="px-3 py-2 rounded-md" style={{ backgroundColor: "#0d1b2e", border: "1px solid #1e3a5f" }}>
-                    <p className="text-xs font-semibold text-blue-400 mb-1">Recomendación semanal</p>
+                    <p className="text-xs font-semibold text-blue-400 mb-1">{t.ads_competitive_weekly_rec}</p>
                     <p className="text-xs text-blue-200">{competitiveInsights.brief.weekly_recommendation}</p>
                   </div>
                 )}

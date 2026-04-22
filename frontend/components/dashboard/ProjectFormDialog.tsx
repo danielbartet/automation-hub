@@ -515,21 +515,21 @@ export function ProjectFormDialog({ project, onClose, onSuccess }: ProjectFormDi
                       <option value="Europe">Europe</option>
                       <option value="Global">Global</option>
                     </select>
-                    <p className="text-xs mt-1" style={{ color: "#6b7280" }}>Affects AI copy style, psychological hooks, and platform recommendations</p>
+                    <p className="text-xs mt-1" style={{ color: "#6b7280" }}>{t.form_market_region_affects_hint}</p>
                   </div>
                   <div>
-                    <label className="block text-sm font-medium text-white mb-1">Target Countries</label>
+                    <label className="block text-sm font-medium text-white mb-1">{t.form_target_countries_label}</label>
                     <input
                       value={targetCountries}
                       onChange={(e) => setTargetCountries(e.target.value)}
                       className="w-full rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-[#7c3aed]"
                       style={inputStyle}
-                      placeholder="AR, MX, CO"
+                      placeholder={t.form_target_countries_placeholder}
                     />
-                    <p className="text-xs mt-1" style={{ color: "#6b7280" }}>ISO codes, comma-separated (e.g. AR,MX,CO)</p>
+                    <p className="text-xs mt-1" style={{ color: "#6b7280" }}>{t.form_target_countries_hint}</p>
                   </div>
                   <div>
-                    <label className="block text-sm font-medium text-white mb-1">Posting Timezone</label>
+                    <label className="block text-sm font-medium text-white mb-1">{t.form_posting_timezone_label}</label>
                     <select
                       value={postingTimezone}
                       onChange={(e) => setPostingTimezone(e.target.value)}
@@ -550,7 +550,7 @@ export function ProjectFormDialog({ project, onClose, onSuccess }: ProjectFormDi
                       <option value="Asia/Tokyo">Asia/Tokyo</option>
                       <option value="Australia/Sydney">Australia/Sydney</option>
                     </select>
-                    <p className="text-xs mt-1" style={{ color: "#6b7280" }}>Used to display the content calendar in the correct timezone</p>
+                    <p className="text-xs mt-1" style={{ color: "#6b7280" }}>{t.form_posting_timezone_hint}</p>
                   </div>
                   <div>
                     <label className="block text-sm font-medium text-white mb-1">{t.form_price_range_label}</label>
@@ -782,7 +782,7 @@ export function ProjectFormDialog({ project, onClose, onSuccess }: ProjectFormDi
             <div className="space-y-6">
               {/* Brand Name */}
               <div>
-                <label className="block text-sm font-medium text-white mb-1">Brand Name</label>
+                <label className="block text-sm font-medium text-white mb-1">{t.form_brand_name_label}</label>
                 <input
                   type="text"
                   value={brandName}
@@ -795,18 +795,18 @@ export function ProjectFormDialog({ project, onClose, onSuccess }: ProjectFormDi
 
               {/* Brand Voice */}
               <div>
-                <label className="block text-sm font-medium text-white mb-1">Brand Voice</label>
+                <label className="block text-sm font-medium text-white mb-1">{t.form_brand_voice_label}</label>
                 <select
                   value={brandVoice}
                   onChange={(e) => setBrandVoice(e.target.value)}
                   className="w-full rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-[#7c3aed]"
                   style={inputStyle}
                 >
-                  <option value="formal">Formal — Precise, authoritative language</option>
-                  <option value="conversational">Conversational — Friendly, direct, use &apos;you&apos;</option>
-                  <option value="bold">Bold — Direct, provocative, short sentences</option>
-                  <option value="educational">Educational — Clear explanations with analogies</option>
-                  <option value="playful">Playful — Light tone, humor welcome</option>
+                  <option value="formal">{t.form_brand_voice_formal}</option>
+                  <option value="conversational">{t.form_brand_voice_conversational}</option>
+                  <option value="bold">{t.form_brand_voice_bold}</option>
+                  <option value="educational">{t.form_brand_voice_educational}</option>
+                  <option value="playful">{t.form_brand_voice_playful}</option>
                 </select>
               </div>
 
@@ -924,7 +924,7 @@ export function ProjectFormDialog({ project, onClose, onSuccess }: ProjectFormDi
                     }}
                     className="flex-1 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-[#7c3aed]"
                     style={inputStyle}
-                    placeholder="@midudev (Enter to add)"
+                    placeholder={t.form_competitor_placeholder}
                   />
                   <button
                     type="button"
@@ -940,14 +940,14 @@ export function ProjectFormDialog({ project, onClose, onSuccess }: ProjectFormDi
                     onMouseEnter={e => { (e.currentTarget as HTMLButtonElement).style.backgroundColor = "#6d28d9"; }}
                     onMouseLeave={e => { (e.currentTarget as HTMLButtonElement).style.backgroundColor = "#7c3aed"; }}
                   >
-                    Add
+                    {t.form_add_competitor_btn}
                   </button>
                 </div>
               </div>
 
               {/* Website / Landing URL */}
               <div>
-                <label className="block text-sm font-medium text-white mb-1">Website / Landing URL</label>
+                <label className="block text-sm font-medium text-white mb-1">{t.form_website_label}</label>
                 <input
                   type="url"
                   value={website}
@@ -1018,13 +1018,13 @@ export function ProjectFormDialog({ project, onClose, onSuccess }: ProjectFormDi
 
               {/* Andromeda optimizer thresholds */}
               <div>
-                <label className="block text-sm font-medium text-white mb-1">Andromeda Optimizer Targets</label>
+                <label className="block text-sm font-medium text-white mb-1">{t.form_andromeda_targets_label}</label>
                 <p className="text-xs mb-3" style={{ color: "#9ca3af" }}>
-                  Leave blank to use Andromeda defaults (CPL $5, ROAS 2.0, CPC $0.30).
+                  {t.form_andromeda_targets_hint}
                 </p>
                 <div className="grid grid-cols-3 gap-3">
                   <div>
-                    <label className="block text-xs mb-1" style={{ color: "#9ca3af" }}>Target CPL ($)</label>
+                    <label className="block text-xs mb-1" style={{ color: "#9ca3af" }}>{t.form_target_cpl_label}</label>
                     <input
                       type="number"
                       min="0"
@@ -1037,7 +1037,7 @@ export function ProjectFormDialog({ project, onClose, onSuccess }: ProjectFormDi
                     />
                   </div>
                   <div>
-                    <label className="block text-xs mb-1" style={{ color: "#9ca3af" }}>Target ROAS</label>
+                    <label className="block text-xs mb-1" style={{ color: "#9ca3af" }}>{t.form_target_roas_label}</label>
                     <input
                       type="number"
                       min="0"
@@ -1050,7 +1050,7 @@ export function ProjectFormDialog({ project, onClose, onSuccess }: ProjectFormDi
                     />
                   </div>
                   <div>
-                    <label className="block text-xs mb-1" style={{ color: "#9ca3af" }}>Target CPC ($)</label>
+                    <label className="block text-xs mb-1" style={{ color: "#9ca3af" }}>{t.form_target_cpc_label}</label>
                     <input
                       type="number"
                       min="0"

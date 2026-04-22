@@ -7,6 +7,7 @@ import { ConceptsGrid } from "./ConceptsGrid";
 import { CreateAudienceModal } from "./CreateAudienceModal";
 import { createCampaign, fetchProjectPosts, generateAdConcepts, createCampaignWithConcepts, fetchAudiences, generateConceptImage, AdConcept, DiversityAudit, InspirationPrefill, MetaRateLimitError } from "@/lib/api";
 import { useMetaRateLimit } from "./MetaRateLimitProvider";
+import { useT } from "@/lib/i18n";
 
 interface Post {
   id: number;
@@ -24,28 +25,7 @@ interface CreateCampaignModalProps {
   initialContext?: string;
 }
 
-const OBJECTIVES = [
-  { value: "OUTCOME_LEADS", label: "Leads", description: "Genera leads y registros" },
-  { value: "OUTCOME_SALES", label: "Ventas", description: "Impulsa compras y conversiones" },
-  { value: "OUTCOME_TRAFFIC", label: "Tráfico", description: "Envía personas a tu sitio web" },
-  { value: "OUTCOME_AWARENESS", label: "Reconocimiento de marca", description: "Aumenta el conocimiento de tu marca" },
-];
-
-const PIXEL_EVENTS = [
-  { value: "Purchase", label: "Compra" },
-  { value: "Lead", label: "Lead" },
-  { value: "AddToCart", label: "Agregar al carrito" },
-  { value: "ViewContent", label: "Ver producto" },
-  { value: "CompleteRegistration", label: "Registro" },
-];
-
-const AUDIENCE_TYPE_LABELS: Record<string, string> = {
-  broad: "Amplia (Advantage+)",
-  custom: "Audiencia personalizada",
-  lookalike: "Lookalike",
-  retargeting_lookalike: "Retargeting + Lookalike",
-};
-
+// Static placement options (not translated — platform names)
 const PLACEMENT_OPTIONS = [
   { value: "instagram_feed", label: "Instagram Feed" },
   { value: "instagram_reels", label: "Instagram Reels" },
@@ -54,23 +34,52 @@ const PLACEMENT_OPTIONS = [
   { value: "audience_network", label: "Audience Network" },
 ];
 
-const COUNTRY_OPTIONS = [
-  { code: "AR", label: "Argentina" },
-  { code: "MX", label: "México" },
-  { code: "CO", label: "Colombia" },
-  { code: "CL", label: "Chile" },
-  { code: "PE", label: "Perú" },
-  { code: "ES", label: "España" },
-  { code: "US", label: "Estados Unidos" },
-  { code: "BR", label: "Brasil" },
-];
-
-const STEPS = ["Campaña", "Conceptos", "Imágenes", "Creativo", "Lanzar"];
-
 export function CreateCampaignModal({ projectSlug, projectId, onClose, onSuccess, prefill, contentConfig, initialContext }: CreateCampaignModalProps) {
+  const t = useT();
   const { data: session } = useSession();
   const token = (session as any)?.accessToken as string | undefined;
   const { triggerRateLimit } = useMetaRateLimit();
+
+  const OBJECTIVES = [
+    { value: "OUTCOME_LEADS", label: t.campaign_obj_leads_label, description: t.campaign_obj_leads_desc },
+    { value: "OUTCOME_SALES", label: t.campaign_obj_sales_label, description: t.campaign_obj_sales_desc },
+    { value: "OUTCOME_TRAFFIC", label: t.campaign_obj_traffic_label, description: t.campaign_obj_traffic_desc },
+    { value: "OUTCOME_AWARENESS", label: t.campaign_obj_awareness_label, description: t.campaign_obj_awareness_desc },
+  ];
+
+  const PIXEL_EVENTS = [
+    { value: "Purchase", label: t.pixel_purchase },
+    { value: "Lead", label: t.pixel_lead },
+    { value: "AddToCart", label: t.pixel_add_to_cart },
+    { value: "ViewContent", label: t.pixel_view_content },
+    { value: "CompleteRegistration", label: t.pixel_registration },
+  ];
+
+  const AUDIENCE_TYPE_LABELS: Record<string, string> = {
+    broad: t.audience_broad,
+    custom: t.audience_custom,
+    lookalike: t.audience_lookalike,
+    retargeting_lookalike: t.audience_retargeting_lookalike,
+  };
+
+  const COUNTRY_OPTIONS = [
+    { code: "AR", label: t.country_ar },
+    { code: "MX", label: t.country_mx },
+    { code: "CO", label: t.country_co },
+    { code: "CL", label: t.country_cl },
+    { code: "PE", label: t.country_pe },
+    { code: "ES", label: t.country_es },
+    { code: "US", label: t.country_us },
+    { code: "BR", label: t.country_br },
+  ];
+
+  const STEPS = [
+    t.campaign_modal_step_campaign,
+    t.campaign_modal_step_concepts,
+    t.campaign_modal_step_images,
+    t.campaign_modal_step_creative,
+    t.campaign_modal_step_launch,
+  ];
   const [step, setStep] = useState(1);
   const [prefillActive, setPrefillActive] = useState(!!prefill);
   const [loading, setLoading] = useState(false);
@@ -249,7 +258,7 @@ export function CreateCampaignModal({ projectSlug, projectId, onClose, onSuccess
       // Approve all by default
       setApprovedIds(new Set(result.concepts.map(c => c.id)));
     } catch (e) {
-      setConceptsError(e instanceof Error ? e.message : "Error generando conceptos");
+      setConceptsError(e instanceof Error ? e.message : t.campaign_concepts_error_default);
     } finally {
       setGeneratingConcepts(false);
     }
@@ -351,7 +360,7 @@ export function CreateCampaignModal({ projectSlug, projectId, onClose, onSuccess
       if (e instanceof MetaRateLimitError) {
         triggerRateLimit(e.detail);
       } else {
-        setError(e instanceof Error ? e.message : "Error creando campaña");
+        setError(e instanceof Error ? e.message : t.campaign_create_error_default);
       }
     } finally {
       setLoading(false);
@@ -384,27 +393,27 @@ export function CreateCampaignModal({ projectSlug, projectId, onClose, onSuccess
   const conceptsWithImages = approvedConcepts.filter(c => conceptImages[c.id]).length;
   const checklist = [
     {
-      label: `Mínimo 6 creativos aprobados (${approvedConcepts.length} aprobados)`,
+      label: t.checklist_min_creatives(approvedConcepts.length),
       ok: approvedConcepts.length >= 6,
     },
-    { label: "Broad targeting habilitado", ok: true },
-    { label: "Advantage+ habilitado", ok: true },
-    { label: "CBO habilitado", ok: true },
+    { label: t.checklist_broad_targeting, ok: true },
+    { label: t.checklist_advantage_plus, ok: true },
+    { label: t.checklist_cbo, ok: true },
     {
-      label: `Diversidad de ángulos (mínimo 3 únicos — ${uniqueAngles.size} detectados)`,
+      label: t.checklist_angle_diversity(uniqueAngles.size),
       ok: uniqueAngles.size >= 3,
     },
     {
-      label: `Diversidad de formatos (mínimo 2 únicos — ${uniqueFormats.size} detectados)`,
+      label: t.checklist_format_diversity(uniqueFormats.size),
       ok: approvedConcepts.length === 0 || uniqueFormats.size >= 2,
     },
-    { label: "Audiencia configurada", ok: true },
+    { label: t.checklist_audience, ok: true },
     {
-      label: `URL de destino${needsDestinationUrl ? " (requerida para este objetivo)" : ""}`,
+      label: t.checklist_dest_url(needsDestinationUrl),
       ok: !needsDestinationUrl || (effectiveDestUrl.startsWith("https://") && effectiveDestUrl.length > 8),
     },
     ...(approvedConcepts.length >= 6 ? [{
-      label: `Imágenes generadas (${conceptsWithImages} / ${approvedConcepts.length})`,
+      label: t.checklist_images(conceptsWithImages, approvedConcepts.length),
       ok: conceptsWithImages >= 6,
     }] : []),
   ];
@@ -416,8 +425,8 @@ export function CreateCampaignModal({ projectSlug, projectId, onClose, onSuccess
         {/* Header */}
         <div className="flex items-center justify-between p-6" style={{ borderBottom: "1px solid #222222" }}>
           <div>
-            <h2 className="text-lg font-semibold text-white">Crear Campaña</h2>
-            <p className="text-sm" style={{ color: "#9ca3af" }}>Paso {step} de {STEPS.length}</p>
+            <h2 className="text-lg font-semibold text-white">{t.campaign_modal_title}</h2>
+            <p className="text-sm" style={{ color: "#9ca3af" }}>{t.campaign_modal_step(step, STEPS.length)}</p>
           </div>
           <button onClick={onClose} className="p-1 rounded-md transition-colors" style={{ color: "#9ca3af" }} onMouseEnter={e => (e.currentTarget.style.backgroundColor = "#1f1f1f")} onMouseLeave={e => (e.currentTarget.style.backgroundColor = "transparent")}>
             <X className="h-5 w-5" />
@@ -457,24 +466,24 @@ export function CreateCampaignModal({ projectSlug, projectId, onClose, onSuccess
                   style={{ backgroundColor: "#0c1a3a", border: "1px solid #1d4ed8", color: "#93c5fd" }}
                 >
                   <AlertTriangle className="h-4 w-4 flex-shrink-0 mt-0.5" style={{ color: "#60a5fa" }} />
-                  <span>Concepto basado en un anuncio de competidor. Todos los campos son editables — revisá cada paso antes de lanzar.</span>
+                  <span>{t.campaign_prefill_banner}</span>
                 </div>
               )}
               <div>
                 <label className="block text-sm font-medium mb-1" style={{ color: "#d1d5db" }}>
-                  Nombre de campaña *
+                  {t.campaign_name_label}
                 </label>
                 <input
                   value={name}
                   onChange={e => { setName(e.target.value); setPrefillActive(false); }}
                   className="w-full rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-[#7c3aed] text-white placeholder-gray-500"
                   style={{ border: "1px solid #333333", backgroundColor: "#1a1a1a" }}
-                  placeholder="ej. Campaña Leads Marzo"
+                  placeholder={t.campaign_name_placeholder}
                 />
               </div>
 
               <div>
-                <label className="block text-sm font-medium mb-2" style={{ color: "#d1d5db" }}>Objetivo *</label>
+                <label className="block text-sm font-medium mb-2" style={{ color: "#d1d5db" }}>{t.campaign_objective_label}</label>
                 <div className="space-y-2">
                   {OBJECTIVES.map(obj => (
                     <button
@@ -506,7 +515,7 @@ export function CreateCampaignModal({ projectSlug, projectId, onClose, onSuccess
 
               <div>
                 <label className="block text-sm font-medium mb-1" style={{ color: "#d1d5db" }}>
-                  Presupuesto diario (USD) *
+                  {t.campaign_budget_label}
                 </label>
                 <div className="flex items-center gap-2">
                   <span style={{ color: "#9ca3af" }}>$</span>
@@ -519,13 +528,13 @@ export function CreateCampaignModal({ projectSlug, projectId, onClose, onSuccess
                     className="w-32 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-[#7c3aed] text-white"
                     style={{ border: "1px solid #333333", backgroundColor: "#1a1a1a" }}
                   />
-                  <span className="text-xs" style={{ color: "#9ca3af" }}>mín $10/día</span>
+                  <span className="text-xs" style={{ color: "#9ca3af" }}>{t.campaign_budget_min}</span>
                 </div>
               </div>
 
               <div>
                 <label className="block text-sm font-medium mb-2" style={{ color: "#d1d5db" }}>
-                  Países objetivo *
+                  {t.campaign_countries_label}
                 </label>
                 <div className="flex flex-wrap gap-2">
                   {COUNTRY_OPTIONS.map(({ code, label }) => (
@@ -546,7 +555,7 @@ export function CreateCampaignModal({ projectSlug, projectId, onClose, onSuccess
                   ))}
                 </div>
                 {preFilledFields.has("countries") && (
-                  <p className="text-xs text-gray-400 mt-1">Pre-filled from project settings</p>
+                  <p className="text-xs text-gray-400 mt-1">{t.campaign_countries_prefilled}</p>
                 )}
               </div>
 
@@ -554,7 +563,7 @@ export function CreateCampaignModal({ projectSlug, projectId, onClose, onSuccess
               {(objective === "OUTCOME_SALES" || objective === "OUTCOME_TRAFFIC") && (
                 <div>
                   <label className="block text-sm font-medium mb-1" style={{ color: "#d1d5db" }}>
-                    URL de destino *
+                    {t.campaign_url_label}
                   </label>
                   <input
                     value={destinationUrlStep1}
@@ -562,13 +571,13 @@ export function CreateCampaignModal({ projectSlug, projectId, onClose, onSuccess
                     type="url"
                     className="w-full rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-[#7c3aed] text-white placeholder-gray-500"
                     style={{ border: "1px solid #333333", backgroundColor: "#1a1a1a" }}
-                    placeholder="https://quantorialabs.com/venta"
+                    placeholder={t.campaign_url_placeholder}
                   />
                   {destinationUrlStep1 && !destinationUrlStep1.startsWith("https://") && (
-                    <p className="text-xs mt-1 text-red-400">La URL debe comenzar con https://</p>
+                    <p className="text-xs mt-1 text-red-400">{t.campaign_url_https_error}</p>
                   )}
                   {preFilledFields.has("destinationUrl") && (
-                    <p className="text-xs text-gray-400 mt-1">Pre-filled from project settings</p>
+                    <p className="text-xs text-gray-400 mt-1">{t.campaign_url_prefilled}</p>
                   )}
                 </div>
               )}
@@ -577,7 +586,7 @@ export function CreateCampaignModal({ projectSlug, projectId, onClose, onSuccess
               {objective === "OUTCOME_SALES" && (
                 <div>
                   <label className="block text-sm font-medium mb-1" style={{ color: "#d1d5db" }}>
-                    Evento a optimizar
+                    {t.campaign_pixel_event_label}
                   </label>
                   <select
                     value={pixelEvent}
@@ -595,7 +604,7 @@ export function CreateCampaignModal({ projectSlug, projectId, onClose, onSuccess
               {/* Audience Type */}
               <div>
                 <label className="block text-sm font-medium mb-2" style={{ color: "#d1d5db" }}>
-                  Tipo de Audiencia *
+                  {t.campaign_audience_type_label}
                 </label>
                 <div className="space-y-2">
                   {(["broad", "custom", "lookalike", "retargeting_lookalike"] as const).map(type => (
@@ -632,14 +641,14 @@ export function CreateCampaignModal({ projectSlug, projectId, onClose, onSuccess
                     {audiencesLoading ? (
                       <div className="flex items-center gap-2 text-sm" style={{ color: "#9ca3af" }}>
                         <Loader2 className="h-4 w-4 animate-spin" />
-                        Cargando audiencias...
+                        {t.campaign_audiences_loading}
                       </div>
                     ) : audiences.length === 0 ? (
                       <div className="text-sm rounded-md p-3 space-y-1" style={{ border: "1px solid #333333", color: "#9ca3af" }}>
-                        <p className="font-medium" style={{ color: "#d1d5db" }}>Sin audiencias listas todavía.</p>
-                        <p>Creá una audiencia primero y esperá que Meta la procese.</p>
+                        <p className="font-medium" style={{ color: "#d1d5db" }}>{t.campaign_audiences_none_title}</p>
+                        <p>{t.campaign_audiences_none_desc}</p>
                         <a href="/dashboard/ads/audiences" className="text-xs underline" style={{ color: "#7c3aed" }}>
-                          Ir a Audiencias →
+                          {t.campaign_audiences_go_link}
                         </a>
                       </div>
                     ) : (
@@ -651,7 +660,7 @@ export function CreateCampaignModal({ projectSlug, projectId, onClose, onSuccess
                               {(audienceType === "custom" || audienceType === "retargeting_lookalike") && (
                                 <div>
                                   <p className="text-xs font-medium mb-2" style={{ color: "#d1d5db" }}>
-                                    {audienceType === "retargeting_lookalike" ? "Audiencia de retargeting" : "Seleccionar audiencias"}
+                                    {audienceType === "retargeting_lookalike" ? t.campaign_audience_retargeting_label : t.campaign_audience_select_label}
                                   </p>
                                   <div className="space-y-1 max-h-40 overflow-y-auto">
                                     {audiences.filter((a: any) => a.type !== "lookalike").map((a: any) => {
@@ -689,8 +698,8 @@ export function CreateCampaignModal({ projectSlug, projectId, onClose, onSuccess
                                           <span className="flex-1">
                                             {a.name}
                                             {isReady && a.approximate_count ? ` (${a.approximate_count.toLocaleString()} personas)` : ""}
-                                            {isProcessing && " — Procesando (24-48hs)"}
-                                            {isError && " — Error"}
+                                            {isProcessing && t.campaign_audience_processing("24-48hs")}
+                                            {isError && t.campaign_audience_error}
                                           </span>
                                           {isProcessing && <Loader2 className="h-3 w-3 animate-spin text-yellow-500 flex-shrink-0" />}
                                           {isError && <XCircle className="h-3 w-3 text-red-500 flex-shrink-0" />}
@@ -704,7 +713,7 @@ export function CreateCampaignModal({ projectSlug, projectId, onClose, onSuccess
                               {(audienceType === "lookalike" || audienceType === "retargeting_lookalike") && (
                                 <div>
                                   <p className="text-xs font-medium mb-2" style={{ color: "#d1d5db" }}>
-                                    {audienceType === "retargeting_lookalike" ? "Audiencia lookalike" : "Seleccionar audiencia lookalike"}
+                                    {audienceType === "retargeting_lookalike" ? t.campaign_audience_lookalike_label : t.campaign_audience_lookalike_select_label}
                                   </p>
                                   <div className="space-y-1 max-h-40 overflow-y-auto">
                                     {audiences.filter((a: any) => a.type === "lookalike").map((a: any) => {
@@ -731,8 +740,8 @@ export function CreateCampaignModal({ projectSlug, projectId, onClose, onSuccess
                                           <span className="flex-1">
                                             {a.name}
                                             {isReady && a.approximate_count ? ` (${a.approximate_count.toLocaleString()} personas)` : ""}
-                                            {isProcessing && " — Procesando (24-48hs)"}
-                                            {isError && " — Error"}
+                                            {isProcessing && t.campaign_audience_processing("24-48hs")}
+                                            {isError && t.campaign_audience_error}
                                           </span>
                                           {isProcessing && <Loader2 className="h-3 w-3 animate-spin text-yellow-500 flex-shrink-0" />}
                                           {isError && <XCircle className="h-3 w-3 text-red-500 flex-shrink-0" />}
@@ -740,7 +749,7 @@ export function CreateCampaignModal({ projectSlug, projectId, onClose, onSuccess
                                       );
                                     })}
                                     {audiences.filter((a: any) => a.type === "lookalike").length === 0 && (
-                                      <p className="text-xs py-2" style={{ color: "#9ca3af" }}>No hay audiencias lookalike disponibles.</p>
+                                      <p className="text-xs py-2" style={{ color: "#9ca3af" }}>{t.campaign_audience_lookalike_empty}</p>
                                     )}
                                   </div>
                                 </div>
@@ -751,7 +760,7 @@ export function CreateCampaignModal({ projectSlug, projectId, onClose, onSuccess
                                   <AlertTriangle className="h-4 w-4 mt-0.5 shrink-0" style={{ color: "#ca8a04" }} />
                                   <div className="space-y-2 flex-1">
                                     <p style={{ color: "#ca8a04" }}>
-                                      Tus audiencias todavía están siendo procesadas por Meta. Podés crear la campaña ahora pero el alcance será limitado hasta que estén listas.
+                                      {t.campaign_audience_not_ready_warning}
                                     </p>
                                     <div>
                                       <a
@@ -759,7 +768,7 @@ export function CreateCampaignModal({ projectSlug, projectId, onClose, onSuccess
                                         className="text-xs font-medium underline"
                                         style={{ color: "#9ca3af" }}
                                       >
-                                        Ir a Audiencias
+                                        {t.campaign_audience_not_ready_link}
                                       </a>
                                     </div>
                                   </div>
@@ -773,7 +782,7 @@ export function CreateCampaignModal({ projectSlug, projectId, onClose, onSuccess
 
                     {audienceType === "retargeting_lookalike" && (
                       <div className="p-2 rounded-lg text-xs" style={{ backgroundColor: "rgba(124,58,237,0.08)", border: "1px solid rgba(124,58,237,0.2)", color: "#c4b5fd" }}>
-                        Se crearán 2 conjuntos de anuncios automáticamente
+                        {t.campaign_audience_2adsets}
                       </div>
                     )}
 
@@ -785,7 +794,7 @@ export function CreateCampaignModal({ projectSlug, projectId, onClose, onSuccess
                       onMouseEnter={e => (e.currentTarget.style.color = "#a78bfa")}
                       onMouseLeave={e => (e.currentTarget.style.color = "#7c3aed")}
                     >
-                      + Crear nueva audiencia
+                      {t.campaign_create_audience_btn}
                     </button>
                   </div>
                 )}
@@ -794,8 +803,8 @@ export function CreateCampaignModal({ projectSlug, projectId, onClose, onSuccess
               {/* Additional context / competitive insight */}
               <div>
                 <label className="block text-sm font-medium mb-1" style={{ color: "#d1d5db" }}>
-                  Contexto adicional{" "}
-                  <span className="font-normal text-xs" style={{ color: "#6b7280" }}>(opcional — se inyecta en la generación de conceptos)</span>
+                  {t.campaign_additional_context_label}{" "}
+                  <span className="font-normal text-xs" style={{ color: "#6b7280" }}>{t.campaign_additional_context_hint}</span>
                 </label>
                 <textarea
                   value={additionalContext}
@@ -803,17 +812,17 @@ export function CreateCampaignModal({ projectSlug, projectId, onClose, onSuccess
                   rows={2}
                   className="w-full rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-[#7c3aed] text-white placeholder-gray-500 resize-none"
                   style={{ border: "1px solid #333333", backgroundColor: "#1a1a1a" }}
-                  placeholder="Ej: Enfocate en el ángulo educativo. Evitar el ángulo de urgencia que usan los competidores."
+                  placeholder={t.campaign_additional_context_placeholder}
                 />
                 {initialContext && additionalContext === initialContext && (
-                  <p className="text-xs mt-1" style={{ color: "#7c3aed" }}>Pre-filled from Competitive Insights</p>
+                  <p className="text-xs mt-1" style={{ color: "#7c3aed" }}>{t.campaign_context_prefilled}</p>
                 )}
               </div>
 
               {/* Placements */}
               <div>
                 <label className="block text-sm font-medium mb-2" style={{ color: "#d1d5db" }}>
-                  Ubicaciones
+                  {t.campaign_placements_label}
                 </label>
                 <div className="flex items-center justify-between p-3 rounded-lg mb-2" style={{ border: "1px solid #333333", backgroundColor: "#1a1a1a" }}>
                   <span className="text-sm text-white">Advantage+ Placements</span>
@@ -863,7 +872,7 @@ export function CreateCampaignModal({ projectSlug, projectId, onClose, onSuccess
                   onMouseEnter={e => (e.currentTarget.style.backgroundColor = "#6d28d9")}
                   onMouseLeave={e => (e.currentTarget.style.backgroundColor = "#7c3aed")}
                 >
-                  Siguiente <ChevronRight className="h-4 w-4" />
+                  {t.campaign_next_btn} <ChevronRight className="h-4 w-4" />
                 </button>
               </div>
             </div>
@@ -875,7 +884,7 @@ export function CreateCampaignModal({ projectSlug, projectId, onClose, onSuccess
               <div>
                 <div className="flex items-center justify-between mb-1">
                   <h3 className="text-sm font-semibold text-white">
-                    Conceptos Andromeda
+                    {t.campaign_concepts_title}
                   </h3>
                   {concepts.length > 0 && (
                     <button
@@ -891,12 +900,12 @@ export function CreateCampaignModal({ projectSlug, projectId, onClose, onSuccess
                       onMouseEnter={e => (e.currentTarget.style.color = "#ef4444")}
                       onMouseLeave={e => (e.currentTarget.style.color = "#6b7280")}
                     >
-                      Limpiar borrador
+                      {t.campaign_concepts_clear_draft}
                     </button>
                   )}
                 </div>
                 <p className="text-xs mb-4" style={{ color: "#9ca3af" }}>
-                  Genera 12 conceptos únicos con diversidad de ángulos, formatos y P.D.A. para maximizar el alcance del algoritmo.
+                  {t.campaign_concepts_desc}
                 </p>
 
                 {concepts.length === 0 ? (
@@ -911,12 +920,12 @@ export function CreateCampaignModal({ projectSlug, projectId, onClose, onSuccess
                     {generatingConcepts ? (
                       <>
                         <Loader2 className="h-4 w-4 animate-spin" />
-                        Generando 12 conceptos únicos...
+                        {t.campaign_generating_concepts}
                       </>
                     ) : (
                       <>
                         <Sparkles className="h-4 w-4" />
-                        Generar conceptos con IA
+                        {t.campaign_generate_concepts_btn}
                       </>
                     )}
                   </button>
@@ -942,7 +951,7 @@ export function CreateCampaignModal({ projectSlug, projectId, onClose, onSuccess
                       ) : (
                         <RefreshCw className="h-4 w-4" />
                       )}
-                      Regenerar conceptos
+                      {t.campaign_regenerate_btn}
                     </button>
                   </>
                 )}
@@ -962,7 +971,7 @@ export function CreateCampaignModal({ projectSlug, projectId, onClose, onSuccess
                   onMouseEnter={e => { (e.currentTarget as HTMLButtonElement).style.color = "#ffffff"; (e.currentTarget as HTMLButtonElement).style.backgroundColor = "#1a1a1a"; }}
                   onMouseLeave={e => { (e.currentTarget as HTMLButtonElement).style.color = "#9ca3af"; (e.currentTarget as HTMLButtonElement).style.backgroundColor = "transparent"; }}
                 >
-                  <ChevronLeft className="h-4 w-4" /> Atrás
+                  <ChevronLeft className="h-4 w-4" /> {t.campaign_back_btn}
                 </button>
                 <button
                   onClick={() => approvedConcepts.length >= 6 ? setStep(3) : setStep(4)}
@@ -972,7 +981,7 @@ export function CreateCampaignModal({ projectSlug, projectId, onClose, onSuccess
                   onMouseEnter={e => (e.currentTarget.style.backgroundColor = "#6d28d9")}
                   onMouseLeave={e => (e.currentTarget.style.backgroundColor = "#7c3aed")}
                 >
-                  Siguiente <ChevronRight className="h-4 w-4" />
+                  {t.campaign_next_btn} <ChevronRight className="h-4 w-4" />
                 </button>
               </div>
             </div>
@@ -982,9 +991,9 @@ export function CreateCampaignModal({ projectSlug, projectId, onClose, onSuccess
           {step === 3 && approvedConcepts.length >= 6 && (
             <div className="space-y-5">
               <div>
-                <h3 className="text-sm font-semibold text-white mb-1">Revisión de imágenes</h3>
+                <h3 className="text-sm font-semibold text-white mb-1">{t.campaign_images_title}</h3>
                 <p className="text-xs mb-4" style={{ color: "#9ca3af" }}>
-                  Generá o subí una imagen para cada concepto aprobado. Se necesitan mínimo 6 imágenes para continuar.
+                  {t.campaign_images_desc}
                 </p>
                 <div className="grid grid-cols-2 gap-3 max-h-[55vh] overflow-y-auto pr-1">
                   {approvedConcepts.map(concept => {
@@ -1002,7 +1011,7 @@ export function CreateCampaignModal({ projectSlug, projectId, onClose, onSuccess
                             className="w-full aspect-square rounded-lg flex items-center justify-center"
                             style={{ border: "2px dashed #333333", backgroundColor: "#1a1a1a" }}
                           >
-                            <span className="text-xs" style={{ color: "#6b7280" }}>Sin imagen</span>
+                            <span className="text-xs" style={{ color: "#6b7280" }}>{t.campaign_image_no_image}</span>
                           </div>
                         )}
                         <div className="flex gap-2 flex-wrap">
@@ -1017,9 +1026,9 @@ export function CreateCampaignModal({ projectSlug, projectId, onClose, onSuccess
                               onMouseLeave={e => (e.currentTarget.style.backgroundColor = "#7c3aed")}
                             >
                               {isGenerating ? (
-                                <><Loader2 className="h-3 w-3 animate-spin" /> Generando...</>
+                                <><Loader2 className="h-3 w-3 animate-spin" /> {t.campaign_image_generating}</>
                               ) : (
-                                <><Sparkles className="h-3 w-3" /> Generar imagen</>
+                                <><Sparkles className="h-3 w-3" /> {t.campaign_image_generate_btn}</>
                               )}
                             </button>
                           ) : (
@@ -1033,9 +1042,9 @@ export function CreateCampaignModal({ projectSlug, projectId, onClose, onSuccess
                               onMouseLeave={e => { (e.currentTarget as HTMLButtonElement).style.color = "#9ca3af"; (e.currentTarget as HTMLButtonElement).style.backgroundColor = "transparent"; }}
                             >
                               {isGenerating ? (
-                                <><Loader2 className="h-3 w-3 animate-spin" /> Generando...</>
+                                <><Loader2 className="h-3 w-3 animate-spin" /> {t.campaign_image_generating}</>
                               ) : (
-                                <><RefreshCw className="h-3 w-3" /> Regenerar</>
+                                <><RefreshCw className="h-3 w-3" /> {t.campaign_image_regenerate_btn}</>
                               )}
                             </button>
                           )}
@@ -1073,7 +1082,7 @@ export function CreateCampaignModal({ projectSlug, projectId, onClose, onSuccess
                                 }
                               }}
                             />
-                            <Upload className="h-3 w-3" /> Subir imagen
+                            <Upload className="h-3 w-3" /> {t.campaign_upload_image}
                           </label>
                         </div>
                       </div>
@@ -1082,7 +1091,7 @@ export function CreateCampaignModal({ projectSlug, projectId, onClose, onSuccess
                 </div>
                 {approvedConcepts.filter(c => conceptImages[c.id]).length < 6 && (
                   <p className="text-xs mt-3" style={{ color: "#9ca3af" }}>
-                    {approvedConcepts.filter(c => conceptImages[c.id]).length} / {approvedConcepts.length} imágenes generadas (mínimo 6)
+                    {t.campaign_images_progress(approvedConcepts.filter(c => conceptImages[c.id]).length, approvedConcepts.length)}
                   </p>
                 )}
               </div>
@@ -1095,7 +1104,7 @@ export function CreateCampaignModal({ projectSlug, projectId, onClose, onSuccess
                   onMouseEnter={e => { (e.currentTarget as HTMLButtonElement).style.color = "#ffffff"; (e.currentTarget as HTMLButtonElement).style.backgroundColor = "#1a1a1a"; }}
                   onMouseLeave={e => { (e.currentTarget as HTMLButtonElement).style.color = "#9ca3af"; (e.currentTarget as HTMLButtonElement).style.backgroundColor = "transparent"; }}
                 >
-                  <ChevronLeft className="h-4 w-4" /> Atrás
+                  <ChevronLeft className="h-4 w-4" /> {t.campaign_back_btn}
                 </button>
                 <button
                   onClick={() => setStep(4)}
@@ -1105,7 +1114,7 @@ export function CreateCampaignModal({ projectSlug, projectId, onClose, onSuccess
                   onMouseEnter={e => (e.currentTarget.style.backgroundColor = "#6d28d9")}
                   onMouseLeave={e => (e.currentTarget.style.backgroundColor = "#7c3aed")}
                 >
-                  Siguiente <ChevronRight className="h-4 w-4" />
+                  {t.campaign_next_btn} <ChevronRight className="h-4 w-4" />
                 </button>
               </div>
             </div>
@@ -1118,12 +1127,12 @@ export function CreateCampaignModal({ projectSlug, projectId, onClose, onSuccess
                 /* Andromeda mode: per-concept image upload + destination URL */
                 <div className="space-y-5">
                   <div className="p-3 rounded-lg text-xs" style={{ backgroundColor: "rgba(124,58,237,0.1)", border: "1px solid rgba(124,58,237,0.3)", color: "#c4b5fd" }}>
-                    <strong>{approvedConcepts.length} conceptos aprobados.</strong> Podés subir una imagen por concepto o dejar que se genere automáticamente.
+                    {t.campaign_andromeda_concepts_info(approvedConcepts.length)}
                   </div>
 
                   <div>
                     <label className="block text-sm font-medium mb-1" style={{ color: "#d1d5db" }}>
-                      URL de destino *
+                      {t.campaign_url_dest_label}
                     </label>
                     <input
                       value={destinationUrl}
@@ -1136,7 +1145,7 @@ export function CreateCampaignModal({ projectSlug, projectId, onClose, onSuccess
                   </div>
 
                   <div>
-                    <p className="text-sm font-medium mb-3" style={{ color: "#d1d5db" }}>Imágenes por concepto (opcional)</p>
+                    <p className="text-sm font-medium mb-3" style={{ color: "#d1d5db" }}>{t.campaign_images_per_concept}</p>
                     <div className="space-y-4 max-h-[50vh] overflow-y-auto pr-1">
                       {approvedConcepts.map(concept => (
                         <div key={concept.id} className="rounded-xl p-3" style={{ border: "1px solid #222222" }}>
@@ -1154,12 +1163,12 @@ export function CreateCampaignModal({ projectSlug, projectId, onClose, onSuccess
                                   border: getConceptTab(concept.id) === tab ? "1px solid #7c3aed" : "1px solid #333333",
                                 }}
                               >
-                                {tab === "ai" ? "Generar con IA" : "Subir imagen"}
+                                {tab === "ai" ? t.campaign_generate_ai : t.campaign_upload_image}
                               </button>
                             ))}
                           </div>
                           {getConceptTab(concept.id) === "ai" ? (
-                            <p className="text-xs py-2" style={{ color: "#9ca3af" }}>La imagen se generará automáticamente al lanzar la campaña.</p>
+                            <p className="text-xs py-2" style={{ color: "#9ca3af" }}>{t.campaign_auto_generate_hint}</p>
                           ) : (
                             <div>
                               {conceptUploadedImages[concept.id] ? (
@@ -1172,7 +1181,7 @@ export function CreateCampaignModal({ projectSlug, projectId, onClose, onSuccess
                                     style={{ border: "1px solid #333333" }}
                                   />
                                   <div className="flex-1">
-                                    <p className="text-xs text-green-400 font-medium">Imagen cargada</p>
+                                    <p className="text-xs text-green-400 font-medium">{t.campaign_image_loaded}</p>
                                     <button
                                       type="button"
                                       onClick={() => setConceptImage(concept.id, "")}
@@ -1181,7 +1190,7 @@ export function CreateCampaignModal({ projectSlug, projectId, onClose, onSuccess
                                       onMouseEnter={e => (e.currentTarget.style.color = "#ffffff")}
                                       onMouseLeave={e => (e.currentTarget.style.color = "#9ca3af")}
                                     >
-                                      Cambiar imagen
+                                      {t.campaign_image_change}
                                     </button>
                                   </div>
                                 </div>
@@ -1204,7 +1213,7 @@ export function CreateCampaignModal({ projectSlug, projectId, onClose, onSuccess
                 <>
                   <div>
                     <label className="block text-sm font-medium mb-2" style={{ color: "#d1d5db" }}>
-                      Imagen del anuncio *
+                      {t.campaign_ad_image_label}
                     </label>
                     <div className="flex gap-2 mb-3">
                       {(["posts", "upload"] as const).map(src => (
@@ -1218,7 +1227,7 @@ export function CreateCampaignModal({ projectSlug, projectId, onClose, onSuccess
                             border: imageSource === src ? "1px solid #7c3aed" : "1px solid #333333",
                           }}
                         >
-                          {src === "posts" ? "Desde posts existentes" : "Subir nueva"}
+                          {src === "posts" ? t.campaign_from_posts : t.campaign_upload_new}
                         </button>
                       ))}
                     </div>
@@ -1227,7 +1236,7 @@ export function CreateCampaignModal({ projectSlug, projectId, onClose, onSuccess
                       <div>
                         {posts.length === 0 ? (
                           <p className="text-sm py-4 text-center" style={{ color: "#9ca3af" }}>
-                            No se encontraron posts con imagen
+                            {t.campaign_no_posts_with_image}
                           </p>
                         ) : (
                           <div className="grid grid-cols-4 gap-2 max-h-48 overflow-y-auto">
@@ -1254,7 +1263,7 @@ export function CreateCampaignModal({ projectSlug, projectId, onClose, onSuccess
                           </div>
                         )}
                         {imageUrl && imageSource === "posts" && (
-                          <p className="text-xs text-green-400 mt-1">Imagen seleccionada</p>
+                          <p className="text-xs text-green-400 mt-1">{t.campaign_image_selected}</p>
                         )}
                       </div>
                     ) : (
@@ -1269,7 +1278,7 @@ export function CreateCampaignModal({ projectSlug, projectId, onClose, onSuccess
 
                   <div>
                     <div className="flex justify-between mb-1">
-                      <label className="text-sm font-medium" style={{ color: "#d1d5db" }}>Texto del anuncio *</label>
+                      <label className="text-sm font-medium" style={{ color: "#d1d5db" }}>{t.campaign_ad_copy_label}</label>
                       <span className={`text-xs ${adCopy.length > 125 ? "text-orange-400" : "text-gray-500"}`}>
                         {adCopy.length} chars
                       </span>
@@ -1280,13 +1289,13 @@ export function CreateCampaignModal({ projectSlug, projectId, onClose, onSuccess
                       rows={4}
                       className="w-full rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-[#7c3aed] text-white placeholder-gray-500"
                       style={{ border: "1px solid #333333", backgroundColor: "#1a1a1a" }}
-                      placeholder="Escribe un copy convincente..."
+                      placeholder={t.campaign_ad_copy_placeholder}
                     />
                   </div>
 
                   <div>
                     <div className="flex justify-between mb-1">
-                      <label className="text-sm font-medium" style={{ color: "#d1d5db" }}>Titular</label>
+                      <label className="text-sm font-medium" style={{ color: "#d1d5db" }}>{t.campaign_headline_label}</label>
                       <span className={`text-xs ${headline.length > 40 ? "text-orange-400" : "text-gray-500"}`}>
                         {headline.length} / 40
                       </span>
@@ -1303,7 +1312,7 @@ export function CreateCampaignModal({ projectSlug, projectId, onClose, onSuccess
 
                   <div>
                     <label className="block text-sm font-medium mb-1" style={{ color: "#d1d5db" }}>
-                      URL de destino *
+                      {t.campaign_url_dest_label}
                     </label>
                     <input
                       value={destinationUrl}
@@ -1321,17 +1330,17 @@ export function CreateCampaignModal({ projectSlug, projectId, onClose, onSuccess
                         <div className="w-6 h-6 rounded-full" style={{ backgroundColor: "#374151" }} />
                         <div>
                           <p className="text-xs font-medium text-white">Tu Página</p>
-                          <p className="text-xs" style={{ color: "#9ca3af" }}>Patrocinado</p>
+                          <p className="text-xs" style={{ color: "#9ca3af" }}>{t.campaign_sponsor_label}</p>
                         </div>
                       </div>
                       {/* eslint-disable-next-line @next/next/no-img-element */}
-                      <img src={imageUrl} alt="Vista previa" className="w-full aspect-square object-cover" />
+                      <img src={imageUrl} alt={t.campaign_preview_alt} className="w-full aspect-square object-cover" />
                       <div className="p-3" style={{ backgroundColor: "#0d0d0d" }}>
                         <p className="text-xs line-clamp-3" style={{ color: "#d1d5db" }}>{adCopy}</p>
                         <div className="mt-2 flex items-center justify-between">
                           <div>
                             <p className="text-xs" style={{ color: "#9ca3af" }}>{destinationUrl || "tusitio.com"}</p>
-                            <p className="text-xs font-semibold text-white">Más información →</p>
+                            <p className="text-xs font-semibold text-white">{t.campaign_more_info}</p>
                           </div>
                         </div>
                       </div>
@@ -1348,7 +1357,7 @@ export function CreateCampaignModal({ projectSlug, projectId, onClose, onSuccess
                   onMouseEnter={e => { (e.currentTarget as HTMLButtonElement).style.color = "#ffffff"; (e.currentTarget as HTMLButtonElement).style.backgroundColor = "#1a1a1a"; }}
                   onMouseLeave={e => { (e.currentTarget as HTMLButtonElement).style.color = "#9ca3af"; (e.currentTarget as HTMLButtonElement).style.backgroundColor = "transparent"; }}
                 >
-                  <ChevronLeft className="h-4 w-4" /> Atrás
+                  <ChevronLeft className="h-4 w-4" /> {t.campaign_back_btn}
                 </button>
                 <button
                   onClick={() => setStep(5)}
@@ -1358,7 +1367,7 @@ export function CreateCampaignModal({ projectSlug, projectId, onClose, onSuccess
                   onMouseEnter={e => (e.currentTarget.style.backgroundColor = "#6d28d9")}
                   onMouseLeave={e => (e.currentTarget.style.backgroundColor = "#7c3aed")}
                 >
-                  Siguiente <ChevronRight className="h-4 w-4" />
+                  {t.campaign_next_btn} <ChevronRight className="h-4 w-4" />
                 </button>
               </div>
             </div>
@@ -1370,70 +1379,70 @@ export function CreateCampaignModal({ projectSlug, projectId, onClose, onSuccess
               {/* Campaign summary */}
               <div className="rounded-xl p-4 space-y-3 text-sm" style={{ backgroundColor: "#1a1a1a", border: "1px solid #222222" }}>
                 <div className="flex justify-between">
-                  <span style={{ color: "#9ca3af" }}>Nombre</span>
+                  <span style={{ color: "#9ca3af" }}>{t.campaign_review_name}</span>
                   <span className="font-medium text-white">{name}</span>
                 </div>
                 <div className="flex justify-between">
-                  <span style={{ color: "#9ca3af" }}>Objetivo</span>
+                  <span style={{ color: "#9ca3af" }}>{t.campaign_review_objective}</span>
                   <span className="font-medium text-white">{selectedObjective?.label}</span>
                 </div>
                 <div className="flex justify-between">
-                  <span style={{ color: "#9ca3af" }}>Presupuesto diario</span>
+                  <span style={{ color: "#9ca3af" }}>{t.campaign_review_budget}</span>
                   <span className="font-medium text-white">${budget}/día</span>
                 </div>
                 <div className="flex justify-between">
-                  <span style={{ color: "#9ca3af" }}>Países</span>
+                  <span style={{ color: "#9ca3af" }}>{t.campaign_review_countries}</span>
                   <span className="font-medium text-white">{countries.join(", ")}</span>
                 </div>
                 <div className="flex justify-between">
-                  <span style={{ color: "#9ca3af" }}>Audiencia</span>
+                  <span style={{ color: "#9ca3af" }}>{t.campaign_review_audience}</span>
                   <span className="font-medium text-white">{AUDIENCE_TYPE_LABELS[audienceType]}</span>
                 </div>
                 {audienceType === "custom" && customAudienceIds.length > 0 && (
                   <div className="flex justify-between">
-                    <span style={{ color: "#9ca3af" }}>Audiencias custom</span>
+                    <span style={{ color: "#9ca3af" }}>{t.campaign_review_custom_audiences}</span>
                     <span className="font-medium text-white">{customAudienceIds.length} seleccionada{customAudienceIds.length > 1 ? "s" : ""}</span>
                   </div>
                 )}
                 {(audienceType === "lookalike" || audienceType === "retargeting_lookalike") && lookalikeAudienceIds.length > 0 && (
                   <div className="flex justify-between">
-                    <span style={{ color: "#9ca3af" }}>Audiencias lookalike</span>
+                    <span style={{ color: "#9ca3af" }}>{t.campaign_review_lookalike_audiences}</span>
                     <span className="font-medium text-white">{lookalikeAudienceIds.length} seleccionada{lookalikeAudienceIds.length > 1 ? "s" : ""}</span>
                   </div>
                 )}
                 {audienceType === "retargeting_lookalike" && (
                   <div className="flex justify-between">
-                    <span style={{ color: "#9ca3af" }}>Conjuntos de anuncios</span>
-                    <span className="font-medium" style={{ color: "#a78bfa" }}>2 (automático)</span>
+                    <span style={{ color: "#9ca3af" }}>{t.campaign_review_adsets}</span>
+                    <span className="font-medium" style={{ color: "#a78bfa" }}>{t.campaign_review_adsets_auto}</span>
                   </div>
                 )}
                 {objective === "OUTCOME_SALES" && (
                   <div className="flex justify-between">
-                    <span style={{ color: "#9ca3af" }}>Evento pixel</span>
+                    <span style={{ color: "#9ca3af" }}>{t.campaign_review_pixel_event}</span>
                     <span className="font-medium text-white">{PIXEL_EVENTS.find(e => e.value === pixelEvent)?.label ?? pixelEvent}</span>
                   </div>
                 )}
                 {effectiveDestUrl && (
                   <div className="flex justify-between">
-                    <span style={{ color: "#9ca3af" }}>URL de destino</span>
+                    <span style={{ color: "#9ca3af" }}>{t.campaign_review_url}</span>
                     <span className="font-medium text-white truncate max-w-[200px]">{effectiveDestUrl}</span>
                   </div>
                 )}
                 <div className="flex justify-between">
-                  <span style={{ color: "#9ca3af" }}>Ubicaciones</span>
-                  <span className="font-medium text-white">{advantagePlacements ? "Advantage+ (auto)" : placements.length > 0 ? `${placements.length} manual${placements.length > 1 ? "es" : ""}` : "Manual (ninguna)"}</span>
+                  <span style={{ color: "#9ca3af" }}>{t.campaign_review_placements}</span>
+                  <span className="font-medium text-white">{advantagePlacements ? t.campaign_review_placements_advantage : placements.length > 0 ? t.campaign_review_placements_manual(placements.length) : t.campaign_review_placements_none}</span>
                 </div>
                 {approvedConcepts.length >= 6 && (
                   <div className="flex justify-between">
-                    <span style={{ color: "#9ca3af" }}>Creativos</span>
-                    <span className="font-medium" style={{ color: "#a78bfa" }}>{approvedConcepts.length} conceptos Andromeda</span>
+                    <span style={{ color: "#9ca3af" }}>{t.campaign_review_creatives}</span>
+                    <span className="font-medium" style={{ color: "#a78bfa" }}>{t.campaign_review_andromeda_concepts(approvedConcepts.length)}</span>
                   </div>
                 )}
               </div>
 
               {/* Andromeda checklist */}
               <div className="rounded-xl p-4 space-y-2" style={{ border: "1px solid #222222" }}>
-                <h4 className="text-sm font-semibold text-white mb-3">Checklist Andromeda</h4>
+                <h4 className="text-sm font-semibold text-white mb-3">{t.campaign_checklist_title}</h4>
                 {checklist.map((item, i) => (
                   <div key={i} className="flex items-start gap-2 text-sm">
                     <div
@@ -1454,12 +1463,12 @@ export function CreateCampaignModal({ projectSlug, projectId, onClose, onSuccess
 
               {!allChecklistOk && (
                 <div className="p-3 rounded-lg text-sm text-red-400" style={{ backgroundColor: "#450a0a", border: "1px solid #7f1d1d" }}>
-                  Corrige los items marcados con ✗ para lanzar
+                  {t.campaign_checklist_fix_items}
                 </div>
               )}
 
               <div className="rounded-lg p-3 text-xs text-yellow-400" style={{ backgroundColor: "#422006", border: "1px solid #78350f" }}>
-                La campaña se creará en estado <strong>PAUSADO</strong>. Revisa en Meta Ads Manager y activa cuando estés listo.
+                {t.campaign_paused_note}
               </div>
 
               <div className="flex gap-3 justify-between pt-2">
@@ -1470,7 +1479,7 @@ export function CreateCampaignModal({ projectSlug, projectId, onClose, onSuccess
                   onMouseEnter={e => { (e.currentTarget as HTMLButtonElement).style.color = "#ffffff"; (e.currentTarget as HTMLButtonElement).style.borderColor = "#555555"; }}
                   onMouseLeave={e => { (e.currentTarget as HTMLButtonElement).style.color = "#9ca3af"; (e.currentTarget as HTMLButtonElement).style.borderColor = "#333333"; }}
                 >
-                  <ChevronLeft className="h-4 w-4" /> Atrás
+                  <ChevronLeft className="h-4 w-4" /> {t.campaign_back_btn}
                 </button>
                 <button
                   onClick={handleCreate}
@@ -1483,10 +1492,10 @@ export function CreateCampaignModal({ projectSlug, projectId, onClose, onSuccess
                   {loading ? (
                     <>
                       <Loader2 className="h-4 w-4 animate-spin" />
-                      Creando campaña...
+                      {t.campaign_creating}
                     </>
                   ) : (
-                    "Lanzar campaña"
+                    t.campaign_launch_btn
                   )}
                 </button>
               </div>
