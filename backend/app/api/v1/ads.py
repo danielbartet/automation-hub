@@ -449,6 +449,83 @@ async def generate_concept_image(
         raise HTTPException(500, f"Image generation failed: {str(e)}")
 
 
+@router.get("/operation-usage")
+async def get_operation_usage(
+    db: AsyncSession = Depends(get_session),
+    current_user=Depends(require_role("admin", "super_admin")),
+) -> dict:
+    """Return the current user's operation counts vs plan limits."""
+    from app.models.operation_limit import UserOperationLimit, UserOperationLog
+    from sqlalchemy import func
+    from datetime import timedelta
+
+    now = datetime.now(timezone.utc).replace(tzinfo=None)
+
+    # Load or get plan limits
+    result = await db.execute(
+        select(UserOperationLimit).where(UserOperationLimit.user_id == current_user.id)
+    )
+    limit = result.scalar_one_or_none()
+
+    plan = limit.plan if limit else "basic"
+    defaults = {
+        "basic":    {"posts_day": 3,  "posts_hour": 3,  "camps_day": 1,  "camps_hour": 2},
+        "pro":      {"posts_day": 10, "posts_hour": 6,  "camps_day": 5,  "camps_hour": 3},
+        "business": {"posts_day": 30, "posts_hour": 15, "camps_day": 15, "camps_hour": 8},
+    }
+    d = defaults.get(plan, defaults["basic"])
+    posts_day   = limit.max_posts_per_day     if limit else d["posts_day"]
+    posts_hour  = limit.max_posts_per_hour    if limit else d["posts_hour"]
+    camps_day   = limit.max_campaigns_per_day if limit else d["camps_day"]
+    camps_hour  = limit.max_campaigns_per_hour if limit else d["camps_hour"]
+
+    async def count_ops(op_type: str, window_seconds: int) -> int:
+        window_start = now - timedelta(seconds=window_seconds)
+        r = await db.execute(
+            select(func.count(UserOperationLog.id)).where(
+                UserOperationLog.user_id == current_user.id,
+                UserOperationLog.operation_type == op_type,
+                UserOperationLog.created_at >= window_start,
+            )
+        )
+        return r.scalar() or 0
+
+    async def last_op(op_type: str):
+        r = await db.execute(
+            select(UserOperationLog.created_at).where(
+                UserOperationLog.user_id == current_user.id,
+                UserOperationLog.operation_type == op_type,
+            ).order_by(UserOperationLog.created_at.desc()).limit(1)
+        )
+        row = r.scalar_one_or_none()
+        return row.isoformat() if row else None
+
+    posts_today = await count_ops("content_post", 86400)
+    posts_this_hour = await count_ops("content_post", 3600)
+    camps_today = await count_ops("campaign_create", 86400)
+    camps_this_hour = await count_ops("campaign_create", 3600)
+    last_post = await last_op("content_post")
+    last_campaign = await last_op("campaign_create")
+
+    return {
+        "plan": plan,
+        "posts": {
+            "today": posts_today,
+            "this_hour": posts_this_hour,
+            "limit_day": posts_day,
+            "limit_hour": posts_hour,
+            "last_at": last_post,
+        },
+        "campaigns": {
+            "today": camps_today,
+            "this_hour": camps_this_hour,
+            "limit_day": camps_day,
+            "limit_hour": camps_hour,
+            "last_at": last_campaign,
+        },
+    }
+
+
 @router.get("/meta-usage-summary")
 async def get_meta_usage_summary(
     db: AsyncSession = Depends(get_session),

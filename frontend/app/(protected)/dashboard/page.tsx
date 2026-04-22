@@ -115,6 +115,11 @@ export default function DashboardPage() {
       recorded_at: string;
     } | null;
   } | null>(null);
+  const [opUsage, setOpUsage] = useState<{
+    plan: string;
+    posts: { today: number; this_hour: number; limit_day: number; limit_hour: number; last_at: string | null };
+    campaigns: { today: number; this_hour: number; limit_day: number; limit_hour: number; last_at: string | null };
+  } | null>(null);
 
   const loadData = useCallback(() => {
     if (!selectedSlug) return;
@@ -143,6 +148,18 @@ export default function DashboardPage() {
       .catch(() => setAuditLog([]))
       .finally(() => setAuditLoading(false));
   }, [activeTab, selectedSlug, token, isAdmin]);
+
+  // Fetch operation usage when Actividad tab is active (admin only)
+  useEffect(() => {
+    if (activeTab !== "actividad" || !token || !isAdmin) return;
+    const api = process.env.NEXT_PUBLIC_API_URL ?? "http://localhost:8000";
+    fetch(`${api}/api/v1/ads/operation-usage`, {
+      headers: { Authorization: `Bearer ${token}` },
+    })
+      .then((r) => (r.ok ? r.json() : null))
+      .then((d) => setOpUsage(d))
+      .catch(() => setOpUsage(null));
+  }, [activeTab, token, isAdmin]);
 
   // Fetch Meta rate status when Actividad tab is active (admin only)
   useEffect(() => {
@@ -203,26 +220,27 @@ export default function DashboardPage() {
 
         {/* ── Actividad tab ── */}
         {activeTab === "actividad" && isAdmin && (() => {
-          const now = new Date();
-          const todayStr = now.toDateString();
-          const oneHourAgo = new Date(now.getTime() - 60 * 60 * 1000);
-          const callsToday = auditLog.filter(e => new Date(e.timestamp).toDateString() === todayStr).length;
-          const callsThisHour = auditLog.filter(e => new Date(e.timestamp) >= oneHourAgo).length;
+          // Helper: color based on % of limit used
+          const pctColor = (used: number, limit: number) => {
+            if (limit === 0) return "text-green-400";
+            const pct = used / limit;
+            return pct >= 0.9 ? "text-red-400" : pct >= 0.7 ? "text-yellow-400" : "text-green-400";
+          };
 
-          const todayColor =
-            callsToday > 270 ? "text-red-400" :
-            callsToday >= 200 ? "text-yellow-400" :
-            "text-green-400";
+          const planLabel = opUsage?.plan
+            ? opUsage.plan.charAt(0).toUpperCase() + opUsage.plan.slice(1)
+            : "Basic";
 
-          const hourColor =
-            callsThisHour > 270 ? "text-red-400" :
-            callsThisHour >= 200 ? "text-yellow-400" :
-            "text-green-400";
-
-          const statusLabel =
-            callsToday > 270 ? `🔴 ${t.activity_status_blocked}` :
-            callsToday >= 200 ? `🟡 ${t.activity_status_warning}` :
-            "🟢 Normal";
+          const overallStatus = (() => {
+            if (!opUsage) return "🟢 Normal";
+            const p = opUsage.posts, c = opUsage.campaigns;
+            const postPct = p.limit_day > 0 ? p.today / p.limit_day : 0;
+            const campPct = c.limit_day > 0 ? c.today / c.limit_day : 0;
+            const max = Math.max(postPct, campPct);
+            if (max >= 0.9) return `🔴 ${t.activity_status_blocked}`;
+            if (max >= 0.7) return `🟡 ${t.activity_status_warning}`;
+            return "🟢 Normal";
+          })();
 
           return (
             <div className="space-y-4">
@@ -238,37 +256,76 @@ export default function DashboardPage() {
 
               {/* Part 2 — Usage stats card */}
               <div className="rounded-lg overflow-hidden" style={{ backgroundColor: "#111111", border: "1px solid #222222" }}>
-                <div className="px-6 py-4" style={{ borderBottom: "1px solid #222222" }}>
+                <div className="px-6 py-4 flex items-center justify-between" style={{ borderBottom: "1px solid #222222" }}>
                   <h3 className="text-base font-semibold text-white">{t.activity_usage_title}</h3>
+                  <span className="text-xs px-2 py-1 rounded-full font-medium" style={{ backgroundColor: "#1e1b4b", color: "#a5b4fc" }}>
+                    Plan {planLabel}
+                  </span>
                 </div>
                 <div className="px-6 py-4 space-y-5">
 
-                  {/* Section A — Este proyecto (ad account) */}
+                  {/* Section A — Operaciones del usuario */}
                   <div>
                     <p className="text-xs font-semibold uppercase tracking-wide mb-3" style={{ color: "#6b7280" }}>{t.activity_project_usage}</p>
-                    <div className="space-y-3">
-                      {/* Row 1 — Calls today */}
-                      <div className="flex items-center justify-between text-sm">
-                        <span style={{ color: "#9ca3af" }}>{t.activity_calls_today}</span>
-                        <span>
-                          <span className={`font-semibold ${todayColor}`}>{callsToday}</span>
-                          <span className="ml-1" style={{ color: "#6b7280" }}>{t.activity_limit_standard}</span>
-                        </span>
+                    {opUsage ? (
+                      <div className="space-y-4">
+                        {/* Posts sub-section */}
+                        <div>
+                          <p className="text-xs mb-2" style={{ color: "#6b7280" }}>Posts</p>
+                          <div className="space-y-2">
+                            <div className="flex items-center justify-between text-sm">
+                              <span style={{ color: "#9ca3af" }}>{t.activity_calls_today}</span>
+                              <span>
+                                <span className={`font-semibold ${pctColor(opUsage.posts.today, opUsage.posts.limit_day)}`}>
+                                  {opUsage.posts.today}
+                                </span>
+                                <span className="ml-1" style={{ color: "#6b7280" }}>/ {opUsage.posts.limit_day}</span>
+                              </span>
+                            </div>
+                            <div className="flex items-center justify-between text-sm">
+                              <span style={{ color: "#9ca3af" }}>{t.activity_calls_hour}</span>
+                              <span>
+                                <span className={`font-semibold ${pctColor(opUsage.posts.this_hour, opUsage.posts.limit_hour)}`}>
+                                  {opUsage.posts.this_hour}
+                                </span>
+                                <span className="ml-1" style={{ color: "#6b7280" }}>/ {opUsage.posts.limit_hour}</span>
+                              </span>
+                            </div>
+                          </div>
+                        </div>
+                        {/* Campaigns sub-section */}
+                        <div>
+                          <p className="text-xs mb-2" style={{ color: "#6b7280" }}>Campañas</p>
+                          <div className="space-y-2">
+                            <div className="flex items-center justify-between text-sm">
+                              <span style={{ color: "#9ca3af" }}>{t.activity_calls_today}</span>
+                              <span>
+                                <span className={`font-semibold ${pctColor(opUsage.campaigns.today, opUsage.campaigns.limit_day)}`}>
+                                  {opUsage.campaigns.today}
+                                </span>
+                                <span className="ml-1" style={{ color: "#6b7280" }}>/ {opUsage.campaigns.limit_day}</span>
+                              </span>
+                            </div>
+                            <div className="flex items-center justify-between text-sm">
+                              <span style={{ color: "#9ca3af" }}>{t.activity_calls_hour}</span>
+                              <span>
+                                <span className={`font-semibold ${pctColor(opUsage.campaigns.this_hour, opUsage.campaigns.limit_hour)}`}>
+                                  {opUsage.campaigns.this_hour}
+                                </span>
+                                <span className="ml-1" style={{ color: "#6b7280" }}>/ {opUsage.campaigns.limit_hour}</span>
+                              </span>
+                            </div>
+                          </div>
+                        </div>
+                        {/* Status row */}
+                        <div className="flex items-center justify-between text-sm pt-1" style={{ borderTop: "1px solid #1a1a1a" }}>
+                          <span style={{ color: "#9ca3af" }}>{t.activity_status}</span>
+                          <span className="font-medium text-white">{overallStatus}</span>
+                        </div>
                       </div>
-                      {/* Row 2 — Calls this hour */}
-                      <div className="flex items-center justify-between text-sm">
-                        <span style={{ color: "#9ca3af" }}>{t.activity_calls_hour}</span>
-                        <span>
-                          <span className={`font-semibold ${hourColor}`}>{callsThisHour}</span>
-                          <span className="ml-1" style={{ color: "#6b7280" }}>{t.activity_limit_standard}</span>
-                        </span>
-                      </div>
-                      {/* Row 3 — Status */}
-                      <div className="flex items-center justify-between text-sm">
-                        <span style={{ color: "#9ca3af" }}>{t.activity_status}</span>
-                        <span className="font-medium text-white">{statusLabel}</span>
-                      </div>
-                    </div>
+                    ) : (
+                      <p className="text-sm" style={{ color: "#6b7280" }}>{t.activity_app_no_data}</p>
+                    )}
                   </div>
 
                   {/* Divider */}
