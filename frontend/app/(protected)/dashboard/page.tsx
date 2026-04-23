@@ -283,7 +283,7 @@ export default function DashboardPage() {
                     <p className="text-xs font-semibold uppercase tracking-wide mb-3" style={{ color: "#6b7280" }}>Meta API (por tipo)</p>
                     {bucUsage && Object.keys(bucUsage).length > 0 ? (() => {
                       const bucTypes = ["ADS_MANAGEMENT", "ADS_INSIGHTS"];
-                      const allBucTypes = [...new Set([...bucTypes, ...Object.keys(bucUsage)])];
+                      const allBucTypes = Array.from(new Set([...bucTypes, ...Object.keys(bucUsage)]));
                       const bucOverallPct = Math.max(...Object.values(bucUsage).map(v => v.max_pct ?? 0));
                       const bucStatusLabel = bucOverallPct >= 90 ? `🔴 ${t.activity_status_blocked ?? "Bloqueado"}` : bucOverallPct >= 70 ? `🟡 ${t.activity_status_warning ?? "Advertencia"}` : "🟢 Normal";
                       return (
