@@ -1160,7 +1160,7 @@ export default function CampaignDetailPage() {
         {/* ── ATTRIBUTION NOTE ────────────────────────────────────────────── */}
         {activeTab === "overview" && (
           <p className="text-xs mb-4" style={{ color: "#6b7280" }}>
-            Los datos provienen de Meta Ads API · Ventana de atribución: 7 días clic + 1 día vista · Pequeñas diferencias con el Ads Manager son normales (zona horaria de reporte, ventana configurada a nivel cuenta, actualización ~1h).
+            {t.campaign_attribution_note}
           </p>
         )}
 

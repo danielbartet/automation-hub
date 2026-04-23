@@ -354,6 +354,7 @@ export const translations = {
     campaign_detail_activate_btn: "Activate campaign",
     campaign_detail_budget_btn: "Budget",
     campaign_detail_per_day: (v: number) => `$${v.toFixed(2)}/day`,
+    campaign_attribution_note: "Data sourced from Meta Ads API · Attribution window: 7-day click + 1-day view · Minor discrepancies with Ads Manager are normal (reporting timezone, account-level window, ~1h refresh).",
 
     // Recommendations panel
     campaign_detail_active_recs: "Active recommendations",
@@ -1424,6 +1425,7 @@ export const translations = {
     campaign_detail_activate_btn: "Activar campaña",
     campaign_detail_budget_btn: "Presupuesto",
     campaign_detail_per_day: (v: number) => `$${v.toFixed(2)}/día`,
+    campaign_attribution_note: "Los datos provienen de Meta Ads API · Ventana de atribución: 7 días clic + 1 día vista · Pequeñas diferencias con el Ads Manager son normales (zona horaria de reporte, ventana configurada a nivel cuenta, actualización ~1h).",
 
     // Recommendations panel
     campaign_detail_active_recs: "Recomendaciones activas",
