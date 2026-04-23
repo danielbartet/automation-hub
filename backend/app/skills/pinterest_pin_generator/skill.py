@@ -147,7 +147,7 @@ class PinterestPinGeneratorSkill(BaseSkill):
             "bg": bg_color,
         }
 
-        aspect_ratio = _ASPECT_RATIO_MAP.get(image_size, "2:3")
+        aspect_ratio = _ASPECT_RATIO_MAP.get(image_size, "9:16")
         dimensions = _DIMENSION_MAP.get(image_size, (1000, 1500))
 
         # ── Step 1: Fetch website snippet (silently skip on failure) ───────────
