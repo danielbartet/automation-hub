@@ -306,11 +306,28 @@ async def update_project(
     if not project:
         raise HTTPException(status_code=404, detail=f"Project '{slug}' not found")
 
-    # Ownership check: super_admin can update any; admin must own the project
+    # Ownership / assignment check
     if current_user.role not in ("super_admin",):
         if current_user.role == "admin":
             if project.owner_id != current_user.id:
                 raise HTTPException(status_code=403, detail="You can only update projects you own")
+        elif current_user.role == "operator":
+            # Operators may update content/brand config only if assigned to the project
+            from app.models.user_project import UserProject
+            up = await db.execute(
+                select(UserProject).where(
+                    UserProject.user_id == current_user.id,
+                    UserProject.project_id == project.id,
+                )
+            )
+            if up.scalar_one_or_none() is None:
+                raise HTTPException(status_code=403, detail="You do not have access to this project")
+            # Strip platform-sensitive fields — operators cannot touch Meta/Pinterest connections
+            data.meta_access_token = None
+            data.facebook_page_id = None
+            data.instagram_account_id = None
+            data.ad_account_id = None
+            data.telegram_chat_id = None
         else:
             raise HTTPException(status_code=403, detail="Insufficient permissions to update projects")
 

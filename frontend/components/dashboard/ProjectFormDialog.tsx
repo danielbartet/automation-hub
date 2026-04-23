@@ -23,6 +23,7 @@ interface ProjectFormDialogProps {
   project: Project;
   onClose: () => void;
   onSuccess: (updated: Project) => void;
+  isOperator?: boolean;
 }
 
 // TEMP: commented for Meta App Review video — uncomment after
@@ -81,18 +82,29 @@ function ColorPicker({
   );
 }
 
-export function ProjectFormDialog({ project, onClose, onSuccess }: ProjectFormDialogProps) {
+export function ProjectFormDialog({ project, onClose, onSuccess, isOperator = false }: ProjectFormDialogProps) {
   const t = useT();
   const { data: session } = useSession();
   const cc = project.content_config ?? {};
   const mc = project.media_config ?? {};
 
-  const TABS = [
-    t.form_dialog_tab_platforms,
-    t.form_dialog_tab_content,
-    t.form_dialog_tab_audience,
-    t.form_dialog_tab_brand,
-  ];
+  // Operators see only Content / Audience / Brand tabs (no Platforms)
+  const TABS = isOperator
+    ? [
+        t.form_dialog_tab_content,
+        t.form_dialog_tab_audience,
+        t.form_dialog_tab_brand,
+      ]
+    : [
+        t.form_dialog_tab_platforms,
+        t.form_dialog_tab_content,
+        t.form_dialog_tab_audience,
+        t.form_dialog_tab_brand,
+      ];
+
+  // Map visible tab index to the canonical tab index used in {tab === N} guards below
+  // For admins: identity mapping. For operators: shift by +1 (skip Platforms=0)
+  const canonicalTab = (visibleIdx: number) => (isOperator ? visibleIdx + 1 : visibleIdx);
 
   const VISUAL_STYLE_OPTIONS = [
     { value: "typographic", label: t.vs_typographic },
@@ -116,6 +128,7 @@ export function ProjectFormDialog({ project, onClose, onSuccess }: ProjectFormDi
     { value: "on_demand", label: t.pf_on_demand },
   ];
 
+  // Visible tab index (0-based within the tabs the current role can see)
   const [tab, setTab] = useState(0);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
@@ -361,9 +374,12 @@ export function ProjectFormDialog({ project, onClose, onSuccess }: ProjectFormDi
       const result = await updateProject(project.slug, {
         content_config: updatedContentConfig,
         media_config: updatedMediaConfig,
-        facebook_page_id: facebookPageId || undefined,
-        instagram_account_id: instagramAccountId || undefined,
-        ad_account_id: adAccountId || undefined,
+        // Operators cannot modify platform connection fields
+        ...(isOperator ? {} : {
+          facebook_page_id: facebookPageId || undefined,
+          instagram_account_id: instagramAccountId || undefined,
+          ad_account_id: adAccountId || undefined,
+        }),
       }, token);
 
       onSuccess(result);
@@ -430,7 +446,7 @@ export function ProjectFormDialog({ project, onClose, onSuccess }: ProjectFormDi
           )}
 
           {/* ── TAB 1: Contenido ── */}
-          {tab === 1 && (
+          {canonicalTab(tab) === 1 && (
             <div className="space-y-5">
               <div>
                 <label className="block text-sm font-medium text-white mb-1">{t.form_tone_label}</label>
@@ -471,7 +487,7 @@ export function ProjectFormDialog({ project, onClose, onSuccess }: ProjectFormDi
           )}
 
           {/* ── TAB 2: Audiencia ── */}
-          {tab === 2 && (
+          {canonicalTab(tab) === 2 && (
             <div className="space-y-5">
               <div>
                 <label className="block text-sm font-medium text-white mb-1">{t.form_target_audience_label}</label>
@@ -603,7 +619,7 @@ export function ProjectFormDialog({ project, onClose, onSuccess }: ProjectFormDi
           )}
 
           {/* ── TAB 0: Plataformas (primer tab) ── */}
-          {tab === 0 && (
+          {canonicalTab(tab) === 0 && (
             <div className="space-y-5">
               <div>
                 <label className="block text-sm font-medium text-white mb-1">{t.form_fb_page_id_label}</label>
@@ -778,7 +794,7 @@ export function ProjectFormDialog({ project, onClose, onSuccess }: ProjectFormDi
           )}
 
           {/* ── TAB 3: Marca y Visual ── */}
-          {tab === 3 && (
+          {canonicalTab(tab) === 3 && (
             <div className="space-y-6">
               {/* Brand Name */}
               <div>

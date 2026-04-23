@@ -359,6 +359,7 @@ function ProjectsPageInner() {
           project={editingProject}
           onClose={() => setEditingProject(null)}
           onSuccess={handleProjectUpdated}
+          isOperator={role === "operator"}
         />
       )}
 
