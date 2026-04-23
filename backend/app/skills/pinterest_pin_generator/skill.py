@@ -73,9 +73,9 @@ async def _fetch_website_snippet(url: str) -> str:
 
 # Aspect ratio mapping: image_size -> Imagen 4 aspect_ratio string
 _ASPECT_RATIO_MAP = {
-    "1000x1500": "2:3",
+    "1000x1500": "9:16",
     "1000x1000": "1:1",
-    "600x900": "2:3",
+    "600x900": "9:16",
 }
 
 # Dimension mapping: image_size -> (width, height) for fallback canvas
