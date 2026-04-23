@@ -1454,6 +1454,78 @@ Return ONLY a valid JSON array. No preamble, no explanation, only JSON:
 
         return hooks
 
+    async def enrich_pinterest_pin(
+        self,
+        topic: str,
+        content_config: dict,
+        website_snippet: str = "",
+    ) -> dict:
+        """Use Claude to enrich a Pinterest pin request with brand context.
+
+        Returns a dict with keys: imagen_prompt, title, description.
+        Raises on failure so the caller can catch and fall back.
+        """
+        language = content_config.get("language", "es")
+        brand_name = content_config.get("brand_name", "")
+        tone = content_config.get("tone", "")
+        core_message = content_config.get("core_message", "")
+        target_audience = content_config.get("target_audience", "")
+        brand_voice = content_config.get("brand_voice", "conversational")
+        voice_instruction = VOICE_STYLES.get(brand_voice, VOICE_STYLES["conversational"])
+
+        website_block = ""
+        if website_snippet:
+            website_block = f"\n\nWEBSITE CONTEXT (use this to make the pin relevant to the brand's actual offer):\n{website_snippet}"
+
+        system_prompt = f"""You are a Pinterest content strategist for {brand_name or "a brand"}.
+
+BRAND CONTEXT:
+- Brand name: {brand_name}
+- Core message: {core_message}
+- Target audience: {target_audience}
+- Tone: {tone}
+- Brand voice ({brand_voice}): {voice_instruction}
+{website_block}
+
+Your task: given the user's topic, generate three things:
+1. An enriched, detailed visual prompt for Google Imagen 4 (photorealistic, no text in image, no signs, no labels)
+2. A Pinterest pin title (max 100 characters) in {language}
+3. A Pinterest pin description (max 500 characters, include 3-5 relevant hashtags) in {language}
+
+The imagen_prompt must be purely visual — describe scene, lighting, mood, composition, style.
+The title and description must reflect the brand voice and target audience.
+
+Return ONLY valid JSON, nothing else:
+{{
+  "imagen_prompt": "detailed visual prompt for Imagen 4...",
+  "title": "Pin title max 100 chars",
+  "description": "Pin description max 500 chars with hashtags"
+}}"""
+
+        response = await self.client.messages.create(
+            model=self.MODEL,
+            max_tokens=600,
+            system=system_prompt,
+            messages=[{"role": "user", "content": f"Topic: {topic}"}],
+        )
+
+        content = response.content[0].text.strip()
+        if content.startswith("```"):
+            content = content.split("```", 2)[1]
+            if content.startswith("json"):
+                content = content[4:]
+            content = content.rsplit("```", 1)[0].strip()
+
+        result = json.loads(content)
+
+        # Enforce length limits
+        if result.get("title") and len(result["title"]) > 100:
+            result["title"] = result["title"][:100].rsplit(" ", 1)[0]
+        if result.get("description") and len(result["description"]) > 500:
+            result["description"] = result["description"][:500].rsplit(" ", 1)[0]
+
+        return result
+
     async def generate_ab_test_variants(
         self,
         concept: dict,

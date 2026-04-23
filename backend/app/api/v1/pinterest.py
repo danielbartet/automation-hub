@@ -191,6 +191,8 @@ async def generate_pin(
         "title": body.title,
         "description": body.description,
         "image_size": body.image_size,
+        "content_config": project.content_config or {},
+        "media_config": project.media_config or {},
     }
 
     try:
