@@ -49,10 +49,11 @@ export function MetaUsageBadge() {
 
   if (!isAdmin) return null;
 
-  const pct = summary?.max_pct;
+  const pct = summary?.max_pct ?? null;
+  const displayPct = pct === null ? 100 : pct;
   const colorClass =
-    pct === null || pct === undefined
-      ? "text-gray-500"
+    pct === null
+      ? "text-green-600"
       : pct >= 75
       ? "text-red-500"
       : pct >= 60
@@ -60,20 +61,19 @@ export function MetaUsageBadge() {
       : "text-green-600";
 
   const tooltipText =
-    pct !== null && pct !== undefined
+    pct !== null
       ? t.meta_usage_tooltip(pct, summary?.status === "critical" ? 75 : summary?.status === "warning" ? 60 : 40)
-      : "–";
+      : "Meta API quota — sin actividad reciente";
 
   return (
     <div
-      className={`flex items-center gap-1 text-xs font-medium ${colorClass}`}
+      className={`flex items-center gap-1.5 text-xs font-medium ${colorClass}`}
       title={tooltipText}
       style={{ cursor: "default" }}
     >
       <Coins className="h-3.5 w-3.5" />
-      <span>
-        {pct !== null && pct !== undefined ? `${pct.toFixed(1)}%` : "–"}
-      </span>
+      <span>Meta API</span>
+      <span>{displayPct.toFixed(1)}%</span>
     </div>
   );
 }

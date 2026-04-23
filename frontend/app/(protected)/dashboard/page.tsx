@@ -96,6 +96,7 @@ export default function DashboardPage() {
   const { selectedSlug, selectedProject } = useProject();
 
   const isAdmin = session?.user?.role === "admin" || session?.user?.role === "super_admin";
+  const isSuperAdmin = session?.user?.role === "super_admin";
   const token = (session as { accessToken?: string } | null)?.accessToken ?? "";
 
   const [data, setData] = useState<DashboardData | null>(null);
@@ -398,42 +399,46 @@ export default function DashboardPage() {
                     )}
                   </div>
 
-                  {/* Divider */}
-                  <div style={{ borderTop: "1px solid #222222" }} />
+                  {/* Section C — Plataforma (app-level, X-App-Usage) — super_admin only */}
+                  {isSuperAdmin && (
+                    <>
+                      {/* Divider */}
+                      <div style={{ borderTop: "1px solid #222222" }} />
 
-                  {/* Section C — Plataforma (app-level, X-App-Usage) */}
-                  <div>
-                    <p className="text-xs font-semibold uppercase tracking-wide mb-3" style={{ color: "#6b7280" }}>{t.activity_platform_usage}</p>
-                    {metaRateStatus?.app_usage ? (() => {
-                      const au = metaRateStatus.app_usage;
-                      const maxPct = au.max_pct ?? 0;
-                      const appDotColor = maxPct >= 90 ? "bg-red-400" : maxPct >= 70 ? "bg-yellow-400" : "bg-green-400";
-                      const appPctColor = maxPct >= 90 ? "text-red-400" : maxPct >= 70 ? "text-yellow-400" : "text-green-400";
-                      const recordedTime = new Date(au.recorded_at).toLocaleTimeString("es-AR", { hour: "2-digit", minute: "2-digit" });
-                      return (
-                        <div className="space-y-3">
-                          <div className="flex items-center justify-between text-sm">
-                            <span style={{ color: "#9ca3af" }}>{t.activity_app_usage_pct}</span>
-                            <span className="flex items-center gap-2">
-                              <span className={`inline-block w-2 h-2 rounded-full ${appDotColor}`} />
-                              <span className={`font-semibold ${appPctColor}`}>{maxPct.toFixed(1)}%</span>
-                            </span>
-                          </div>
-                          <div className="flex items-center justify-between text-xs" style={{ color: "#6b7280" }}>
-                            <span>{t.activity_app_updated}: {recordedTime}</span>
-                          </div>
-                          <div
-                            className="rounded-md px-3 py-2 text-xs"
-                            style={{ backgroundColor: "#1a1a1a", color: "#6b7280", border: "1px solid #2a2a2a" }}
-                          >
-                            {t.activity_app_warning}
-                          </div>
-                        </div>
-                      );
-                    })() : (
-                      <p className="text-sm" style={{ color: "#6b7280" }}>{t.activity_app_no_data}</p>
-                    )}
-                  </div>
+                      <div>
+                        <p className="text-xs font-semibold uppercase tracking-wide mb-3" style={{ color: "#6b7280" }}>{t.activity_platform_usage}</p>
+                        {metaRateStatus?.app_usage ? (() => {
+                          const au = metaRateStatus.app_usage;
+                          const maxPct = au.max_pct ?? 0;
+                          const appDotColor = maxPct >= 90 ? "bg-red-400" : maxPct >= 70 ? "bg-yellow-400" : "bg-green-400";
+                          const appPctColor = maxPct >= 90 ? "text-red-400" : maxPct >= 70 ? "text-yellow-400" : "text-green-400";
+                          const recordedTime = new Date(au.recorded_at).toLocaleTimeString("es-AR", { hour: "2-digit", minute: "2-digit" });
+                          return (
+                            <div className="space-y-3">
+                              <div className="flex items-center justify-between text-sm">
+                                <span style={{ color: "#9ca3af" }}>{t.activity_app_usage_pct}</span>
+                                <span className="flex items-center gap-2">
+                                  <span className={`inline-block w-2 h-2 rounded-full ${appDotColor}`} />
+                                  <span className={`font-semibold ${appPctColor}`}>{maxPct.toFixed(1)}%</span>
+                                </span>
+                              </div>
+                              <div className="flex items-center justify-between text-xs" style={{ color: "#6b7280" }}>
+                                <span>{t.activity_app_updated}: {recordedTime}</span>
+                              </div>
+                              <div
+                                className="rounded-md px-3 py-2 text-xs"
+                                style={{ backgroundColor: "#1a1a1a", color: "#6b7280", border: "1px solid #2a2a2a" }}
+                              >
+                                {t.activity_app_warning}
+                              </div>
+                            </div>
+                          );
+                        })() : (
+                          <p className="text-sm" style={{ color: "#6b7280" }}>{t.activity_app_no_data}</p>
+                        )}
+                      </div>
+                    </>
+                  )}
 
                 </div>
               </div>
