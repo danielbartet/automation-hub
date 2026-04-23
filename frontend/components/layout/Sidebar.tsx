@@ -442,8 +442,13 @@ export function Sidebar() {
               </div>
             )}
           </div>
+        ) : role === "operator" ? (
+          /* Operator: projects config + no admin-only links */
+          <div className="space-y-1">
+            {renderNavLink("/dashboard/projects", t.nav_projects, FolderKanban)}
+          </div>
         ) : (
-          /* Non-admin: show plain settings link */
+          /* Client: plain settings link */
           renderNavLink("/dashboard/settings", t.nav_settings_meta, Settings)
         )}
       </div>
