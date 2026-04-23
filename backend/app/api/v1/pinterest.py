@@ -218,15 +218,21 @@ async def generate_pin(
         await db.commit()
         await db.refresh(pin)
         return {
+            "id": pin.id,
             "pin_id": pin.id,
             "image_url": image_url,
+            "title": pin.title,
+            "description": pin.description,
             "status": "pending_approval",
         }
     else:
         # No token — preview only, no DB write
         return {
+            "id": None,
             "pin_id": None,
             "image_url": image_url,
+            "title": None,
+            "description": None,
             "status": "preview_only",
         }
 
