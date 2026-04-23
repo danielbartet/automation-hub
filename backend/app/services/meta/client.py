@@ -1,6 +1,10 @@
 """Meta Graph API base client."""
+import asyncio
 import logging
+import random
+
 import httpx
+from fastapi import HTTPException
 
 logger = logging.getLogger(__name__)
 
@@ -23,7 +27,6 @@ class MetaClient:
           3. X-Ad-Account-Usage         — fallback account-level header
         """
         import json as _json
-        from fastapi import HTTPException
 
         # ── 1. X-Business-Use-Case-Usage (primary) ─────────────────────────────
         buc_raw = response.headers.get("X-Business-Use-Case-Usage")
@@ -31,10 +34,6 @@ class MetaClient:
             try:
                 # Structure: {"<ad_account_id>": [{"type": "...", "call_count": N, ...}]}
                 buc_data: dict = _json.loads(buc_raw)
-                buc_max_overall = 0.0
-                buc_call_count_agg = 0.0
-                buc_total_time_agg = 0.0
-                buc_cputime_agg = 0.0
                 for account_id, entries in buc_data.items():
                     if not isinstance(entries, list):
                         continue
@@ -46,13 +45,8 @@ class MetaClient:
                         est_reset = entry.get("estimated_time_to_regain_access", 0)
 
                         max_pct = max(call_count, total_cputime, total_time)
-                        if max_pct > buc_max_overall:
-                            buc_max_overall = max_pct
-                            buc_call_count_agg = call_count
-                            buc_total_time_agg = total_time
-                            buc_cputime_agg = total_cputime
 
-                        # Store in usage dict
+                        # Store in usage dict keyed by "{account_id}:{buc_type}"
                         key = f"{account_id}:{buc_type}"
                         self._usage[key] = {
                             "buc": buc_type,
@@ -85,9 +79,6 @@ class MetaClient:
                                 account_id, buc_type, max_pct,
                             )
 
-                # BUC snapshot stored in self._usage (in-memory); DB persistence
-                # happens via the /meta-usage-summary endpoint on each read.
-
             except HTTPException:
                 raise
             except Exception:
@@ -104,7 +95,6 @@ class MetaClient:
                 call_count = float(data.get("call_count", 0))
                 total_time = float(data.get("total_time", 0))
                 total_cputime = float(data.get("total_cputime", 0))
-                app_max = max(call_count, total_time, total_cputime)
                 for field, val in data.items():
                     if isinstance(val, (int, float)):
                         if val > 95:
@@ -182,33 +172,159 @@ class MetaClient:
             "blocked_until": None,
         }
 
+    def preflight_check(self, ad_account_id: str, buc_type: str, threshold: float = 80.0) -> None:
+        """Raise HTTP 429 if BUC usage for this type is already above threshold.
+
+        Call this before expensive operations to avoid wasting a call that will be rejected.
+        Checks the in-memory _usage dict populated by previous _parse_usage_headers calls.
+        No-op when no usage data is available yet (first call).
+        """
+        key = f"{ad_account_id}:{buc_type}"
+        usage = self._usage.get(key)
+        if usage is None:
+            return  # No data yet, allow
+        max_pct = max(
+            usage.get("call_count_pct", 0) or 0,
+            usage.get("total_cputime_pct", 0) or 0,
+            usage.get("total_time_pct", 0) or 0,
+        )
+        if max_pct >= threshold:
+            reset = usage.get("estimated_reset_minutes") or 5
+            raise HTTPException(
+                status_code=429,
+                detail={
+                    "code": "PREFLIGHT_RATE_LIMIT",
+                    "buc_type": buc_type,
+                    "usage_pct": max_pct,
+                    "estimated_reset_minutes": reset,
+                    "message": (
+                        f"Meta API {buc_type} usage at {max_pct:.1f}%. "
+                        f"Try again in {reset} minute(s)."
+                    ),
+                },
+            )
+
     async def get(self, path: str, params: dict | None = None) -> dict:
-        """Perform a GET request against the Meta Graph API."""
+        """Perform a GET request against the Meta Graph API with exponential backoff on 429."""
         url = f"{self.BASE_URL}{path}"
         all_params = {"access_token": self.access_token}
         if params:
             all_params.update(params)
-        async with httpx.AsyncClient(timeout=30.0) as client:
-            resp = await client.get(url, params=all_params)
-            self._parse_usage_headers(resp)
-            if not resp.is_success:
-                logger.error("Meta API GET %s → %s: %s", path, resp.status_code, resp.text)
-            resp.raise_for_status()
-            return resp.json()
+
+        last_exc: HTTPException | None = None
+        for attempt in range(3):
+            async with httpx.AsyncClient(timeout=30.0) as client:
+                resp = await client.get(url, params=all_params)
+                self._parse_usage_headers(resp)
+                if resp.status_code == 429:
+                    last_exc = HTTPException(
+                        status_code=429,
+                        detail={"code": "META_RATE_LIMIT", "message": "Meta API rate limit reached."},
+                    )
+                    if attempt < 2:
+                        wait = (2 ** attempt) + random.uniform(0, 1)
+                        logger.warning(
+                            "Meta API 429 on GET %s, attempt %d/3, waiting %.1fs",
+                            path, attempt + 1, wait,
+                        )
+                        await asyncio.sleep(wait)
+                        continue
+                    raise HTTPException(
+                        status_code=429,
+                        detail={
+                            "code": "META_RATE_LIMIT",
+                            "message": "Meta API rate limit reached. Try again in a moment.",
+                        },
+                    )
+                if not resp.is_success:
+                    logger.error("Meta API GET %s → %s: %s", path, resp.status_code, resp.text)
+                resp.raise_for_status()
+                return resp.json()
+
+        # Should not be reached, but satisfy type checker
+        raise last_exc or HTTPException(status_code=500, detail="Meta API request failed")
 
     async def post(self, path: str, data: dict | None = None) -> dict:
-        """Perform a POST request against the Meta Graph API."""
+        """Perform a POST request against the Meta Graph API with exponential backoff on 429."""
         url = f"{self.BASE_URL}{path}"
         payload = {"access_token": self.access_token}
         if data:
             payload.update(data)
-        async with httpx.AsyncClient(timeout=30.0) as client:
-            resp = await client.post(url, data=payload)
-            self._parse_usage_headers(resp)
-            if not resp.is_success:
-                logger.error("Meta API POST %s → %s: %s", path, resp.status_code, resp.text)
-            resp.raise_for_status()
-            return resp.json()
+
+        last_exc: HTTPException | None = None
+        for attempt in range(3):
+            async with httpx.AsyncClient(timeout=30.0) as client:
+                resp = await client.post(url, data=payload)
+                self._parse_usage_headers(resp)
+                if resp.status_code == 429:
+                    last_exc = HTTPException(
+                        status_code=429,
+                        detail={"code": "META_RATE_LIMIT", "message": "Meta API rate limit reached."},
+                    )
+                    if attempt < 2:
+                        wait = (2 ** attempt) + random.uniform(0, 1)
+                        logger.warning(
+                            "Meta API 429 on POST %s, attempt %d/3, waiting %.1fs",
+                            path, attempt + 1, wait,
+                        )
+                        await asyncio.sleep(wait)
+                        continue
+                    raise HTTPException(
+                        status_code=429,
+                        detail={
+                            "code": "META_RATE_LIMIT",
+                            "message": "Meta API rate limit reached. Try again in a moment.",
+                        },
+                    )
+                if not resp.is_success:
+                    logger.error("Meta API POST %s → %s: %s", path, resp.status_code, resp.text)
+                resp.raise_for_status()
+                return resp.json()
+
+        raise last_exc or HTTPException(status_code=500, detail="Meta API request failed")
+
+
+async def persist_buc_usage(db, usage_dict: dict) -> None:
+    """Save MetaBUCUsage rows from the client._usage dict after an API call.
+
+    Call this after any endpoint that uses MetaClient to persist the latest BUC
+    snapshots to the DB. Safe to call even when usage_dict is empty — no-op.
+
+    Args:
+        db: AsyncSession
+        usage_dict: MetaClient._usage dict (keyed by "{account_id}:{buc_type}")
+    """
+    from app.models.meta_api_audit_log import MetaBUCUsage
+
+    for key, data in usage_dict.items():
+        if not isinstance(data, dict):
+            continue
+        # BUC entries have a "buc" key; skip fallback (app_usage / account_usage) entries
+        if "buc" not in data:
+            continue
+        # key format: "{account_id}:{buc_type}"
+        parts = key.split(":", 1)
+        if len(parts) != 2:
+            continue
+        account_id, buc_type = parts
+        call_count = data.get("call_count_pct", 0) or 0
+        total_cputime = data.get("total_cputime_pct", 0) or 0
+        total_time = data.get("total_time_pct", 0) or 0
+        max_pct = max(call_count, total_cputime, total_time)
+        row = MetaBUCUsage(
+            ad_account_id=account_id,
+            buc_type=buc_type,
+            call_count_pct=call_count,
+            total_cputime_pct=total_cputime,
+            total_time_pct=total_time,
+            max_pct=max_pct,
+            estimated_reset_minutes=data.get("estimated_reset_minutes"),
+        )
+        db.add(row)
+    try:
+        await db.flush()
+    except Exception as exc:
+        logger.warning("persist_buc_usage flush failed (non-fatal): %s", exc)
 
 
 async def validate_meta_token(token: str, project_id: int | None = None) -> dict:

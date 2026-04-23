@@ -120,6 +120,7 @@ export default function DashboardPage() {
     posts: { today: number; this_hour: number; limit_day: number; limit_hour: number; last_at: string | null };
     campaigns: { today: number; this_hour: number; limit_day: number; limit_hour: number; last_at: string | null };
   } | null>(null);
+  const [bucUsage, setBucUsage] = useState<Record<string, { max_pct: number; recorded_at: string }> | null>(null);
 
   const loadData = useCallback(() => {
     if (!selectedSlug) return;
@@ -172,6 +173,19 @@ export default function DashboardPage() {
       .then((r) => (r.ok ? r.json() : null))
       .then((d) => setMetaRateStatus(d))
       .catch(() => setMetaRateStatus(null));
+  }, [activeTab, selectedSlug, token, isAdmin]);
+
+  // Fetch BUC usage (per-type Meta rate limits) when Actividad tab is active (admin only)
+  useEffect(() => {
+    if (activeTab !== "actividad" || !token || !isAdmin) return;
+    const api = process.env.NEXT_PUBLIC_API_URL ?? "http://localhost:8000";
+    const query = selectedSlug ? `?project_slug=${selectedSlug}` : "";
+    fetch(`${api}/api/v1/ads/buc-usage${query}`, {
+      headers: { Authorization: `Bearer ${token}` },
+    })
+      .then((r) => (r.ok ? r.json() : null))
+      .then((d) => setBucUsage(d))
+      .catch(() => setBucUsage(null));
   }, [activeTab, selectedSlug, token, isAdmin]);
 
   const recentPosts = data?.content?.recent_posts ?? [];
@@ -264,7 +278,63 @@ export default function DashboardPage() {
                 </div>
                 <div className="px-6 py-4 space-y-5">
 
-                  {/* Section A — Operaciones del usuario */}
+                  {/* Section A — Meta API por tipo (BUC) */}
+                  <div>
+                    <p className="text-xs font-semibold uppercase tracking-wide mb-3" style={{ color: "#6b7280" }}>Meta API (por tipo)</p>
+                    {bucUsage && Object.keys(bucUsage).length > 0 ? (() => {
+                      const bucTypes = ["ADS_MANAGEMENT", "ADS_INSIGHTS"];
+                      const allBucTypes = [...new Set([...bucTypes, ...Object.keys(bucUsage)])];
+                      const bucOverallPct = Math.max(...Object.values(bucUsage).map(v => v.max_pct ?? 0));
+                      const bucStatusLabel = bucOverallPct >= 90 ? `🔴 ${t.activity_status_blocked ?? "Bloqueado"}` : bucOverallPct >= 70 ? `🟡 ${t.activity_status_warning ?? "Advertencia"}` : "🟢 Normal";
+                      return (
+                        <div className="space-y-3">
+                          {allBucTypes.map((bType) => {
+                            const entry = bucUsage[bType];
+                            if (!entry) return (
+                              <div key={bType} className="flex items-center justify-between text-sm">
+                                <span style={{ color: "#9ca3af" }}>{bType}</span>
+                                <span style={{ color: "#6b7280" }}>sin datos</span>
+                              </div>
+                            );
+                            const pct = entry.max_pct ?? 0;
+                            const dotColor = pct >= 90 ? "bg-red-400" : pct >= 70 ? "bg-yellow-400" : "bg-green-400";
+                            const textColor = pct >= 90 ? "text-red-400" : pct >= 70 ? "text-yellow-400" : "text-green-400";
+                            const recordedTime = (() => {
+                              try {
+                                const d = new Date(entry.recorded_at);
+                                const diffMs = Date.now() - d.getTime();
+                                const diffMin = Math.floor(diffMs / 60000);
+                                if (diffMin < 1) return "hace menos de 1 min";
+                                if (diffMin < 60) return `hace ${diffMin} min`;
+                                return d.toLocaleTimeString("es-AR", { hour: "2-digit", minute: "2-digit" });
+                              } catch { return ""; }
+                            })();
+                            return (
+                              <div key={bType} className="flex items-center justify-between text-sm">
+                                <span style={{ color: "#9ca3af" }}>{bType}</span>
+                                <span className="flex items-center gap-2 text-xs">
+                                  <span className={`inline-block w-2 h-2 rounded-full ${dotColor}`} />
+                                  <span className={`font-semibold ${textColor}`}>{pct.toFixed(1)}%</span>
+                                  <span style={{ color: "#4b5563" }}>· {recordedTime}</span>
+                                </span>
+                              </div>
+                            );
+                          })}
+                          <div className="flex items-center justify-between text-sm pt-1" style={{ borderTop: "1px solid #1a1a1a" }}>
+                            <span style={{ color: "#9ca3af" }}>Estado</span>
+                            <span className="font-medium text-white">{bucStatusLabel}</span>
+                          </div>
+                        </div>
+                      );
+                    })() : (
+                      <p className="text-sm" style={{ color: "#6b7280" }}>Sin datos de uso BUC aún (se registran tras llamadas a Meta API).</p>
+                    )}
+                  </div>
+
+                  {/* Divider */}
+                  <div style={{ borderTop: "1px solid #222222" }} />
+
+                  {/* Section B — Operaciones del usuario */}
                   <div>
                     <p className="text-xs font-semibold uppercase tracking-wide mb-3" style={{ color: "#6b7280" }}>{t.activity_project_usage}</p>
                     {opUsage ? (
@@ -331,7 +401,7 @@ export default function DashboardPage() {
                   {/* Divider */}
                   <div style={{ borderTop: "1px solid #222222" }} />
 
-                  {/* Section B — Plataforma (app-level) */}
+                  {/* Section C — Plataforma (app-level, X-App-Usage) */}
                   <div>
                     <p className="text-xs font-semibold uppercase tracking-wide mb-3" style={{ color: "#6b7280" }}>{t.activity_platform_usage}</p>
                     {metaRateStatus?.app_usage ? (() => {

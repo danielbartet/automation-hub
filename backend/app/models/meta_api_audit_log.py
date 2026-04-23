@@ -62,3 +62,31 @@ class MetaAppUsage(Base):
     total_cputime_pct: Mapped[Optional[float]] = mapped_column(Float, nullable=True)
     # Max of the three percentages above — used for status determination
     max_pct: Mapped[Optional[float]] = mapped_column(Float, nullable=True)
+
+
+class MetaBUCUsage(Base):
+    """Per-BUC-type rate-limit snapshots from X-Business-Use-Case-Usage headers.
+
+    Each row represents one BUC type (ADS_MANAGEMENT, ADS_INSIGHTS, etc.) for a
+    specific ad account, recorded after an API call. These are independent buckets
+    with separate limits — don't aggregate them.
+    """
+
+    __tablename__ = "meta_buc_usage"
+
+    id: Mapped[int] = mapped_column(primary_key=True, autoincrement=True)
+    ad_account_id: Mapped[str] = mapped_column(String(64), nullable=False, index=True)
+    buc_type: Mapped[str] = mapped_column(String(64), nullable=False, index=True)
+    call_count_pct: Mapped[Optional[float]] = mapped_column(Float, nullable=True)
+    total_cputime_pct: Mapped[Optional[float]] = mapped_column(Float, nullable=True)
+    total_time_pct: Mapped[Optional[float]] = mapped_column(Float, nullable=True)
+    # Max of the three above — used for status determination
+    max_pct: Mapped[Optional[float]] = mapped_column(Float, nullable=True)
+    # Minutes until access is restored, as reported by Meta
+    estimated_reset_minutes: Mapped[Optional[int]] = mapped_column(Integer, nullable=True)
+    recorded_at: Mapped[datetime] = mapped_column(
+        DateTime(timezone=False),
+        default=lambda: datetime.now(timezone.utc).replace(tzinfo=None),
+        nullable=False,
+        index=True,
+    )

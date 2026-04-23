@@ -15,9 +15,10 @@ from app.models.user_project import UserProject
 from app.core.config import settings
 from app.core.security import get_project_token
 from app.services.ads.meta_campaign import MetaCampaignService
+from app.services.meta.client import persist_buc_usage
 from app.utils import _safe_float
 from pydantic import BaseModel, Field
-from datetime import datetime, timezone
+from datetime import datetime, timedelta, timezone
 import httpx
 import json
 
@@ -951,6 +952,30 @@ async def get_campaign_detail(
     if date_preset not in allowed_presets:
         date_preset = "last_30d"
 
+    # ── Insights cache check ──────────────────────────────────────────────────
+    # Try to serve insights (summary + daily) from the DB cache before hitting Meta.
+    # Cache TTL is 1 hour. Cache key is (meta_campaign_id, date_preset).
+    _insights_cache_hit = False
+    if meta_campaign_id:
+        try:
+            from app.models.insights_cache import CampaignInsightsCache
+            now_utc = datetime.now(timezone.utc).replace(tzinfo=None)
+            cache_result = await db.execute(
+                select(CampaignInsightsCache).where(
+                    CampaignInsightsCache.campaign_id == meta_campaign_id,
+                    CampaignInsightsCache.date_preset == date_preset,
+                    CampaignInsightsCache.expires_at > now_utc,
+                )
+            )
+            cached_row = cache_result.scalar_one_or_none()
+            if cached_row is not None:
+                cached_payload = json.loads(cached_row.data)
+                insights_summary_raw = cached_payload.get("summary", {})
+                daily_insights_raw = cached_payload.get("daily", [])
+                _insights_cache_hit = True
+        except Exception:
+            pass
+
     if token and meta_campaign_id:
         try:
             async with httpx.AsyncClient(timeout=15.0) as client:
@@ -964,35 +989,65 @@ async def get_campaign_detail(
                 )
                 campaign_info = ci_resp.json()
 
-                # b. Insights for the selected period (summary)
-                # action_attribution_windows scopes attribution to 7d_click + 1d_view,
-                # matching the Meta Ads Manager default so purchase counts are consistent.
-                ins_resp = await client.get(
-                    f"{META_BASE}/{meta_campaign_id}/insights",
-                    params={
-                        "fields": "spend,impressions,reach,clicks,ctr,cpc,cpm,frequency,actions,action_values,cost_per_action_type,purchase_roas",
-                        "date_preset": date_preset,
-                        "action_attribution_windows": json.dumps(["7d_click", "1d_view"]),
-                        "access_token": token,
-                    },
-                )
-                ins_data = ins_resp.json()
-                ins_rows = ins_data.get("data", [])
-                insights_summary_raw = ins_rows[0] if ins_rows else {}
+                if not _insights_cache_hit:
+                    # b. Insights for the selected period (summary)
+                    # action_attribution_windows scopes attribution to 7d_click + 1d_view,
+                    # matching the Meta Ads Manager default so purchase counts are consistent.
+                    ins_resp = await client.get(
+                        f"{META_BASE}/{meta_campaign_id}/insights",
+                        params={
+                            "fields": "spend,impressions,reach,clicks,ctr,cpc,cpm,frequency,actions,action_values,cost_per_action_type,purchase_roas",
+                            "date_preset": date_preset,
+                            "action_attribution_windows": json.dumps(["7d_click", "1d_view"]),
+                            "access_token": token,
+                        },
+                    )
+                    ins_data = ins_resp.json()
+                    ins_rows = ins_data.get("data", [])
+                    insights_summary_raw = ins_rows[0] if ins_rows else {}
 
-                # c. Daily insights breakdown
-                daily_resp = await client.get(
-                    f"{META_BASE}/{meta_campaign_id}/insights",
-                    params={
-                        "fields": "spend,impressions,reach,clicks,ctr,cpc,cpm,frequency,actions,action_values,cost_per_action_type,purchase_roas",
-                        "date_preset": date_preset,
-                        "time_increment": "1",
-                        "action_attribution_windows": json.dumps(["7d_click", "1d_view"]),
-                        "access_token": token,
-                    },
-                )
-                daily_data = daily_resp.json()
-                daily_insights_raw = daily_data.get("data", [])
+                    # c. Daily insights breakdown
+                    daily_resp = await client.get(
+                        f"{META_BASE}/{meta_campaign_id}/insights",
+                        params={
+                            "fields": "spend,impressions,reach,clicks,ctr,cpc,cpm,frequency,actions,action_values,cost_per_action_type,purchase_roas",
+                            "date_preset": date_preset,
+                            "time_increment": "1",
+                            "action_attribution_windows": json.dumps(["7d_click", "1d_view"]),
+                            "access_token": token,
+                        },
+                    )
+                    daily_data = daily_resp.json()
+                    daily_insights_raw = daily_data.get("data", [])
+
+                    # Write fresh insights to cache (TTL 1 hour)
+                    try:
+                        from app.models.insights_cache import CampaignInsightsCache
+                        now_utc = datetime.now(timezone.utc).replace(tzinfo=None)
+                        cache_data = json.dumps({"summary": insights_summary_raw, "daily": daily_insights_raw})
+                        # Upsert: delete old row for this key, then insert fresh
+                        existing_result = await db.execute(
+                            select(CampaignInsightsCache).where(
+                                CampaignInsightsCache.campaign_id == meta_campaign_id,
+                                CampaignInsightsCache.date_preset == date_preset,
+                            )
+                        )
+                        existing = existing_result.scalar_one_or_none()
+                        if existing is not None:
+                            existing.data = cache_data
+                            existing.cached_at = now_utc
+                            existing.expires_at = now_utc + timedelta(hours=1)
+                        else:
+                            db.add(CampaignInsightsCache(
+                                campaign_id=meta_campaign_id,
+                                date_preset=date_preset,
+                                data=cache_data,
+                                cached_at=now_utc,
+                                expires_at=now_utc + timedelta(hours=1),
+                            ))
+                        await db.flush()
+                    except Exception:
+                        pass  # cache write failure is non-fatal
 
                 # d. Ad sets
                 if ad_account_id:
@@ -2468,6 +2523,72 @@ async def attribution_check(
                     "The account may be configured with a different attribution window (e.g. 1d_click or 28d_click). "
                     "Consider adjusting action_attribution_windows in the insights calls to match the account setting."
                 )
+
+    return result
+
+
+# ── Meta BUC Usage (per-type rate-limit DB view) ─────────────────────────────
+
+@router.get("/buc-usage")
+async def get_buc_usage(
+    project_slug: str | None = None,
+    db: AsyncSession = Depends(get_session),
+    current_user=Depends(require_role("admin", "super_admin")),
+) -> dict:
+    """Return the most recent BUC usage per type for the current project's ad account.
+
+    Queries the meta_buc_usage table and returns the latest row per
+    (ad_account_id, buc_type) pair. If project_slug is provided, filters to that
+    account; otherwise returns across all accounts.
+
+    Response shape:
+      {
+        "ADS_MANAGEMENT": {"max_pct": 23.4, "recorded_at": "2026-04-22T..."},
+        "ADS_INSIGHTS":   {"max_pct": 45.1, "recorded_at": "2026-04-22T..."},
+        ...
+      }
+    """
+    from app.models.meta_api_audit_log import MetaBUCUsage
+    from sqlalchemy import func
+
+    # Optionally resolve ad_account_id from the project slug
+    target_account_id: str | None = None
+    if project_slug:
+        proj_result = await db.execute(select(Project).where(Project.slug == project_slug))
+        project = proj_result.scalar_one_or_none()
+        if project and project.ad_account_id:
+            target_account_id = project.ad_account_id.removeprefix("act_")
+
+    # Find the latest row per buc_type (and optionally per ad_account_id)
+    # Use a subquery: MAX(id) grouped by (ad_account_id, buc_type)
+    subq = (
+        select(
+            func.max(MetaBUCUsage.id).label("max_id"),
+            MetaBUCUsage.buc_type,
+        )
+        .group_by(MetaBUCUsage.ad_account_id, MetaBUCUsage.buc_type)
+    )
+    if target_account_id:
+        subq = subq.where(MetaBUCUsage.ad_account_id == target_account_id)
+    subq = subq.subquery()
+
+    rows_result = await db.execute(
+        select(MetaBUCUsage).join(subq, MetaBUCUsage.id == subq.c.max_id)
+    )
+    rows = rows_result.scalars().all()
+
+    from datetime import timezone as _tz
+    result: dict = {}
+    for row in rows:
+        recorded_at_str = row.recorded_at.replace(tzinfo=_tz.utc).isoformat()
+        result[row.buc_type] = {
+            "max_pct": row.max_pct,
+            "call_count_pct": row.call_count_pct,
+            "total_cputime_pct": row.total_cputime_pct,
+            "total_time_pct": row.total_time_pct,
+            "estimated_reset_minutes": row.estimated_reset_minutes,
+            "recorded_at": recorded_at_str,
+        }
 
     return result
 
