@@ -26,7 +26,6 @@ interface ProjectFormDialogProps {
   isOperator?: boolean;
 }
 
-// TEMP: commented for Meta App Review video — uncomment after
 const PLATFORM_OPTIONS_STATIC = [
   { value: "instagram", label: "Instagram" },
   { value: "facebook", label: "Facebook" },
@@ -748,9 +747,7 @@ export function ProjectFormDialog({ project, onClose, onSuccess, isOperator = fa
                 )}
               </div>
 
-              {/* TEMP: commented for Meta App Review video — uncomment after */}
               {/* Pinterest connection */}
-              {/*
               <div style={{ borderTop: "1px solid #222222", paddingTop: "1.25rem" }}>
                 <label className="block text-sm font-medium text-white mb-3">Pinterest</label>
                 {pinterestConnected === null ? (
@@ -789,7 +786,6 @@ export function ProjectFormDialog({ project, onClose, onSuccess, isOperator = fa
                   </div>
                 )}
               </div>
-              */}
             </div>
           )}
 

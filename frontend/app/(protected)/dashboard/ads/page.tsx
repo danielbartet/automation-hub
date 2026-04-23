@@ -311,9 +311,7 @@ export default function AdsPage() {
         {/* Tab bar — admin/operator only */}
         {!isClient && (
           <div className="flex gap-1" style={{ borderBottom: "1px solid #222222" }}>
-            {/* TEMP: commented for Meta App Review video — uncomment after */}
-            {/* {(["campaigns", "inspiration"] as const).map((tab) => ( */}
-            {(["campaigns"] as const).map((tab) => (
+            {(["campaigns", "inspiration"] as const).map((tab) => (
               <button
                 key={tab}
                 onClick={() => { setActiveTab(tab); setInspirationPrefill(undefined); }}
@@ -468,9 +466,8 @@ export default function AdsPage() {
           </div>
         )}
 
-        {/* TEMP: commented for Meta App Review video — uncomment after */}
         {/* ── Competitive Insights card (admin + operator, campaigns tab) ── */}
-        {/* {activeTab === "campaigns" && !isClient && (
+        {activeTab === "campaigns" && !isClient && (
           competitiveInsights === "empty" || competitiveInsights === null ? (
             <div className="rounded-lg p-5" style={{ backgroundColor: "#111111", border: "1px solid #222222" }}>
               <p className="text-sm font-semibold text-gray-400 mb-1">{t.ads_competitive_title}</p>
@@ -532,7 +529,7 @@ export default function AdsPage() {
               </div>
             </div>
           )
-        )} */}
+        )}
 
         {/* KPI Cards — campaigns tab only */}
         {activeTab === "campaigns" && <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
