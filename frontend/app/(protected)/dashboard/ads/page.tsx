@@ -309,6 +309,7 @@ export default function AdsPage() {
         </div>
 
         {/* Tab bar — admin/operator only */}
+        {/* Inspiración tab hidden — commented out
         {!isClient && (
           <div className="flex gap-1" style={{ borderBottom: "1px solid #222222" }}>
             {(["campaigns", "inspiration"] as const).map((tab) => (
@@ -327,6 +328,7 @@ export default function AdsPage() {
             ))}
           </div>
         )}
+        */}
 
         {error && (
           <div className="rounded-md p-4 text-sm text-red-400" style={{ backgroundColor: "#450a0a", border: "1px solid #7f1d1d" }}>
@@ -335,13 +337,13 @@ export default function AdsPage() {
         )}
 
         {/* ── Inspiration tab ── */}
-        {activeTab === "inspiration" && !isClient && selectedProject && (
+        {/* {activeTab === "inspiration" && !isClient && selectedProject && (
           <InspirationTab
             projectSlug={selectedProject.slug}
             token={token}
             onAdapted={handleAdapted}
           />
-        )}
+        )} */}
 
         {activeTab === "campaigns" && importResult && (
           <div className="rounded-md p-4 text-sm text-green-400 flex items-center justify-between" style={{ backgroundColor: "#052e16", border: "1px solid #166534" }}>
