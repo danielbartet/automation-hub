@@ -31,6 +31,7 @@ from app.services.meta.client import MetaClient
 from app.services.meta.pages import PagesService
 from app.services.meta.instagram import InstagramService
 from app.services.storage.s3 import S3Service
+from app.services.storage.video import convert_image_to_story_video
 
 router = APIRouter()
 
@@ -716,9 +717,16 @@ async def _publish_post_to_meta(post: ContentPost, project: Project, db: AsyncSe
             try:
                 ig_service = InstagramService(meta_client)
                 if is_story:
-                    # Stories: single image, no caption — use first image only
+                    # Stories must be published as VIDEO — Instagram ignores
+                    # media_product_type=STORY for IMAGE containers and always
+                    # publishes to the feed instead.  Convert the PNG to a
+                    # 5-second MP4 first, then create a VIDEO story container.
+                    logger.info("Post %s: converting story image to video for Instagram Story", post.id)
+                    s3_svc = S3Service()
+                    video_url = await convert_image_to_story_video(publish_image_urls[0], s3_svc)
+                    logger.info("Post %s: story video ready at %s", post.id, video_url)
                     container = await ig_service.create_story_container(
-                        project.instagram_account_id, publish_image_urls[0]
+                        project.instagram_account_id, video_url
                     )
                     creation_id = container.get("id")
                     if creation_id:

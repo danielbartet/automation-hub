@@ -20,8 +20,15 @@ class InstagramService:
             {"image_url": image_url, "caption": caption},
         )
 
-    async def create_story_container(self, ig_account_id: str, image_url: str) -> dict:
-        payload = {"image_url": image_url, "media_type": "IMAGE", "media_product_type": "STORY"}
+    async def create_story_container(self, ig_account_id: str, video_url: str) -> dict:
+        """Create a VIDEO story container.
+
+        Instagram's API ignores ``media_product_type=STORY`` for IMAGE
+        containers and always publishes to the feed instead.  Passing a short
+        MP4 with ``media_type=VIDEO`` is the only reliable way to publish an
+        Instagram Story via the Graph API.
+        """
+        payload = {"video_url": video_url, "media_type": "VIDEO", "media_product_type": "STORY"}
         logger.info("create_story_container payload: %s", payload)
         result = await self.client.post(f"/{ig_account_id}/media", payload)
         logger.info("create_story_container response: %s", result)
