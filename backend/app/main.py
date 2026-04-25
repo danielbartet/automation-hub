@@ -1,6 +1,8 @@
 """Automation Hub — FastAPI application entry point."""
 import logging
 from contextlib import asynccontextmanager
+
+logging.basicConfig(level=logging.INFO, format="%(levelname)s:%(name)s:%(message)s")
 from datetime import datetime, timezone
 from fastapi import FastAPI
 

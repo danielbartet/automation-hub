@@ -21,17 +21,11 @@ class InstagramService:
         )
 
     async def create_story_container(self, ig_account_id: str, image_url: str) -> dict:
-        """Create a media container for an Instagram Story.
-
-        Stories do not support captions via the API.  The media_type parameter
-        is omitted (IMAGE is the default) and no caption is included so that
-        Instagram treats the container as a story when published via
-        media_publish.
-        """
-        return await self.client.post(
-            f"/{ig_account_id}/media",
-            {"image_url": image_url, "media_type": "IMAGE", "media_product_type": "STORY"},
-        )
+        payload = {"image_url": image_url, "media_type": "IMAGE", "media_product_type": "STORY"}
+        logger.info("create_story_container payload: %s", payload)
+        result = await self.client.post(f"/{ig_account_id}/media", payload)
+        logger.info("create_story_container response: %s", result)
+        return result
 
     async def create_carousel_item(self, ig_account_id: str, image_url: str) -> dict:
         """Create a carousel item container for a single image (no caption, is_carousel_item=true).
