@@ -223,6 +223,7 @@ export async function createContentManual(
     tone?: string;
     content_type?: string;
     image_url?: string;
+    video_url?: string;
     image_urls?: string[];
     caption?: string;
     hashtags?: string[];

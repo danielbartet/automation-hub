@@ -7,9 +7,20 @@ interface ImageUploadZoneProps {
   onUpload: (url: string) => void;
   currentUrl?: string;
   token?: string;
+  /** Overrides the default accepted MIME types (used for validation + the <input accept> attribute) */
+  allowedMimeTypes?: string[];
+  /** Human-readable label shown below the upload icon, e.g. "MP4, MOV · max 50MB" */
+  acceptLabel?: string;
+  /** Short text for the drop-zone prompt, e.g. "Drop video here or click to browse" */
+  dropLabel?: string;
+  /** Called when the user selects a file that is NOT in allowedMimeTypes (before upload) */
+  onRejected?: (file: File) => void;
 }
 
-export function ImageUploadZone({ projectSlug, onUpload, currentUrl, token }: ImageUploadZoneProps) {
+const DEFAULT_ALLOWED_MIME = ["image/jpeg", "image/png", "image/webp", "video/mp4"];
+
+export function ImageUploadZone({ projectSlug, onUpload, currentUrl, token, allowedMimeTypes, acceptLabel, dropLabel, onRejected }: ImageUploadZoneProps) {
+  const allowed = allowedMimeTypes ?? DEFAULT_ALLOWED_MIME;
   const [preview, setPreview] = useState<string | null>(currentUrl || null);
   const [uploading, setUploading] = useState(false);
   const [progress, setProgress] = useState(0);
@@ -17,9 +28,12 @@ export function ImageUploadZone({ projectSlug, onUpload, currentUrl, token }: Im
   const [dragging, setDragging] = useState(false);
 
   const upload = async (file: File) => {
-    const allowed = ["image/jpeg", "image/png", "image/webp", "video/mp4"];
     if (!allowed.includes(file.type)) {
-      setError("Only JPEG, PNG, WebP, MP4 allowed");
+      if (onRejected) {
+        onRejected(file);
+      } else {
+        setError(`Tipo de archivo no permitido. Permitidos: ${allowed.join(", ")}`);
+      }
       return;
     }
     if (file.size > 50 * 1024 * 1024) {
@@ -116,12 +130,12 @@ export function ImageUploadZone({ projectSlug, onUpload, currentUrl, token }: Im
           <input
             type="file"
             className="hidden"
-            accept="image/jpeg,image/png,image/webp,video/mp4"
+            accept={allowed.join(",")}
             onChange={handleChange}
           />
           <Upload className="h-6 w-6 mb-1" style={{ color: "#9ca3af" }} />
-          <span className="text-xs" style={{ color: "#9ca3af" }}>Drop image here or click to browse</span>
-          <span className="text-xs mt-0.5" style={{ color: "#6b7280" }}>JPEG, PNG, WebP, MP4 · max 50MB</span>
+          <span className="text-xs" style={{ color: "#9ca3af" }}>{dropLabel ?? "Drop image here or click to browse"}</span>
+          <span className="text-xs mt-0.5" style={{ color: "#6b7280" }}>{acceptLabel ?? "JPEG, PNG, WebP, MP4 · max 50MB"}</span>
         </label>
       )}
       {uploading && (

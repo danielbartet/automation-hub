@@ -87,10 +87,12 @@ export function GenerateContentModal({ projectSlug, project, initialHint, initia
   const [tone, setTone] = useState("");
   const [contentType, setContentType] = useState("carousel_6_slides");
   const [imageUrl, setImageUrl] = useState("");
+  const [videoUrl, setVideoUrl] = useState("");
   const [imageUrls, setImageUrls] = useState<string[]>([]);
   const [caption, setCaption] = useState("");
   const [hashtags, setHashtags] = useState("");
   const [scheduledAt, setScheduledAt] = useState("");
+  const [reelFileError, setReelFileError] = useState<string | null>(null);
 
   const categories: string[] = project?.content_config?.content_categories ?? [];
 
@@ -103,7 +105,9 @@ export function GenerateContentModal({ projectSlug, project, initialHint, initia
   const handleContentTypeChange = (e: React.ChangeEvent<HTMLSelectElement>) => {
     setContentType(e.target.value);
     setImageUrl("");
+    setVideoUrl("");
     setImageUrls([]);
+    setReelFileError(null);
   };
 
   const handleSlideImageUpload = (index: number, url: string) => {
@@ -160,12 +164,15 @@ export function GenerateContentModal({ projectSlug, project, initialHint, initia
         .map((t) => t.trim().replace(/^#/, ""))
         .filter(Boolean);
       const isCarousel = slideCount > 1;
+      const isVideoType = contentType === "reel";
+      const isStory = contentType === "story_vertical";
       const token = (session as any)?.accessToken as string | undefined;
       await createContentManual(projectSlug, {
         topic: topic.trim(),
         tone: tone.trim() || undefined,
         content_type: contentType,
-        image_url: isCarousel ? undefined : (imageUrl || undefined),
+        image_url: isCarousel || isVideoType ? undefined : ((isStory ? imageUrl : imageUrl) || undefined),
+        video_url: (isVideoType || isStory) ? (videoUrl || undefined) : undefined,
         image_urls: isCarousel ? imageUrls.filter(Boolean) : undefined,
         caption: caption.trim() || undefined,
         hashtags: tags,
@@ -371,8 +378,8 @@ export function GenerateContentModal({ projectSlug, project, initialHint, initia
                     />
                   </div>
 
-                  {/* Imagen (sólo si no es text_post) */}
-                  {autoContentType !== "text_post" && (
+                  {/* Imagen (sólo si no es text_post ni reel) */}
+                  {autoContentType !== "text_post" && autoContentType !== "reel" && (
                     <div>
                       <label className="block text-sm font-medium mb-2" style={{ color: "#d1d5db" }}>
                         Imagen
@@ -398,10 +405,19 @@ export function GenerateContentModal({ projectSlug, project, initialHint, initia
                     </div>
                   )}
 
+                  {/* Reel — auto generation not supported */}
+                  {autoContentType === "reel" && (
+                    <div className="p-4 rounded-md" style={{ backgroundColor: "#1c1917", border: "1px solid #44403c" }}>
+                      <p className="text-sm" style={{ color: "#a8a29e" }}>
+                        🎬 Los Reels requieren video. Usa la pestaña <strong className="text-white">Manual</strong> para subir tu video.
+                      </p>
+                    </div>
+                  )}
+
                   {/* Generar button */}
                   <button
                     onClick={handleAuto}
-                    disabled={loading}
+                    disabled={loading || autoContentType === "reel"}
                     className="w-full flex items-center justify-center gap-2 px-4 py-3 bg-purple-700 text-white text-sm font-medium rounded-lg hover:bg-purple-800 disabled:opacity-50 transition-colors"
                   >
                     {loading ? (
@@ -476,6 +492,63 @@ export function GenerateContentModal({ projectSlug, project, initialHint, initia
                           />
                         </div>
                       ))}
+                    </div>
+                  </>
+                ) : contentType === "reel" ? (
+                  <>
+                    <label className="block text-sm font-medium mb-2" style={{ color: "#d1d5db" }}>
+                      Subir video <span className="font-normal" style={{ color: "#9ca3af" }}>(.mp4 / .mov)</span>
+                    </label>
+                    {reelFileError && (
+                      <p className="text-xs text-amber-400 mb-2">{reelFileError}</p>
+                    )}
+                    <ImageUploadZone
+                      projectSlug={projectSlug}
+                      token={token}
+                      onUpload={(url) => { setVideoUrl(url); setReelFileError(null); }}
+                      currentUrl={videoUrl}
+                      allowedMimeTypes={["video/mp4", "video/quicktime"]}
+                      acceptLabel="MP4, MOV · max 50MB"
+                      dropLabel="Drop video here or click to browse"
+                      onRejected={(file) => {
+                        if (file.type.startsWith("image/")) {
+                          setReelFileError("Los Reels requieren video. Por favor sube un archivo MP4 o MOV.");
+                        } else {
+                          setReelFileError("Formato no soportado. Por favor sube un archivo MP4 o MOV.");
+                        }
+                      }}
+                    />
+                  </>
+                ) : contentType === "story_vertical" ? (
+                  <>
+                    <label className="block text-sm font-medium mb-2" style={{ color: "#d1d5db" }}>
+                      Archivo de historia
+                    </label>
+                    <div className="grid grid-cols-2 gap-3">
+                      <div>
+                        <p className="text-xs font-medium mb-1" style={{ color: "#d1d5db" }}>Subir video <span style={{ color: "#9ca3af" }}>(recomendado)</span></p>
+                        <ImageUploadZone
+                          projectSlug={projectSlug}
+                          token={token}
+                          onUpload={(url) => { setVideoUrl(url); }}
+                          currentUrl={videoUrl}
+                          allowedMimeTypes={["video/mp4", "video/quicktime"]}
+                          acceptLabel="MP4, MOV · max 50MB"
+                          dropLabel="Drop video here or click to browse"
+                        />
+                      </div>
+                      <div>
+                        <p className="text-xs font-medium mb-1" style={{ color: "#d1d5db" }}>Subir imagen <span style={{ color: "#9ca3af" }}>(se convertirá a video al publicar)</span></p>
+                        <ImageUploadZone
+                          projectSlug={projectSlug}
+                          token={token}
+                          onUpload={(url) => { setImageUrl(url); }}
+                          currentUrl={imageUrl}
+                          allowedMimeTypes={["image/jpeg", "image/png", "image/webp"]}
+                          acceptLabel="JPG, PNG, WebP · max 50MB"
+                          dropLabel="Drop image here or click to browse"
+                        />
+                      </div>
                     </div>
                   </>
                 ) : (
