@@ -705,15 +705,29 @@ async def _publish_post_to_meta(post: ContentPost, project: Project, db: AsyncSe
         ig_error: Exception | None = None
         fb_error: Exception | None = None
 
+        is_story = post.format == "story_vertical"
+
         # Publish to Instagram (independent — errors are captured, not raised)
         if project.instagram_account_id and publish_image_urls:
             logger.info(
-                "Post %s: attempting Instagram publish to account %s (%d image(s))",
-                post.id, project.instagram_account_id, len(publish_image_urls),
+                "Post %s: attempting Instagram %s publish to account %s (%d image(s))",
+                post.id, "story" if is_story else "post", project.instagram_account_id, len(publish_image_urls),
             )
             try:
                 ig_service = InstagramService(meta_client)
-                if len(publish_image_urls) > 1:
+                if is_story:
+                    # Stories: single image, no caption — use first image only
+                    container = await ig_service.create_story_container(
+                        project.instagram_account_id, publish_image_urls[0]
+                    )
+                    creation_id = container.get("id")
+                    if creation_id:
+                        await ig_service.wait_for_container(creation_id)
+                        published = await ig_service.publish_media(project.instagram_account_id, creation_id)
+                        instagram_media_id = published.get("id")
+                    else:
+                        logger.warning("Post %s: Instagram story container returned no id", post.id)
+                elif len(publish_image_urls) > 1:
                     instagram_media_id = await ig_service.publish_carousel(
                         project.instagram_account_id, publish_image_urls, caption
                     )
@@ -742,7 +756,11 @@ async def _publish_post_to_meta(post: ContentPost, project: Project, db: AsyncSe
             )
 
         # Publish to Facebook Page (independent — 403 is non-blocking)
-        if project.facebook_page_id:
+        # story_vertical posts are skipped on Facebook — Stories API is not
+        # generally available via the Graph API for Pages.
+        if is_story:
+            logger.info("Post %s: skipping Facebook publish for story_vertical content type", post.id)
+        elif project.facebook_page_id:
             logger.info(
                 "Post %s: attempting Facebook publish to page %s (%d image(s))",
                 post.id, project.facebook_page_id, len(publish_image_urls),
@@ -784,8 +802,8 @@ async def _publish_post_to_meta(post: ContentPost, project: Project, db: AsyncSe
                 error_message=str(ig_error) if ig_error else None,
             )
 
-        # Audit log — Facebook result
-        if project.facebook_page_id:
+        # Audit log — Facebook result (skipped for story_vertical)
+        if not is_story and project.facebook_page_id:
             from app.services.meta.audit import log_meta_operation
             await log_meta_operation(
                 db=db,

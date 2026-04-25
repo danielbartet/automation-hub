@@ -323,6 +323,7 @@ interface ContentPost {
   id: number;
   caption: string;
   status: "pending_approval" | "published" | "draft" | "approved" | "rejected";
+  format?: string;
   image_url?: string;
   image_urls?: string | string[];
   video_url?: string;
@@ -604,11 +605,11 @@ export default function ContentPage() {
                         <img
                           src={post.image_url}
                           alt="thumbnail"
-                          className="h-12 w-12 object-cover rounded-md"
+                          className={`object-cover rounded-md ${post.format === "story_vertical" ? "h-[85px] w-12 aspect-[9/16]" : "h-12 w-12"}`}
                           style={{ border: "1px solid #333333" }}
                         />
                       ) : (
-                        <div className="h-12 w-12 rounded-md flex items-center justify-center" style={{ backgroundColor: "#1a1a1a" }}>
+                        <div className={`rounded-md flex items-center justify-center ${post.format === "story_vertical" ? "h-[85px] w-12" : "h-12 w-12"}`} style={{ backgroundColor: "#1a1a1a" }}>
                           <FileText className="h-5 w-5" style={{ color: "#6b7280" }} />
                         </div>
                       )}

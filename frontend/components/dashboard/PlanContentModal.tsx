@@ -432,9 +432,11 @@ export function PlanContentModal({
               className="w-full rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-[#7c3aed]"
               style={inputStyle}
             >
-              <option value="carousel_6_slides">Carousel (6 slides)</option>
-              <option value="single_image">Single Image</option>
-              <option value="text_post">Text Post</option>
+              <option value="carousel_6_slides">Carousel</option>
+              <option value="single_image">Imagen sola</option>
+              <option value="story_vertical">Historia vertical</option>
+              <option value="reel">Reel</option>
+              <option value="text_post">Text post</option>
             </select>
           </div>
 

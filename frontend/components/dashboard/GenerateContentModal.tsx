@@ -26,12 +26,14 @@ interface GenerateContentModalProps {
   onSuccess: () => void;
 }
 
-type ContentType = "carousel_6_slides" | "single_image" | "text_post";
+type ContentType = "carousel_6_slides" | "single_image" | "story_vertical" | "reel" | "text_post";
 type ImageMode = "auto" | "placeholder";
 
 const CONTENT_TYPES: { value: ContentType; label: string; emoji: string }[] = [
-  { value: "carousel_6_slides", label: "Carousel 6 slides", emoji: "📊" },
+  { value: "carousel_6_slides", label: "Carousel", emoji: "📊" },
   { value: "single_image", label: "Imagen sola", emoji: "🖼" },
+  { value: "story_vertical", label: "Historia vertical", emoji: "📱" },
+  { value: "reel", label: "Reel", emoji: "🎬" },
   { value: "text_post", label: "Text post", emoji: "📝" },
 ];
 
@@ -43,6 +45,8 @@ const IMAGE_MODES: { value: ImageMode; label: string; emoji: string }[] = [
 const SPINNER_LABELS: Record<ContentType, string> = {
   carousel_6_slides: "Generando carousel...",
   single_image: "Generando imagen...",
+  story_vertical: "Generando historia...",
+  reel: "Generando reel...",
   text_post: "Generando post...",
 };
 
@@ -68,7 +72,7 @@ export function GenerateContentModal({ projectSlug, project, initialHint, initia
 
   // Sync initial values from props (handles cases where props arrive after first render)
   useEffect(() => {
-    const validTypes: ContentType[] = ["carousel_6_slides", "single_image", "text_post"];
+    const validTypes: ContentType[] = ["carousel_6_slides", "single_image", "story_vertical", "reel", "text_post"];
     if (initialContentType && validTypes.includes(initialContentType as ContentType)) {
       setAutoContentType(initialContentType as ContentType);
     }
@@ -446,9 +450,11 @@ export function GenerateContentModal({ projectSlug, project, initialHint, initia
                     className="w-full rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-[#7c3aed] text-white"
                     style={{ border: "1px solid #333333", backgroundColor: "#1a1a1a" }}
                   >
-                    <option value="carousel_6_slides">Carousel (6 slides)</option>
-                    <option value="single_image">Single Image</option>
-                    <option value="text_post">Text Post</option>
+                    <option value="carousel_6_slides">Carousel</option>
+                    <option value="single_image">Imagen sola</option>
+                    <option value="story_vertical">Historia vertical</option>
+                    <option value="reel">Reel</option>
+                    <option value="text_post">Text post</option>
                   </select>
                 </div>
               </div>
