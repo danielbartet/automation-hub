@@ -30,7 +30,7 @@ class InstagramService:
         """
         return await self.client.post(
             f"/{ig_account_id}/media",
-            {"image_url": image_url, "media_type": "IMAGE"},
+            {"image_url": image_url, "media_type": "IMAGE", "media_product_type": "STORY"},
         )
 
     async def create_carousel_item(self, ig_account_id: str, image_url: str) -> dict:
