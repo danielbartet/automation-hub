@@ -1,16 +1,15 @@
 "use client";
 
-import { useEffect, useState, useCallback, useRef } from "react";
+import { useEffect, useState, useCallback } from "react";
 import { useSession } from "next-auth/react";
 import { useSearchParams } from "next/navigation";
 import { Header } from "@/components/layout/Header";
 import { fetchContent, importFromMeta, updateContent, deleteContentPost } from "@/lib/api";
 import { useProject } from "@/lib/project-context";
-import { PlusCircle, FileText, Loader2, Pencil, Trash2, Video, Image, ChevronDown, Upload, X } from "lucide-react";
+import { PlusCircle, FileText, Loader2, Pencil, Trash2, Video, Image, Upload, X } from "lucide-react";
 import { GenerateContentModal } from "@/components/dashboard/GenerateContentModal";
 import { EditContentModal } from "@/components/dashboard/EditContentModal";
 import { ImageGeneratorModal } from "@/components/dashboard/ImageGeneratorModal";
-import { ImageUploadZone } from "@/components/dashboard/ImageUploadZone";
 import { useT } from "@/lib/i18n";
 
 const API_BASE = process.env.NEXT_PUBLIC_API_URL ?? "http://localhost:8000";
@@ -186,138 +185,6 @@ function ReelModal({ post, projectSlug, onClose, onSuccess }: ReelModalProps) {
   );
 }
 
-// ── StoryCreatorModal ─────────────────────────────────────────────────────────
-
-interface StoryCreatorModalProps {
-  projectSlug: string;
-  onClose: () => void;
-  onSuccess: () => void;
-}
-
-function StoryCreatorModal({ projectSlug, onClose, onSuccess }: StoryCreatorModalProps) {
-  const t = useT();
-  const { data: storySession } = useSession();
-  const storyToken = (storySession as any)?.accessToken as string | undefined;
-  const [imageUrl, setImageUrl] = useState("");
-  const [textOverlay, setTextOverlay] = useState("");
-  const [scheduledAt, setScheduledAt] = useState("");
-  const [loading, setLoading] = useState(false);
-  const [error, setError] = useState<string | null>(null);
-
-  const handlePublish = async () => {
-    if (!imageUrl) {
-      setError(t.story_error_image_required);
-      return;
-    }
-    setLoading(true);
-    setError(null);
-    try {
-      const body: Record<string, unknown> = { image_url: imageUrl };
-      if (textOverlay.trim()) body.text_overlay = textOverlay.trim();
-      if (scheduledAt) body.scheduled_at = scheduledAt;
-
-      const res = await fetch(`${API_BASE}/api/v1/content/create-story/${projectSlug}`, {
-        method: "POST",
-        headers: { "Content-Type": "application/json", ...(storyToken ? { Authorization: `Bearer ${storyToken}` } : {}) },
-        body: JSON.stringify(body),
-      });
-
-      if (!res.ok) {
-        const err = await res.json().catch(() => ({}));
-        throw new Error((err as { detail?: string }).detail || t.story_error_publish);
-      }
-
-      onSuccess();
-      onClose();
-    } catch (e) {
-      setError(e instanceof Error ? e.message : t.story_error_publish);
-    } finally {
-      setLoading(false);
-    }
-  };
-
-  return (
-    <div className="fixed inset-0 bg-black/70 flex items-center justify-center z-50 p-4">
-      <div className="rounded-xl shadow-xl w-full max-w-md" style={{ backgroundColor: "#111111", border: "1px solid #222222" }}>
-        <div className="flex items-center justify-between p-5" style={{ borderBottom: "1px solid #222222" }}>
-          <h2 className="text-base font-semibold text-white">{t.story_modal_title}</h2>
-          <button onClick={onClose} className="p-1 rounded-md transition-colors" style={{ color: "#9ca3af" }} onMouseEnter={e => (e.currentTarget.style.backgroundColor = "#1f1f1f")} onMouseLeave={e => (e.currentTarget.style.backgroundColor = "transparent")}>
-            <X className="h-4 w-4" />
-          </button>
-        </div>
-
-        <div className="p-5 space-y-4">
-          <div>
-            <label className="block text-sm font-medium mb-2" style={{ color: "#d1d5db" }}>
-              {t.story_image_label} <span className="text-xs font-normal" style={{ color: "#9ca3af" }}>{t.story_image_ratio_hint}</span>
-            </label>
-            <ImageUploadZone
-              projectSlug={projectSlug}
-              token={storyToken}
-              onUpload={setImageUrl}
-              currentUrl={imageUrl}
-            />
-          </div>
-
-          <div>
-            <label className="block text-sm font-medium mb-1" style={{ color: "#d1d5db" }}>
-              {t.story_text_label}
-            </label>
-            <textarea
-              value={textOverlay}
-              onChange={e => setTextOverlay(e.target.value)}
-              rows={2}
-              className="w-full rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-[#7c3aed] text-white placeholder-gray-500"
-              style={{ border: "1px solid #333333", backgroundColor: "#1a1a1a" }}
-              placeholder={t.story_text_placeholder}
-            />
-          </div>
-
-          <div>
-            <label className="block text-sm font-medium mb-1" style={{ color: "#d1d5db" }}>
-              {t.story_schedule_label}
-            </label>
-            <input
-              type="datetime-local"
-              value={scheduledAt}
-              onChange={e => setScheduledAt(e.target.value)}
-              className="w-full rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-[#7c3aed] text-white"
-              style={{ border: "1px solid #333333", backgroundColor: "#1a1a1a" }}
-            />
-          </div>
-
-          <p className="text-xs rounded-lg p-3" style={{ color: "#9ca3af", backgroundColor: "#0d0d0d" }}>
-            {t.story_note}
-          </p>
-
-          {error && (
-            <div className="p-3 rounded-lg text-sm text-red-400" style={{ backgroundColor: "#450a0a", border: "1px solid #7f1d1d" }}>
-              {error}
-            </div>
-          )}
-
-          <button
-            onClick={handlePublish}
-            disabled={!imageUrl || loading}
-            className="w-full flex items-center justify-center gap-2 py-2 text-white text-sm font-medium rounded-lg disabled:opacity-50 transition-colors"
-            style={{ backgroundColor: "#7c3aed" }}
-            onMouseEnter={e => (e.currentTarget.style.backgroundColor = "#6d28d9")}
-            onMouseLeave={e => (e.currentTarget.style.backgroundColor = "#7c3aed")}
-          >
-            {loading ? (
-              <>
-                <Loader2 className="h-4 w-4 animate-spin" />
-                {t.story_publishing}
-              </>
-            ) : (
-              t.story_publish_btn
-            )}
-          </button>
-        </div>
-      </div>
-    </div>
-  );
-}
 
 interface ContentPost {
   id: number;
@@ -383,9 +250,6 @@ export default function ContentPage() {
   const [videoResults] = useState<Record<number, { video_url: string; credits_remaining: number }>>({});
   const [imageGenPost, setImageGenPost] = useState<ContentPost | null>(null);
   const [reelPost, setReelPost] = useState<ContentPost | null>(null);
-  const [showStoryModal, setShowStoryModal] = useState(false);
-  const [showGenerateDropdown, setShowGenerateDropdown] = useState(false);
-  const generateDropdownRef = useRef<HTMLDivElement>(null);
   const [importingMeta, setImportingMeta] = useState(false);
   const [toast, setToast] = useState<{ type: "success" | "error"; message: string } | null>(null);
 
@@ -441,15 +305,6 @@ export default function ContentPage() {
     }
   }, [pendingHint, selectedProjectSlug, loadingProjects]);
 
-  useEffect(() => {
-    const handler = (e: MouseEvent) => {
-      if (generateDropdownRef.current && !generateDropdownRef.current.contains(e.target as Node)) {
-        setShowGenerateDropdown(false);
-      }
-    };
-    document.addEventListener("mousedown", handler);
-    return () => document.removeEventListener("mousedown", handler);
-  }, []);
 
 
   const filtered =
@@ -489,9 +344,8 @@ export default function ContentPage() {
                 )}
                 {t.content_import_from_meta}
               </button>
-              <div ref={generateDropdownRef} className="relative">
-                <button
-                  onClick={() => setShowGenerateDropdown(prev => !prev)}
+              <button
+                  onClick={() => setShowModal(true)}
                   disabled={!selectedProjectSlug}
                   className="inline-flex items-center gap-2 px-4 py-2 text-white text-sm font-medium rounded-md disabled:opacity-50 disabled:cursor-not-allowed transition-colors"
                   style={{ backgroundColor: "#7c3aed" }}
@@ -500,49 +354,7 @@ export default function ContentPage() {
                 >
                   <PlusCircle className="h-4 w-4" />
                   {t.content_generate_new}
-                  <ChevronDown className="h-3.5 w-3.5 ml-0.5" />
                 </button>
-                {showGenerateDropdown && (
-                  <div className="absolute right-0 mt-1 w-64 rounded-lg shadow-lg z-20 py-1 text-sm" style={{ backgroundColor: "#111111", border: "1px solid #222222" }}>
-                    <button
-                      onClick={() => { setShowModal(true); setShowGenerateDropdown(false); }}
-                      className="w-full text-left px-4 py-2.5 flex items-center gap-2 transition-colors"
-                      style={{ color: "#ffffff" }}
-                      onMouseEnter={e => (e.currentTarget.style.backgroundColor = "#1a1a1a")}
-                      onMouseLeave={e => (e.currentTarget.style.backgroundColor = "transparent")}
-                    >
-                      <span>✨</span>
-                      <div>
-                        <p className="font-medium text-white">{t.content_dropdown_content_title}</p>
-                        <p className="text-xs" style={{ color: "#9ca3af" }}>{t.content_dropdown_content_subtitle}</p>
-                      </div>
-                    </button>
-                    <button
-                      onClick={() => { setShowStoryModal(true); setShowGenerateDropdown(false); }}
-                      className="w-full text-left px-4 py-2.5 flex items-center gap-2 transition-colors"
-                      onMouseEnter={e => (e.currentTarget.style.backgroundColor = "#1a1a1a")}
-                      onMouseLeave={e => (e.currentTarget.style.backgroundColor = "transparent")}
-                    >
-                      <span>📖</span>
-                      <div>
-                        <p className="font-medium text-white">{t.content_dropdown_story_title}</p>
-                        <p className="text-xs" style={{ color: "#9ca3af" }}>{t.content_dropdown_story_subtitle}</p>
-                      </div>
-                    </button>
-                    <button
-                      onClick={() => { setShowGenerateDropdown(false); }}
-                      className="w-full text-left px-4 py-2.5 flex items-center gap-2 cursor-default"
-                      style={{ color: "#6b7280" }}
-                    >
-                      <span>🎬</span>
-                      <div>
-                        <p className="font-medium">{t.content_dropdown_reel_title}</p>
-                        <p className="text-xs">{t.content_dropdown_reel_subtitle}</p>
-                      </div>
-                    </button>
-                  </div>
-                )}
-              </div>
             </div>
           )}
         </div>
@@ -789,18 +601,6 @@ export default function ContentPage() {
           onSuccess={() => {
             showToast("success", t.content_toast_reel_sent);
             setReelPost(null);
-            loadContent();
-          }}
-        />
-      )}
-
-      {showStoryModal && selectedProjectSlug && (
-        <StoryCreatorModal
-          projectSlug={selectedProjectSlug}
-          onClose={() => setShowStoryModal(false)}
-          onSuccess={() => {
-            showToast("success", t.content_toast_story_published);
-            setShowStoryModal(false);
             loadContent();
           }}
         />
