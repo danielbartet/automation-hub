@@ -50,6 +50,52 @@ const SPINNER_LABELS: Record<ContentType, string> = {
   text_post: "Generando post...",
 };
 
+const COPY_TIPS: Partial<Record<ContentType, string[]>> = {
+  story_vertical: [
+    "Empezá con una pregunta o dato sorpresivo",
+    "Usá texto grande y contraste alto",
+    "Máximo 7 palabras por slide",
+    "Terminá con un CTA claro o swipe-up",
+  ],
+  carousel_6_slides: [
+    "Slide 1 = hook fuerte (parar el scroll)",
+    "Slide final = CTA claro",
+    "Mantené consistencia visual entre slides",
+    "Cada slide debe tener una sola idea",
+  ],
+  single_image: [
+    "Una sola idea central por imagen",
+    "Copy conciso, máximo 2 líneas visibles",
+    "El visual debe funcionar sin leer el texto",
+  ],
+  text_post: [
+    "Empezá con gancho en la primera línea",
+    "Usá saltos de línea para mejorar la lectura",
+    "Usá emojis con moderación",
+    "Terminá con una pregunta para generar comentarios",
+  ],
+};
+
+function CopyTips({ contentType }: { contentType: ContentType }) {
+  const tips = COPY_TIPS[contentType];
+  if (!tips || tips.length === 0) return null;
+  return (
+    <div className="rounded-md px-4 py-3" style={{ backgroundColor: "#12101e", border: "1px solid #2d2a4a" }}>
+      <p className="text-xs font-semibold mb-2 flex items-center gap-1.5" style={{ color: "#a78bfa" }}>
+        💡 Recomendaciones de copy
+      </p>
+      <ul className="space-y-1">
+        {tips.map((tip) => (
+          <li key={tip} className="text-xs flex items-start gap-1.5" style={{ color: "#c4b5fd" }}>
+            <span className="mt-0.5 shrink-0" style={{ color: "#6d28d9" }}>›</span>
+            {tip}
+          </li>
+        ))}
+      </ul>
+    </div>
+  );
+}
+
 export function GenerateContentModal({ projectSlug, project, initialHint, initialContentType, initialCategory, onClose, onSuccess }: GenerateContentModalProps) {
   const { data: session } = useSession();
   const t = useT();
@@ -412,6 +458,20 @@ export function GenerateContentModal({ projectSlug, project, initialHint, initia
                         🎬 Los Reels requieren video. Usa la pestaña <strong className="text-white">Manual</strong> para subir tu video.
                       </p>
                     </div>
+                  )}
+
+                  {/* Story vertical — clarify AI generation path */}
+                  {autoContentType === "story_vertical" && (
+                    <div className="p-3 rounded-md" style={{ backgroundColor: "#0c1a2e", border: "1px solid #1e3a5f" }}>
+                      <p className="text-sm" style={{ color: "#93c5fd" }}>
+                        📱 Claude generará una historia vertical con imagen de 9:16. Si preferís subir tu propio archivo, usá la pestaña <strong className="text-white">Manual</strong>.
+                      </p>
+                    </div>
+                  )}
+
+                  {/* Recomendaciones de copy */}
+                  {autoContentType !== "reel" && (
+                    <CopyTips contentType={autoContentType} />
                   )}
 
                   {/* Generar button */}
